@@ -733,12 +733,22 @@ describe('extractImpactedFiles — Dev batching input', () => {
 
   test('recognizes every supported extension', () => {
     const plan = [
-      '`a.ts`', '`b.tsx`', '`c.js`', '`d.jsx`', '`e.css`', '`f.json`', '`g.yaml`', '`h.yml`', '`i.md`',
+      '`a.ts`', '`b.tsx`', '`c.js`', '`d.jsx`', '`e.mjs`', '`f2.cjs`', '`e.css`', '`f.json`', '`g.yaml`', '`h.yml`', '`i.md`',
     ].join(' ');
     assert.deepEqual(
       extractImpactedFiles(plan),
-      ['a.ts', 'b.tsx', 'c.js', 'd.jsx', 'e.css', 'f.json', 'g.yaml', 'h.yml', 'i.md']
+      ['a.ts', 'b.tsx', 'c.js', 'd.jsx', 'e.mjs', 'f2.cjs', 'e.css', 'f.json', 'g.yaml', 'h.yml', 'i.md']
     );
+  });
+
+  test('.mjs/.cjs impacted files are counted for Dev batching', () => {
+    // Found live: a technical plan whose impacted files were all .mjs
+    // (this repo's own detector modules) used to extract as an empty list
+    // — allPlannedFiles.length was 0, never > devFileBatchSize, so Dev
+    // batching never triggered no matter how many .mjs files the plan
+    // actually listed.
+    const plan = Array.from({ length: 11 }, (_, i) => `\`test/detectors/mod${i}.test.mjs\``).join('\n');
+    assert.equal(extractImpactedFiles(plan).length, 11);
   });
 });
 

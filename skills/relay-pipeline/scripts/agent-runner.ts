@@ -584,7 +584,15 @@ function trimContextForPrompt(ctxData: string): string {
 // batch planning in main() (splitting a large file list across calls).
 function extractImpactedFiles(techPlan: string): string[] {
   if (!techPlan) return [];
-  const fileRefPattern = /`([a-zA-Z0-9_./@()/-]+\.(?:ts|tsx|js|jsx|css|json|yaml|yml|md))`/g;
+  // Found live while dogfooding: no .mjs/.cjs here meant a feature whose
+  // impacted files were all .mjs (this repo's own detector modules) had
+  // extractImpactedFiles return an empty list — allPlannedFiles.length was
+  // 0, which is never > devFileBatchSize, so Dev batching never triggered
+  // regardless of how many files the plan actually listed. Dev then
+  // attempted all 11 files' complete content in one call, risking exactly
+  // the output-token-ceiling failure Dev batching exists to prevent (the
+  // same failure mode already found and fixed for Architect).
+  const fileRefPattern = /`([a-zA-Z0-9_./@()/-]+\.(?:ts|tsx|js|jsx|mjs|cjs|css|json|yaml|yml|md))`/g;
   const fileRefSet = new Set<string>();
   let m: RegExpExecArray | null;
   while ((m = fileRefPattern.exec(techPlan)) !== null) {
