@@ -36,7 +36,7 @@
     "apiKeyEnv": "OPENROUTER_API_KEY",
     "model": "unused-claude-cli-backend",
     "refererUrl": "https://github.com/arnaudmanaranche/relay",
-    "maxBudgetUsd": 1.0
+    "maxBudgetUsd": 3.0
   },
   "sourceDirs": ["skills", "test"],
   "skipDirs": ["node_modules", "dist", "build", ".git"],
