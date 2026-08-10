@@ -741,6 +741,31 @@ describe('extractImpactedFiles — Dev batching input', () => {
     );
   });
 
+  test('scopes extraction to the Impacted Files section, ignoring prose mentions and out-of-scope files', () => {
+    // Found live: a real plan's Architecture paragraph mentioned existing
+    // files for comparison ("mirrors `existing.ts`"), and its Impacted
+    // Files section was immediately followed by an out-of-scope sub-list —
+    // both used to be counted as impacted, turning ~11 real files into 52.
+    const plan = `
+## Architecture
+
+This mirrors the existing \`existing-a.ts\` ↔ \`existing-b.ts\` pattern.
+
+## Impacted Files
+
+- \`src/real-one.ts\` — new
+- \`src/real-two.mjs\` — new
+
+**Explicitly out of scope / do not modify:**
+- \`src/do-not-touch.ts\`
+
+## Existing Patterns To Reuse
+
+- \`existing-c.ts\` — follow this convention
+`;
+    assert.deepEqual(extractImpactedFiles(plan), ['src/real-one.ts', 'src/real-two.mjs']);
+  });
+
   test('.mjs/.cjs impacted files are counted for Dev batching', () => {
     // Found live: a technical plan whose impacted files were all .mjs
     // (this repo's own detector modules) used to extract as an empty list

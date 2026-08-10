@@ -593,9 +593,39 @@ function extractImpactedFiles(techPlan: string): string[] {
   // the output-token-ceiling failure Dev batching exists to prevent (the
   // same failure mode already found and fixed for Architect).
   const fileRefPattern = /`([a-zA-Z0-9_./@()/-]+\.(?:ts|tsx|js|jsx|mjs|cjs|css|json|yaml|yml|md))`/g;
+
+  // Scope to the "Impacted files" section only, not the whole document.
+  // Found live right after the .mjs fix above: a real technical plan's
+  // Architecture/Diagram/Existing-patterns/Risks prose casually
+  // backtick-quotes plenty of EXISTING file paths for comparison (e.g.
+  // "mirrors the existing `agent-runner.test.ts` ↔ `agent-runner.ts`
+  // mapping") — scanning the whole document counted those as impacted
+  // files too, inflating one real plan's actual ~11 impacted files into
+  // 52 detected, which turned 2 Dev batches into 9. Matches either the
+  // Architect prompt's own heading wording (`## Impacted Files` or
+  // `**Impacted files**`) and stops at the next heading, or — within that
+  // section — at an "out of scope / do not modify" sub-list, since a plan
+  // legitimately lists files Dev must NOT touch right after the ones it
+  // must.
+  const headingMatch = techPlan.match(/#{2,4}\s*impacted files|\*\*impacted files\*\*/i);
+  let scope = techPlan;
+  if (headingMatch && typeof headingMatch.index === 'number') {
+    const afterHeading = techPlan.slice(headingMatch.index + headingMatch[0].length);
+    const nextHeadingMatch = afterHeading.match(/\n#{2,4}\s/);
+    scope = nextHeadingMatch
+      ? afterHeading.slice(0, nextHeadingMatch.index)
+      : afterHeading;
+    const outOfScopeMatch = scope.match(
+      /\*\*[^*\n]*(out of scope|do not modify|do not touch|avoid touching)[^*\n]*\*\*/i
+    );
+    if (outOfScopeMatch && typeof outOfScopeMatch.index === 'number') {
+      scope = scope.slice(0, outOfScopeMatch.index);
+    }
+  }
+
   const fileRefSet = new Set<string>();
   let m: RegExpExecArray | null;
-  while ((m = fileRefPattern.exec(techPlan)) !== null) {
+  while ((m = fileRefPattern.exec(scope)) !== null) {
     const p = m[1];
     // Skip template paths and .ai artifact paths — those are not source files
     if (!p.startsWith('.ai/') && !p.includes('{')) fileRefSet.add(p);
