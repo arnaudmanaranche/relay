@@ -1339,7 +1339,8 @@ const CLAUDE_CLI_RETRYABLE_TERMINAL_REASONS = new Set([
 
 type ClaudeCliEvaluation =
   | { status: 'success'; result: AgentResult }
-  | { status: 'retry'; reason: string };
+  | { status: 'retry'; reason: string }
+  | { status: 'fatal'; reason: string };
 
 // Pure decision logic for a single `claude -p ... --output-format json`
 // invocation's parsed stdout — separated from callLlmViaClaudeCli's
@@ -1350,10 +1351,30 @@ function evaluateClaudeCliResult(
   role: string,
   slug: string
 ): ClaudeCliEvaluation {
-  if (data.is_error || CLAUDE_CLI_RETRYABLE_TERMINAL_REASONS.has(data.terminal_reason)) {
+  // `data.is_error` alone used to trigger a retry regardless of
+  // `terminal_reason`, which silently made CLAUDE_CLI_RETRYABLE_TERMINAL_REASONS
+  // meaningless — every error retried, including permanently fatal ones.
+  // Found live: a role that legitimately needs more than `llm.maxBudgetUsd`
+  // hit `terminal_reason: 'budget_exhausted'` and got retried 2 more times
+  // anyway, each attempt free to spend up to the same budget again before
+  // failing the same way — up to 3x the configured cap burned for a
+  // deterministically repeatable failure. Only the specific reasons in the
+  // allowlist are transient; everything else `is_error` reports is fatal
+  // and should stop immediately, not retry blind.
+  if (CLAUDE_CLI_RETRYABLE_TERMINAL_REASONS.has(data.terminal_reason)) {
     return {
       status: 'retry',
       reason: `claude CLI reported an error (terminal_reason: ${data.terminal_reason}): ${data.result ?? JSON.stringify(data)}`,
+    };
+  }
+  if (data.is_error) {
+    const budgetHint =
+      data.terminal_reason === 'budget_exhausted'
+        ? ` Raise llm.maxBudgetUsd in .ai/config.json if this role legitimately needs more per call — retrying would hit the same cap again.`
+        : '';
+    return {
+      status: 'fatal',
+      reason: `claude CLI reported a fatal error (terminal_reason: ${data.terminal_reason}): ${data.result ?? JSON.stringify(data)}.${budgetHint}`,
     };
   }
 
@@ -1463,6 +1484,11 @@ async function callLlmViaClaudeCli(
     }
 
     const evaluation = evaluateClaudeCliResult(data, role, slug);
+
+    if (evaluation.status === 'fatal') {
+      console.error(`claude CLI fatal error: ${evaluation.reason}`);
+      process.exit(1);
+    }
 
     if (evaluation.status === 'retry') {
       lastError = evaluation.reason;

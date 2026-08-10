@@ -586,10 +586,29 @@ describe('evaluateClaudeCliResult — claude-cli backend response handling', () 
     }
   });
 
-  test('is_error:true is retryable, not fatal', () => {
+  test('is_error:true with a retryable terminal_reason is retryable', () => {
     const data = { is_error: true, terminal_reason: 'error_during_execution', result: 'boom' };
     const evaluation = evaluateClaudeCliResult(data, 'pm', 'my-feature');
     assert.equal(evaluation.status, 'retry');
+  });
+
+  test('is_error:true with a non-retryable terminal_reason is fatal, not retried', () => {
+    // Found live: budget_exhausted used to fall through the old
+    // `data.is_error || allowlist.has(...)` OR-check and retry blindly —
+    // burning up to llm.maxBudgetUsd again on each of 2 more attempts for a
+    // failure mode that will deterministically repeat. Only the curated
+    // allowlist is transient; every other is_error is fatal.
+    const data = {
+      is_error: true,
+      terminal_reason: 'budget_exhausted',
+      subtype: 'error_max_budget_usd',
+      total_cost_usd: 1.26,
+    };
+    const evaluation = evaluateClaudeCliResult(data, 'pm', 'my-feature');
+    assert.equal(evaluation.status, 'fatal');
+    if (evaluation.status === 'fatal') {
+      assert.match(evaluation.reason, /maxBudgetUsd/);
+    }
   });
 
   test('a retryable terminal_reason is retryable even when is_error is false', () => {
