@@ -51,7 +51,14 @@ export function detectLintCmd(pkg, packageManager) {
   const devDeps = { ...pkg?.devDependencies, ...pkg?.dependencies };
   if (devDeps?.['biome']) return 'biome lint .';
   if (devDeps?.['eslint']) return 'eslint .';
-  return 'eslint .';
+  // Found live: on a project with no lint script and no lint tool as a
+  // dependency, this used to fall back to 'eslint .' anyway — a command
+  // that fails immediately (`eslint: command not found`) the first time
+  // the Dev quality gate runs, for a project that was never set up with
+  // ESLint in the first place. Same "don't guess a command that will fail"
+  // principle as detectTestCmd below — empty means "ask the user", not
+  // "assume everyone uses ESLint".
+  return '';
 }
 
 export function detectTestCmd(pkg, packageManager) {
@@ -79,7 +86,9 @@ export function detectFormatCmd(pkg, packageManager) {
   const devDeps = { ...pkg?.devDependencies, ...pkg?.dependencies };
   if (devDeps?.['biome']) return 'biome format .';
   if (devDeps?.['prettier']) return 'prettier --check .';
-  return 'prettier --check .';
+  // Same reasoning as detectLintCmd's fallback: don't assert a command for
+  // a tool that isn't actually a dependency.
+  return '';
 }
 
 export function detectFormatWriteCmd(pkg, packageManager) {
@@ -91,5 +100,6 @@ export function detectFormatWriteCmd(pkg, packageManager) {
   const devDeps = { ...pkg?.devDependencies, ...pkg?.dependencies };
   if (devDeps?.['biome']) return 'biome format --write .';
   if (devDeps?.['prettier']) return 'prettier --write .';
+  return '';
   return 'prettier --write .';
 }

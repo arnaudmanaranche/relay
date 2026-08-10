@@ -39,11 +39,17 @@ export function detectAppId(pkg, root, projectType) {
   const capacitorJson = readJson(root, 'capacitor.config.json');
   if (capacitorJson?.appId) return capacitorJson.appId;
 
-  // No explicit mobile config found. A bundle-id-shaped fallback like
-  // `com.example.<name>` is meaningless for a webapp — only fabricate one
-  // for mobile/unknown projects, where it's at worst a placeholder for a
-  // field that's actually applicable.
-  if (projectType === 'web') return '';
+  // No explicit mobile config found and no positive mobile signal at all
+  // (if there were one, one of the checks above would already have
+  // returned). A bundle-id-shaped fallback like `com.example.<name>` is
+  // meaningless for anything that isn't actually mobile — only fabricate
+  // one when projectType is confidently 'mobile'. Found live: a plain
+  // library/webapp with projectType 'unknown' (no router, no mobile
+  // framework, no config file) got handed a fabricated
+  // `com.example.<name>` here anyway, contradicting this module's own
+  // documented setup guidance ("unknown — don't assume a default beyond
+  // what detect-stack.mjs returned; ask plainly").
+  if (projectType !== 'mobile') return '';
 
   // Derive from package name
   if (pkg?.name) {

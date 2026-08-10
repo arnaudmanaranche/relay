@@ -523,7 +523,15 @@ if [ -f "$ARTIFACTS_DIR/blocker.md" ]; then
   echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
   exit 1
 fi
-if [ "$(read_verdict)" = "questions" ]; then
+# Read the dev-review role's own status, not the generic last-written one:
+# by this point pm-respond ran most recently (inside the loop, right after
+# dev-review), so the generic .agent-status.json reflects pm-respond's
+# verdict (always something other than "questions"), not dev-review's. Found
+# live: this guard never actually fired after exhausting MAX_LOOPS, because
+# it was silently checking the wrong role's last verdict — the pipeline
+# proceeded to Architect/Dev with genuinely unresolved clarification
+# questions instead of halting for human input.
+if [ "$(read_verdict dev-review)" = "questions" ]; then
   echo "  Unresolved threads after max clarification loops."
   echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
   exit 1

@@ -13,6 +13,7 @@ import {
   existsSync,
   readdirSync,
   mkdirSync,
+  realpathSync,
 } from 'fs';
 import { join, dirname, resolve, sep } from 'path';
 import { pathToFileURL } from 'url';
@@ -942,7 +943,7 @@ Specifically:
 1. **Problem & Goals** — derive from the issue, not generic text
 2. **Acceptance criteria** — testable, numbered, unambiguous. Example: "Given X, when Y, then Z"
 3. **UX / screens** — describe what changes on each screen. Reference existing screens from the directory tree
-4. **i18n** — list every new translation key with \`en\` and \`fr\` values
+4. **i18n** — list every new translation key with a value for each of this project's configured locales (${(CONFIG.stack.locales?.length ? CONFIG.stack.locales : ['en']).map(l => `\`${l}\``).join(', ')}) — do not add locales beyond what's configured, and do not assume every project needs more than one
 5. **Analytics** — pick existing signals from the registry or define new ones with \`(NEW)\` marker
 6. **Paywall** — specify free vs premium behavior per surface
 7. **Technical notes** — list files likely touched based on the directory tree
@@ -967,8 +968,7 @@ This must contain:
 **Impacted files** — exact file paths, one per line, with a one-line description of what changes in each. Be precise:
 - \`app/(tabs)/settings.tsx\` — add new settings row for X
 - \`services/supabase.ts\` — add new query function
-- \`i18n/locales/en.ts\` — add translation keys
-- \`i18n/locales/fr.ts\` — add translation keys
+${(CONFIG.stack.locales?.length ? CONFIG.stack.locales : ['en']).map(l => `- \`${CONFIG.stack.localeDir || 'i18n/locales'}/${l}.ts\` — add translation keys`).join('\n')}
 
 **Existing patterns to reuse** — reference specific components, hooks, or services the Dev should follow
 
@@ -1930,21 +1930,31 @@ Users cannot currently do X, which causes frustration.
     };
   }
   if (role === 'dev-review') {
+    // Test seam: dry-run only. Without this, dev-review's mock always
+    // returns 'questions' with no escape valve — unlike the architect/review
+    // mocks below, which both have one. That made `--dry-run` unable to
+    // rehearse past the clarification loop at all: run-pipeline.sh's own
+    // exhausted-loop guard (correctly, once fixed to check the right
+    // role's verdict — see run-pipeline.sh) halts every dry run right here.
+    const verdict = process.env.RELAY_MOCK_DEV_REVIEW_VERDICT || 'questions';
     return {
       ...base,
-      verdict: 'questions',
-      artifacts: [
-        {
-          path: `${featureDir}/pm-dev-thread.md`,
-          action: 'update',
-          content: `### Thread-1 — Missing AC for edge cases
+      verdict,
+      artifacts:
+        verdict === 'questions'
+          ? [
+              {
+                path: `${featureDir}/pm-dev-thread.md`,
+                action: 'update',
+                content: `### Thread-1 — Missing AC for edge cases
 
 **Status:** Open
 
 **Question:** What happens when the user has no network connection?
 `,
-        },
-      ],
+              },
+            ]
+          : [],
     };
   }
   if (role === 'architect') {
@@ -2374,9 +2384,31 @@ async function main() {
   );
 }
 
+// `import.meta.url` is always a realpath-resolved URL (the ESM loader
+// canonicalizes it internally); `process.argv[1]` is NOT — it's the literal
+// string node was invoked with. Comparing them directly breaks the instant
+// any ancestor directory is a symlink, which is the *default* case on
+// macOS (`/tmp` -> `/private/tmp`, `/var` -> `/private/var`): invoking this
+// script via an absolute path under `/tmp/...` (exactly what run-pipeline.sh
+// does — the worktree lives under `.relay-worktrees`, frequently under a
+// symlinked temp root) makes the two URLs differ, `isMain` silently comes
+// back false, `main()` never runs, and the process exits 0 having done
+// nothing — no console output, no file writes, no error. Found live:
+// every role silently no-op'd end-to-end in a worktree under `/tmp`, and
+// `run-pipeline.sh`'s own gates (commit_stage committing pre-existing
+// scaffold files, a missing verdict defaulting to "proceed") mostly masked
+// it — only the Architect's Mermaid-diagram content check caught it.
+// realpathSync on argv[1] before comparing makes both sides resolve through
+// the same symlinks.
 const isMain =
   process.argv[1] &&
-  pathToFileURL(process.argv[1]).href === import.meta.url;
+  (() => {
+    try {
+      return pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url;
+    } catch {
+      return false;
+    }
+  })();
 
 if (isMain) {
   main().catch(err => {
