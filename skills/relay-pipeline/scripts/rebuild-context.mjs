@@ -44,7 +44,7 @@ function loadConfig(root) {
     return {
       sourceDirs: ['src'],
       skipDirs: ['node_modules', 'dist', 'build'],
-      sourceExtensions: ['.ts', '.tsx', '.js', '.jsx'],
+      sourceExtensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'],
       stack: { router: 'react-router', styling: 'CSS', backend: '' },
     };
   }
@@ -298,7 +298,7 @@ async function main() {
   const root = getRoot();
   const config = loadConfig(root);
   const skipDirs = new Set(config.skipDirs || ['node_modules', 'dist', 'build']);
-  const sourceExts = new Set(config.sourceExtensions || ['.ts', '.tsx', '.js', '.jsx']);
+  const sourceExts = new Set(config.sourceExtensions || ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
   const watchDirs = config.sourceDirs || ['src'];
 
   const previous = loadPreviousContext(root);

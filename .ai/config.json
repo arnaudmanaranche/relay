@@ -39,6 +39,7 @@
     "maxBudgetUsd": 3.0
   },
   "sourceDirs": ["skills", "test"],
+  "sourceExtensions": [".ts", ".mjs"],
   "skipDirs": ["node_modules", "dist", "build", ".git"],
   "providerNesting": []
 }
