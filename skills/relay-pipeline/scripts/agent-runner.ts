@@ -586,12 +586,92 @@ interface DevBatch {
   allPlannedFiles: string[];
 }
 
+// Which half of the Architect's two-artifact job a given call covers. See
+// "Architect splitting" near runArchitectSplit for why this exists.
+type ArchitectPass = 'plan' | 'context';
+
+// Architect's combined technical-plan.md + repository-context.md task, in
+// one call, is exactly the kind of two-large-markdown-documents-in-one-
+// tool-call output that hits a real model's output-token ceiling on a
+// non-trivial feature. Found live: a real technical plan enumerating 11
+// impacted files pushed a single Architect call to 62,691 output tokens
+// against a 64,000 ceiling, and the CLI's own structured-output retry
+// mechanism exhausted 5 attempts trying to get a valid tool call — $1.90
+// spent for zero usable output. `runArchitectSplit` below always runs
+// Architect as two smaller calls instead (plan, then context) — same
+// principle as Dev batching, but unconditional rather than gated by a
+// file-count threshold, since even ONE sufficiently detailed technical
+// plan alone can hit the ceiling.
+function buildArchitectTask(
+  ctx: ReturnType<typeof loadContext>,
+  architectPass: ArchitectPass | undefined
+): string {
+  const planTask = `You are a **senior software architect**. Your job is to produce a precise, actionable technical plan from the approved feature brief.
+
+Read the **Feature brief** and the **Project context** to understand the app's architecture. Study the directory tree and existing code patterns.
+
+Write \`${ctx.featureDir}/technical-plan.md\`.
+
+This must contain:
+
+**Architecture** — one paragraph describing how the feature fits into the existing app structure
+
+**Diagram** — a Mermaid diagram (\`\`\`mermaid fenced block) showing the actual flow: a sequence diagram for a new interaction/API flow, or a component/flowchart diagram for new UI or data flow. This is MANDATORY, not optional prose — the pipeline will reject the plan and retry this stage if no \`\`\`mermaid block is present. Pick whichever diagram type actually represents the feature; do not force a sequence diagram onto something that's purely structural. The Review agent will check the implementation against this diagram, not just against the prose above.
+
+**Impacted files** — exact file paths, one per line, with a one-line description of what changes in each. Be precise:
+- \`app/(tabs)/settings.tsx\` — add new settings row for X
+- \`services/supabase.ts\` — add new query function
+${(CONFIG.stack.locales?.length ? CONFIG.stack.locales : ['en']).map(l => `- \`${CONFIG.stack.localeDir || 'i18n/locales'}/${l}.ts\` — add translation keys`).join('\n')}
+
+**Existing patterns to reuse** — reference specific components, hooks, or services the Dev should follow
+
+**Risks** — things that could go wrong
+
+**Implementation order** — numbered steps in dependency order:
+1. Add i18n keys
+2. Add service function
+3. Add UI component
+4. Wire into navigation
+
+**Testing strategy** — how to verify each acceptance criterion
+
+**Task breakdown** — checkboxes the Dev will work through
+
+IMPORTANT: Do NOT write code. Do NOT leave sections empty or with "TBD". Every section must be actionable.`;
+
+  const contextTask = `You are a **senior software architect**. \`${ctx.featureDir}/technical-plan.md\` has already been written this same Architect run (shown above under "Technical plan (just written this same Architect run)") — do NOT rewrite or modify it.
+
+Your job now is to write the companion artifact: \`${ctx.featureDir}/repository-context.md\`.
+
+This must contain:
+
+**Relevant files** — the subset of files the Dev needs to read to understand existing patterns
+
+**Similar features** — existing features that follow the same pattern, with file paths
+
+**Existing conventions** — forms, validation, API calls, state management, testing patterns the Dev must follow
+
+**Reuse opportunities** — specific components/hooks that can be reused or extended
+
+**Files to avoid touching** — files that are out of scope
+
+IMPORTANT: Do NOT write code. Do NOT leave sections empty or with "TBD". Every section must be actionable. The Dev will implement exactly what you specify. Do NOT re-emit technical-plan.md — only repository-context.md.`;
+
+  if (architectPass === 'context') return contextTask;
+  if (architectPass === 'plan') return planTask;
+  // Unbatched fallback (architectPass unset) — combined single-call
+  // behavior, kept only for callers that don't go through
+  // runArchitectSplit (e.g. a future test exercising the old shape).
+  return `${planTask}\n\nAlso write the companion artifact this same call: \`${ctx.featureDir}/repository-context.md\`, containing:\n\n**Relevant files** — the subset of files the Dev needs to read to understand existing patterns\n\n**Similar features** — existing features that follow the same pattern, with file paths\n\n**Existing conventions** — forms, validation, API calls, state management, testing patterns the Dev must follow\n\n**Reuse opportunities** — specific components/hooks that can be reused or extended\n\n**Files to avoid touching** — files that are out of scope`;
+}
+
 function buildUserPrompt(
   role: string,
   slug: string,
   ctx: ReturnType<typeof loadContext>,
   config: RoleConfig,
-  devBatch?: DevBatch
+  devBatch?: DevBatch,
+  architectPass?: ArchitectPass
 ) {
   const sections: string[] = [];
 
@@ -719,17 +799,35 @@ function buildUserPrompt(
         `## Architecture maps\n\n\`\`\`json\n${trimContextForPrompt(ctxData)}\n\`\`\``
       );
     }
-    const techTmpl = read('skills/relay-pipeline/templates/technical-plan.md');
-    if (techTmpl && !techTmpl.startsWith('[file not found')) {
-      sections.push(
-        `## Technical plan template\n\n\`\`\`markdown\n${techTmpl}\n\`\`\``
-      );
+    // Only load the template for the artifact THIS pass is actually
+    // writing — halves template bulk per call when split, and is a no-op
+    // (both load, as before) when architectPass is unset.
+    if (architectPass !== 'context') {
+      const techTmpl = read('skills/relay-pipeline/templates/technical-plan.md');
+      if (techTmpl && !techTmpl.startsWith('[file not found')) {
+        sections.push(
+          `## Technical plan template\n\n\`\`\`markdown\n${techTmpl}\n\`\`\``
+        );
+      }
     }
-    const repoCmpl = read('skills/relay-pipeline/templates/repository-context.md');
-    if (repoCmpl && !repoCmpl.startsWith('[file not found')) {
-      sections.push(
-        `## Repository context template\n\n\`\`\`markdown\n${repoCmpl}\n\`\`\``
-      );
+    if (architectPass !== 'plan') {
+      const repoCmpl = read('skills/relay-pipeline/templates/repository-context.md');
+      if (repoCmpl && !repoCmpl.startsWith('[file not found')) {
+        sections.push(
+          `## Repository context template\n\n\`\`\`markdown\n${repoCmpl}\n\`\`\``
+        );
+      }
+    }
+    // The context pass runs after the plan pass already wrote
+    // technical-plan.md to disk — read it back so this call can reference
+    // concrete impacted files instead of re-deriving them from scratch.
+    if (architectPass === 'context') {
+      const techPlan = read(`${ctx.featureDir}/technical-plan.md`);
+      if (techPlan && !techPlan.startsWith('[file not found')) {
+        sections.push(
+          `## Technical plan (just written this same Architect run)\n\n\`\`\`markdown\n${techPlan}\n\`\`\``
+        );
+      }
     }
   }
 
@@ -951,54 +1049,7 @@ Specifically:
 9. **Scope** — answer every question from the **Scope checklist** registry in a dedicated "## Scope" section. List what is IN/OUT, entry points, side effects, edge cases, dependencies, data storage, and screens/navigation changes.
 
 IMPORTANT: Output the COMPLETE updated \`feature-brief.md\` in the ## Artifacts section. Do not skip sections. A weak brief wastes everyone's time.`,
-    architect: `You are a **senior software architect**. Your job is to produce a precise, actionable technical plan from the approved feature brief.
-
-Read the **Feature brief** and the **Project context** to understand the app's architecture. Study the directory tree and existing code patterns.
-
-Write or update two artifacts:
-
-### 1. \`${ctx.featureDir}/technical-plan.md\`
-
-This must contain:
-
-**Architecture** — one paragraph describing how the feature fits into the existing app structure
-
-**Diagram** — a Mermaid diagram (\`\`\`mermaid fenced block) showing the actual flow: a sequence diagram for a new interaction/API flow, or a component/flowchart diagram for new UI or data flow. This is MANDATORY, not optional prose — the pipeline will reject the plan and retry this stage if no \`\`\`mermaid block is present. Pick whichever diagram type actually represents the feature; do not force a sequence diagram onto something that's purely structural. The Review agent will check the implementation against this diagram, not just against the prose above.
-
-**Impacted files** — exact file paths, one per line, with a one-line description of what changes in each. Be precise:
-- \`app/(tabs)/settings.tsx\` — add new settings row for X
-- \`services/supabase.ts\` — add new query function
-${(CONFIG.stack.locales?.length ? CONFIG.stack.locales : ['en']).map(l => `- \`${CONFIG.stack.localeDir || 'i18n/locales'}/${l}.ts\` — add translation keys`).join('\n')}
-
-**Existing patterns to reuse** — reference specific components, hooks, or services the Dev should follow
-
-**Risks** — things that could go wrong
-
-**Implementation order** — numbered steps in dependency order:
-1. Add i18n keys
-2. Add service function
-3. Add UI component
-4. Wire into navigation
-
-**Testing strategy** — how to verify each acceptance criterion
-
-**Task breakdown** — checkboxes the Dev will work through
-
-### 2. \`${ctx.featureDir}/repository-context.md\`
-
-This must contain:
-
-**Relevant files** — the subset of files the Dev needs to read to understand existing patterns
-
-**Similar features** — existing features that follow the same pattern, with file paths
-
-**Existing conventions** — forms, validation, API calls, state management, testing patterns the Dev must follow
-
-**Reuse opportunities** — specific components/hooks that can be reused or extended
-
-**Files to avoid touching** — files that are out of scope
-
-IMPORTANT: Do NOT write code. Do NOT leave sections empty or with "TBD". Every section must be actionable. The Dev will implement exactly what you specify.`,
+    architect: buildArchitectTask(ctx, architectPass),
     'dev-review': `Carefully review the feature brief and the current PM ↔ Dev thread. Check for:
 
 1. Missing or ambiguous acceptance criteria
@@ -1335,6 +1386,13 @@ const CLAUDE_CLI_RETRYABLE_TERMINAL_REASONS = new Set([
   'max_turns',
   'error_max_turns',
   'error_during_execution',
+  // Found live: "API Error: Connection closed mid-response" — an
+  // unambiguous transient network failure with no relation to prompt
+  // content or budget, surfaced with terminal_reason 'api_error'. Added
+  // after the is_error-implies-retry fix above (correctly) started
+  // treating it as fatal instead — the fix needed the allowlist widened,
+  // not narrowed further.
+  'api_error',
 ]);
 
 type ClaudeCliEvaluation =
@@ -1908,6 +1966,81 @@ async function runDevBatched(
   };
 }
 
+// Architect splitting — see the comment on buildArchitectTask for why this
+// always runs as two calls (plan, then context) rather than one. Isolated
+// as its own function, dry-run-aware unlike runDevBatched (dry-run never
+// spends anything, so it goes through main()'s existing mockResponse path
+// unchanged — this function is for real, non-mocked calls only, called
+// from main() only when !isDryRun).
+async function runArchitectSplit(
+  slug: string,
+  ctx: ReturnType<typeof loadContext>,
+  config: RoleConfig,
+  systemPrompt: string
+): Promise<AgentResult> {
+  const passes: ArchitectPass[] = ['plan', 'context'];
+  const allArtifacts: ArtifactChange[] = [];
+  const rawParts: string[] = [];
+
+  for (const pass of passes) {
+    console.log(`\n  --- Architect pass: ${pass} ---`);
+
+    // Same reasoning as runDevBatched: a fresh budget check before each
+    // pass, not just once before the role runs.
+    const usageBefore = loadTokenUsage(ctx.featureDir);
+    const budget = CONFIG.project.maxTokensPerFeature;
+    if (isOverBudget(usageBefore, budget)) {
+      console.error(
+        `❌ Token budget exceeded for feature "${slug}" mid-split (pass: ${pass}): ${usageBefore.totalTokens}/${budget} tokens already spent.`
+      );
+      console.error(
+        `   Raise project.maxTokensPerFeature in .ai/config.json, or take over this feature manually.`
+      );
+      process.exit(1);
+    }
+
+    const userPrompt = buildUserPrompt('architect', slug, ctx, config, undefined, pass);
+    const passResult = await callLlm(
+      'architect',
+      slug,
+      config.model,
+      systemPrompt,
+      userPrompt,
+      config.maxTokens,
+      config.effort
+    );
+
+    allArtifacts.push(...passResult.artifacts);
+    rawParts.push(`### Pass: ${pass}\n\n${passResult.raw}`);
+
+    if (typeof passResult.usageTokens === 'number') {
+      const usage = loadTokenUsage(ctx.featureDir);
+      usage.totalTokens += passResult.usageTokens;
+      usage.calls.push({ role: 'architect', tokens: passResult.usageTokens });
+      saveTokenUsage(ctx.featureDir, usage);
+      if (budget && budget > 0) {
+        console.log(
+          `  Cumulative tokens for "${slug}": ${usage.totalTokens}/${budget}`
+        );
+      }
+    }
+
+    // Apply immediately — the 'context' pass reads technical-plan.md back
+    // off disk via buildUserPrompt's normal read() path, exactly as later
+    // Dev batches read back earlier batches' files.
+    applyChanges('architect', [], passResult.artifacts, slug, false);
+  }
+
+  return {
+    files: [],
+    artifacts: allArtifacts,
+    verdict: '',
+    raw: rawParts.join('\n\n'),
+    // Already recorded per-pass above — main() must not double-record.
+    usageTokens: undefined,
+  };
+}
+
 // --- Main ---
 
 function mockResponse(role: string, slug: string): AgentResult {
@@ -2288,7 +2421,7 @@ async function main() {
   const systemPrompt = buildSystemPrompt(role, skillContent);
 
   let result: AgentResult;
-  let devBatched = false;
+  let multiCallHandled = false;
   if (isDryRun) {
     console.log('  DRY RUN — using mock response');
     result = mockResponse(role, slug);
@@ -2314,7 +2447,10 @@ async function main() {
         allPlannedFiles,
         devBatchSize
       );
-      devBatched = true;
+      multiCallHandled = true;
+    } else if (role === 'architect') {
+      result = await runArchitectSplit(slug, ctx, config, systemPrompt);
+      multiCallHandled = true;
     } else {
       const userPrompt = buildUserPrompt(role, slug, ctx, config);
       console.log('  Calling the LLM API...');
@@ -2335,7 +2471,7 @@ async function main() {
   // Batched Dev already recorded its own spend per-batch inside
   // runDevBatched (its abort check needs it up to date between batches) —
   // skip double-recording here.
-  if (!isDryRun && !devBatched && typeof result.usageTokens === 'number') {
+  if (!isDryRun && !multiCallHandled && typeof result.usageTokens === 'number') {
     const usage = loadTokenUsage(ctx.featureDir);
     usage.totalTokens += result.usageTokens;
     usage.calls.push({ role, tokens: result.usageTokens });
@@ -2394,7 +2530,7 @@ async function main() {
 
   // 6. Apply changes (batched Dev already applied each batch as it went —
   // see runDevBatched — so nothing left to do here for that case)
-  if (!devBatched) {
+  if (!multiCallHandled) {
     applyChanges(role, files, artifacts, slug, isDryRun);
   }
 

@@ -611,6 +611,20 @@ describe('evaluateClaudeCliResult — claude-cli backend response handling', () 
     }
   });
 
+  test('a transient network failure (api_error) is retryable, not fatal', () => {
+    // Found live: "API Error: Connection closed mid-response" — a real
+    // mid-stream network drop with no relation to prompt content or
+    // budget. Must stay retryable even though it's a distinct terminal
+    // reason from the original max_turns/error_during_execution set.
+    const data = {
+      is_error: true,
+      terminal_reason: 'api_error',
+      result: 'API Error: Connection closed mid-response. The response above may be incomplete.',
+    };
+    const evaluation = evaluateClaudeCliResult(data, 'architect', 'my-feature');
+    assert.equal(evaluation.status, 'retry');
+  });
+
   test('a retryable terminal_reason is retryable even when is_error is false', () => {
     // Found live: max_turns exhaustion can end a run with is_error:false but
     // no usable structured_output — treat that as retryable, not success.
