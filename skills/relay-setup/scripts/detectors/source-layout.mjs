@@ -12,7 +12,14 @@ export function detectSourceDirs(pkg, root) {
   if (exists(root, 'app') && exists(root, 'pages')) return ['app', 'pages']; // Next.js app + pages hybrid
   if (exists(root, 'app')) return ['app'];
   if (exists(root, 'pages')) return ['pages'];
-  return ['src'];
+  // Found live: this used to fall back to ['src'] even when no src/app/pages
+  // directory exists at all — confidently pointing rebuild-context.mjs (and
+  // therefore the Architect/Dev's whole view of the codebase) at a directory
+  // that doesn't exist, for any project that isn't a typical frontend
+  // layout (e.g. a CLI/tooling repo with code under lib/, skills/, etc.).
+  // Empty means "ask the user", same principle as the other detectors —
+  // not a confident-looking guess that happens to be wrong.
+  return [];
 }
 
 export function detectSkipDirs(pkg, root) {
