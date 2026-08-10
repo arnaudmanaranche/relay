@@ -1817,7 +1817,14 @@ const PERMISSIONS: Record<
   },
   dev: {
     allowedArtifacts: [/dev-log\.md$/, /\.ai\/artifacts\/.*\.md$/],
-    allowedFiles: [/\.(ts|tsx|js|jsx|css|json)$/, /\.ai\/artifacts\/.*\.md$/],
+    // Found live while dogfooding: no .mjs/.cjs here meant Dev could
+    // produce entirely correct output for a project using those
+    // extensions (e.g. this repo's own detector test files) and every
+    // single write would still be rejected by checkPermissions — a hard,
+    // unconditional, unrecoverable block, not a cost/efficiency issue like
+    // the earlier .mjs gaps in extractImpactedFiles. A real $0.62 call's
+    // entire output was discarded this way before this fix.
+    allowedFiles: [/\.(ts|tsx|js|jsx|mjs|cjs|css|json)$/, /\.ai\/artifacts\/.*\.md$/],
   },
   review: {
     allowedArtifacts: [/\.ai\/artifacts\/.*\.md$/],

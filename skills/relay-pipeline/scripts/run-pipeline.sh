@@ -192,7 +192,7 @@ $prov"
 # only judge what Dev actually wrote this pass, never pre-existing repo code.
 get_changed_source_files() {
   { git diff --name-only 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null; } \
-    | grep -Ei '\.(ts|tsx|js|jsx|css|json)$' | sort -u
+    | grep -Ei '\.(ts|tsx|js|jsx|mjs|cjs|css|json)$' | sort -u
 }
 
 # Deterministic content gates on Dev's own output. GOVERNANCE.md forbids
@@ -652,7 +652,7 @@ if [ -f "$MANIFEST_FILE" ] && [ -f "$TECH_PLAN_FILE" ]; then
   node -e "
     var plan = require('fs').readFileSync('$TECH_PLAN_FILE','utf-8');
     var manifest = JSON.parse(require('fs').readFileSync('$MANIFEST_FILE','utf-8'));
-    var refs = [...plan.matchAll(/\x60([a-zA-Z0-9_./()/-]+\.(ts|tsx|js|jsx|yaml))\x60/g)].map(function(m){return m[1]});
+    var refs = [...plan.matchAll(/\x60([a-zA-Z0-9_./()/-]+\.(ts|tsx|js|jsx|mjs|cjs|yaml))\x60/g)].map(function(m){return m[1]});
     var produced = new Set(manifest.files.map(function(f){return f.path}));
     var missing = refs.filter(function(r){return !produced.has(r) && !r.startsWith('e2e/')});
     if (missing.length > 0) {

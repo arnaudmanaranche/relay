@@ -132,6 +132,21 @@ describe('checkPermissions', () => {
     assert.equal(allowed, true);
   });
 
+  test('dev can write .mjs/.cjs files', () => {
+    // Found live while dogfooding: no .mjs/.cjs in dev's allowedFiles
+    // meant every single write for a project using those extensions (this
+    // repo's own detector test files) was rejected — a hard,
+    // unconditional block, not just a cost/efficiency gap.
+    for (const path of ['test/detectors/commands.test.mjs', 'scripts/build.cjs']) {
+      const { allowed } = checkPermissions(
+        'dev',
+        [{ path, action: 'create', content: '' }],
+        []
+      );
+      assert.equal(allowed, true, path);
+    }
+  });
+
   test('dev cannot write outside the allowed extension set (e.g. a shell script)', () => {
     const { allowed, blocked } = checkPermissions(
       'dev',
