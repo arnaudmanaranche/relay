@@ -70,7 +70,7 @@ just a config change — scope that separately if/when needed.
 
 ### Distinct sub-case: people with only a Claude subscription, no API key
 
-The interactive skill mode (`/start afp-pipeline` run directly inside Claude Code) already covers this —
+The interactive skill mode (`/start relay-pipeline` run directly inside Claude Code) already covers this —
 Claude Code itself plays each role, no OpenRouter/API key involved at all. But it gets none of the
 orchestration machinery that lives in `run-pipeline.sh`/`agent-runner.ts`: worktree isolation, quality gates,
 retries, structured-output schema validation, per-role write permissions, the concurrency lock, the token

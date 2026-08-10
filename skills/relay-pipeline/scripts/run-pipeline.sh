@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the full agent pipeline — AI Feature Pipeline module
+# Run the full agent pipeline — Relay module
 # Usage: bash scripts/run-pipeline.sh <slug> [issue-body.md] [--dry-run] [--approve-design] [--project-root=<path>]
 set -euo pipefail
 
@@ -62,7 +62,7 @@ BRANCH="${BRANCH_PREFIX}/$SLUG"
 # --dry-run is a faithful rehearsal of the real branch/worktree/gate
 # mechanics, not just the LLM call. Only the OpenRouter call is mocked and
 # only the push/PR step is skipped in dry-run.
-WORKTREE_ROOT="$(dirname "$ROOT")/.afp-worktrees"
+WORKTREE_ROOT="$(dirname "$ROOT")/.relay-worktrees"
 WORKTREE_DIR="$WORKTREE_ROOT/$(basename "$ROOT")-$SLUG"
 
 setup_worktree() {
@@ -166,7 +166,7 @@ commit_stage() {
   # body, so the conventional-commit header still satisfies commitlint.
   if [ -n "$role" ] && [ -f "$ARTIFACTS_DIR/.agent-status-$role.json" ]; then
     local prov
-    prov=$(node -e "try{var s=JSON.parse(require('fs').readFileSync('$ARTIFACTS_DIR/.agent-status-$role.json','utf-8'));var o=[];if(s.model)o.push('AFP-Model: '+s.model);if(s.promptSha)o.push('AFP-Prompt-SHA: '+s.promptSha);process.stdout.write(o.join('\n'))}catch(e){}" 2>/dev/null)
+    prov=$(node -e "try{var s=JSON.parse(require('fs').readFileSync('$ARTIFACTS_DIR/.agent-status-$role.json','utf-8'));var o=[];if(s.model)o.push('Relay-Model: '+s.model);if(s.promptSha)o.push('Relay-Prompt-SHA: '+s.promptSha);process.stdout.write(o.join('\n'))}catch(e){}" 2>/dev/null)
     if [ -n "$prov" ]; then
       message="$message
 
@@ -380,9 +380,9 @@ run_review_panel() {
     if [ "$n" -gt 1 ]; then
       echo "  Review verifier $i/$n — lens: $lens"
     fi
-    export AFP_REVIEW_LENS="$lens"
+    export RELAY_REVIEW_LENS="$lens"
     run_agent review
-    unset AFP_REVIEW_LENS
+    unset RELAY_REVIEW_LENS
     v=$(read_verdict review)
     verdicts+=("${v:-none}")
     [ "$v" = "FAIL" ] && fails=$((fails + 1))

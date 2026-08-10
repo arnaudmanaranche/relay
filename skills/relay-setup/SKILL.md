@@ -1,6 +1,6 @@
-# AFP Setup — Feature Pipeline Setup
+# Relay Setup — Feature Pipeline Setup
 
-First-time project configuration for the AI Feature Pipeline module.
+First-time project configuration for the Relay module.
 
 Run this skill when you first install the module in a project. It auto-detects the project stack, then prompts for confirmation and any missing values.
 
@@ -13,10 +13,10 @@ Run this skill when you first install the module in a project. It auto-detects t
 5. Generates `.ai/agents.json` with role definitions (see **Required roles** below — `agent-runner.ts` hardcodes behavior per role name, so every one of these must have an entry or that role's pipeline stage will fail with "Unknown role")
 6. Creates `.ai/artifacts/features/` directory
 7. Copies registry files (scope-checklist, ship-checklist, analytics-events, paywall-touchpoints) into `.ai/registry/`
-8. Copies governance files (GOVERNANCE.md, DENIED_ACTIONS.md) from `skills/afp-pipeline/templates/` into `.ai/`
-9. Copies `skills/afp-pipeline/templates/scripts/new-feature.sh` into `.ai/scripts/new-feature.sh` and makes it executable (`chmod +x`) — `run-pipeline.sh` depends on this script to scaffold new feature folders
-10. Copies `skills/afp-pipeline/templates/ai-gitignore` into `.ai/.gitignore` — keeps derived (`context.json`) and per-run debug files (`.agent-*` dumps) out of git history so the repo doesn't grow unbounded, while keeping durable knowledge (briefs, plans, reviews, retros, `project-memory.md`, the memory-compact counter, the `.architect-approved` hash) tracked. **Do not overwrite an existing `.ai/.gitignore` that has project-specific additions — merge instead.**
-11. Copies `skills/afp-pipeline/templates/scripts/prune-artifacts.sh` into `.ai/scripts/prune-artifacts.sh` and makes it executable (`chmod +x`) — a human-run maintenance tool for repo hygiene (see **Repo hygiene** below)
+8. Copies governance files (GOVERNANCE.md, DENIED_ACTIONS.md) from `skills/relay-pipeline/templates/` into `.ai/`
+9. Copies `skills/relay-pipeline/templates/scripts/new-feature.sh` into `.ai/scripts/new-feature.sh` and makes it executable (`chmod +x`) — `run-pipeline.sh` depends on this script to scaffold new feature folders
+10. Copies `skills/relay-pipeline/templates/ai-gitignore` into `.ai/.gitignore` — keeps derived (`context.json`) and per-run debug files (`.agent-*` dumps) out of git history so the repo doesn't grow unbounded, while keeping durable knowledge (briefs, plans, reviews, retros, `project-memory.md`, the memory-compact counter, the `.architect-approved` hash) tracked. **Do not overwrite an existing `.ai/.gitignore` that has project-specific additions — merge instead.**
+11. Copies `skills/relay-pipeline/templates/scripts/prune-artifacts.sh` into `.ai/scripts/prune-artifacts.sh` and makes it executable (`chmod +x`) — a human-run maintenance tool for repo hygiene (see **Repo hygiene** below)
 12. Runs the target project's own `format_write_cmd` scoped to `skills/` and `.ai/`, and appends `skills/`/`.ai/` to every lint/format/typecheck exclude mechanism the target project has (see **Excluding module content from the target's tooling** below) — otherwise the module's own copied-in files can fail the target's pre-commit hooks or typecheck gate on the very first commit, for reasons that have nothing to do with the target project itself
 
 ## Auto-detection
@@ -24,7 +24,7 @@ Run this skill when you first install the module in a project. It auto-detects t
 Before asking any questions, run:
 
 ```bash
-node skills/afp-setup/scripts/detect-stack.mjs --project-root=<project-root>
+node skills/relay-setup/scripts/detect-stack.mjs --project-root=<project-root>
 ```
 
 This scans the project and returns a JSON object with pre-filled values for all config fields. Use these as the defaults for every prompt — show the detected value to the user so they can confirm or override it.
@@ -112,7 +112,7 @@ For fields where nothing was detected (empty string), explain what the field is 
 
 `pm`, `dev-review`, `pm-respond`, `architect`, `dev`, `review`, `qa`, `retro`, `memory-compact`
 
-Each role entry needs: `skill` (path to its prompt file under `skills/afp-pipeline/prompts/`, e.g. `skills/afp-pipeline/prompts/pm.md` — `memory-compact` uses `skills/afp-pipeline/prompts/memory-compact.md`), `model`, `artifact` (primary output filename), `description`, and `maxTokens`. Use a smaller/cheaper model for `memory-compact` — it does bounded text reorganization, not novel reasoning.
+Each role entry needs: `skill` (path to its prompt file under `skills/relay-pipeline/prompts/`, e.g. `skills/relay-pipeline/prompts/pm.md` — `memory-compact` uses `skills/relay-pipeline/prompts/memory-compact.md`), `model`, `artifact` (primary output filename), `description`, and `maxTokens`. Use a smaller/cheaper model for `memory-compact` — it does bounded text reorganization, not novel reasoning.
 
 ### Optional: `effort`
 
@@ -133,7 +133,7 @@ The `dev` role entry additionally supports two optional fields for injecting fil
 {
   "roles": {
     "dev": {
-      "skill": "skills/afp-pipeline/prompts/dev.md",
+      "skill": "skills/relay-pipeline/prompts/dev.md",
       "model": "anthropic/claude-sonnet-4.5",
       "artifact": "dev-log.md",
       "description": "Developer",
@@ -153,8 +153,8 @@ The `dev` role entry additionally supports two optional fields for injecting fil
 - **`typeSkills`** (`Record<pattern, skillFilePath>`) — matched per-file against the file paths the Architect's `technical-plan.md` says Dev needs to touch (`agent-runner.ts`'s `getMatchingTypeSkills`, covered by `agent-runner.test.ts`). A pattern starting with `*` matches by **suffix** (`*.ts` matches any `.ts` file, `*.test.ts` matches only test files); any other pattern matches by **path prefix or path segment** (`src/services` matches `src/services/api.ts` and `lib/src/services/x.ts`). Only skills whose pattern matches at least one impacted file get injected — this keeps the prompt from ballooning with irrelevant standards on a feature that never touches, say, `src/services`.
 - **`extraSkills`** (`string[]`) — injected into every single Dev run regardless of which files are touched. Use this for cross-cutting rules (security baseline, error-handling conventions) rather than `typeSkills`, which is deliberately conditional.
 - The skill files themselves (`.ai/skills/*.md` in the example above — the path is arbitrary, just needs to exist and be readable from the project root) are plain markdown you write yourself. There's no required structure; they're read verbatim and appended to Dev's system prompt under a `## <filename> (cross-cutting)` or matched-skill heading.
-- `typeSkills`/`extraSkills` paths are resolved from the project root, not from `skills/afp-pipeline/`, since they're project-specific standards, not part of the module.
-- For a project with a real UI surface (`project_type` `web` or `mobile`), offer to copy `skills/afp-pipeline/templates/skills/ui-standards.md` into `.ai/skills/ui-standards.md` and wire it as a `typeSkills` entry for the project's UI file extensions (`*.tsx`, `*.css`, `*.vue`, etc., whatever `source_extensions`/`styling` detected). It's a starter set of design-tokens-first and motion/state-completeness rules — meant to be edited to the project's actual design system, not used verbatim.
+- `typeSkills`/`extraSkills` paths are resolved from the project root, not from `skills/relay-pipeline/`, since they're project-specific standards, not part of the module.
+- For a project with a real UI surface (`project_type` `web` or `mobile`), offer to copy `skills/relay-pipeline/templates/skills/ui-standards.md` into `.ai/skills/ui-standards.md` and wire it as a `typeSkills` entry for the project's UI file extensions (`*.tsx`, `*.css`, `*.vue`, etc., whatever `source_extensions`/`styling` detected). It's a starter set of design-tokens-first and motion/state-completeness rules — meant to be edited to the project's actual design system, not used verbatim.
 
 ## Configuration variables
 
@@ -194,7 +194,7 @@ The pipeline writes two kinds of files: **durable knowledge** worth keeping in g
 
 ```bash
 .ai/scripts/prune-artifacts.sh --untrack        # add --dry-run first to preview
-git commit -m "chore(afp): untrack pipeline debug files"
+git commit -m "chore(relay): untrack pipeline debug files"
 ```
 
 **Ongoing:** to reclaim space from feature folders you no longer need live, archive them into `.ai/archive/<slug>.tar.gz` (nothing in the pipeline reads a past feature's folder, so this is lossless for the workflow):

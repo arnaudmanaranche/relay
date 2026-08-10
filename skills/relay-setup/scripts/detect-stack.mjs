@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Auto-detect project stack from existing files — AI Feature Pipeline setup
+// Auto-detect project stack from existing files — Relay setup
 // Usage: node detect-stack.mjs [--project-root=<path>]
-// Output: JSON printed to stdout — consumed by afp-setup to pre-fill prompts
+// Output: JSON printed to stdout — consumed by relay-setup to pre-fill prompts
 //
 // Detection logic lives in ./detectors/*.mjs, one file per concern, so this
 // file stays a thin composer instead of growing unbounded every time a new
@@ -65,5 +65,5 @@ const detected = {
   styling:            detectStyling(pkg),
 };
 
-// Print as JSON — afp-setup reads this to pre-fill prompts
+// Print as JSON — relay-setup reads this to pre-fill prompts
 process.stdout.write(JSON.stringify(detected, null, 2) + '\n');

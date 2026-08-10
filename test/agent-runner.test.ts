@@ -31,8 +31,8 @@ import {
   trimContextForPrompt,
   evaluateClaudeCliResult,
   extractImpactedFiles,
-} from '../skills/afp-pipeline/scripts/agent-runner.ts';
-import type { TokenUsage } from '../skills/afp-pipeline/scripts/agent-runner.ts';
+} from '../skills/relay-pipeline/scripts/agent-runner.ts';
+import type { TokenUsage } from '../skills/relay-pipeline/scripts/agent-runner.ts';
 
 describe('buildToolSchema', () => {
   test('only the dev role accepts a files array', () => {
@@ -267,7 +267,7 @@ describe('mockResponse — dry-run output stability', () => {
 
 describe('applyChanges — golden write behavior', () => {
   function withTempRoot(fn: (root: string) => void) {
-    const root = mkdtempSync(join(tmpdir(), 'afp-test-'));
+    const root = mkdtempSync(join(tmpdir(), 'relay-test-'));
     try {
       fn(root);
     } finally {
@@ -342,13 +342,13 @@ describe('applyChanges — golden write behavior', () => {
       };
       // Sibling of `root` (both live under the same mkdtemp parent), i.e.
       // exactly where `../escape.ts` would land if containment failed.
-      const escapeTarget = join(root, '..', 'afp-traversal-escape.ts');
+      const escapeTarget = join(root, '..', 'relay-traversal-escape.ts');
       try {
         assert.throws(
           () =>
             applyChanges(
               'dev',
-              [{ path: '../afp-traversal-escape.ts', action: 'create', content: 'evil' }],
+              [{ path: '../relay-traversal-escape.ts', action: 'create', content: 'evil' }],
               [],
               'x',
               false
@@ -384,7 +384,7 @@ describe('isOverBudget — token spend circuit breaker', () => {
 
 describe('loadTokenUsage / saveTokenUsage — disk round-trip', () => {
   test('missing usage file defaults to zero, and a saved value round-trips', () => {
-    const root = mkdtempSync(join(tmpdir(), 'afp-test-'));
+    const root = mkdtempSync(join(tmpdir(), 'relay-test-'));
     const cwd = process.cwd();
     process.chdir(root);
     try {

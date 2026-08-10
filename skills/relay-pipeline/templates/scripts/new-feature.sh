@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Scaffold a new feature folder under .ai/artifacts/features/<slug>/
-# Installed into <project>/.ai/scripts/new-feature.sh by the afp-setup skill.
+# Installed into <project>/.ai/scripts/new-feature.sh by the relay-setup skill.
 # Usage: .ai/scripts/new-feature.sh <slug>
 set -euo pipefail
 

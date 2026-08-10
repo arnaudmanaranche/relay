@@ -1,6 +1,6 @@
 # UI standards
 
-Optional starter for the `dev` role's `typeSkills`/`extraSkills` (see "Dev-only: typeSkills and extraSkills" in `skills/afp-setup/SKILL.md`). Copy this file into `.ai/skills/ui-standards.md` and wire it up for UI file types, e.g.:
+Optional starter for the `dev` role's `typeSkills`/`extraSkills` (see "Dev-only: typeSkills and extraSkills" in `skills/relay-setup/SKILL.md`). Copy this file into `.ai/skills/ui-standards.md` and wire it up for UI file types, e.g.:
 
 ```json
 "typeSkills": {

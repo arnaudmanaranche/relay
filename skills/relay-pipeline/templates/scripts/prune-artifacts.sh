@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Repo-hygiene maintenance for the AI Feature Pipeline.
-# Installed into <project>/.ai/scripts/prune-artifacts.sh by the afp-setup skill.
+# Repo-hygiene maintenance for the Relay.
+# Installed into <project>/.ai/scripts/prune-artifacts.sh by the relay-setup skill.
 #
 # Two jobs, both human-run and safe (nothing is deleted without first being
 # archived; --dry-run previews everything):
@@ -61,7 +61,7 @@ if [ "$MODE" = "untrack" ]; then
   # --ignore-unmatch: don't fail if a pattern matches nothing (fresh installs).
   run "git -C '$ROOT' rm -r --cached --quiet --ignore-unmatch .ai/context.json"
   run "git -C '$ROOT' rm -r --cached --quiet --ignore-unmatch '.ai/artifacts/features/*/.agent-*'"
-  echo "==> Done. Review with 'git status' and commit (e.g. chore(afp): untrack pipeline debug files)."
+  echo "==> Done. Review with 'git status' and commit (e.g. chore(relay): untrack pipeline debug files)."
   exit 0
 fi
 

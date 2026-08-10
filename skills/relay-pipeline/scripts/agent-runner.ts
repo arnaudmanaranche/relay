@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 // Multi-agent orchestration via any OpenAI-compatible chat-completions API
-// (OpenRouter by default) — AI Feature Pipeline module
+// (OpenRouter by default) — Relay module
 // Usage: node scripts/agent-runner.ts --role=<role> --slug=<slug> [--project-root=<path>]
 // Requires: OPENROUTER_API_KEY env var, or whatever key is set at llm.apiKeyEnv
 // in .ai/config.json for a non-OpenRouter provider
@@ -273,7 +273,7 @@ function validateRegistry(
       `Invalid ${registryPath}: missing required role(s): ${missingRoles.join(', ')}.`
     );
     console.error(
-      `See "Required roles" in skills/afp-setup/SKILL.md for what each role entry needs.`
+      `See "Required roles" in skills/relay-setup/SKILL.md for what each role entry needs.`
     );
     process.exit(1);
   }
@@ -718,13 +718,13 @@ function buildUserPrompt(
         `## Architecture maps\n\n\`\`\`json\n${trimContextForPrompt(ctxData)}\n\`\`\``
       );
     }
-    const techTmpl = read('skills/afp-pipeline/templates/technical-plan.md');
+    const techTmpl = read('skills/relay-pipeline/templates/technical-plan.md');
     if (techTmpl && !techTmpl.startsWith('[file not found')) {
       sections.push(
         `## Technical plan template\n\n\`\`\`markdown\n${techTmpl}\n\`\`\``
       );
     }
-    const repoCmpl = read('skills/afp-pipeline/templates/repository-context.md');
+    const repoCmpl = read('skills/relay-pipeline/templates/repository-context.md');
     if (repoCmpl && !repoCmpl.startsWith('[file not found')) {
       sections.push(
         `## Repository context template\n\n\`\`\`markdown\n${repoCmpl}\n\`\`\``
@@ -852,10 +852,10 @@ function buildUserPrompt(
       );
     }
     // Adversarial-review lens: when the pipeline runs a panel of verifiers,
-    // each pass gets a distinct focus via AFP_REVIEW_LENS so N reviewers
+    // each pass gets a distinct focus via RELAY_REVIEW_LENS so N reviewers
     // catch failure modes redundancy alone would miss. Absent (single
     // reviewer) → no extra focus, unchanged behavior.
-    const lens = process.env.AFP_REVIEW_LENS;
+    const lens = process.env.RELAY_REVIEW_LENS;
     if (lens) {
       sections.push(
         `## Review focus for this pass\n\nYou are one verifier in an independent panel. Scrutinize this implementation specifically through the lens of **${lens}**. Be adversarial: actively try to find a real, blocking defect rather than confirming the happy path. If you find one, return FAIL. Still fill in the full review report.`
@@ -1950,7 +1950,7 @@ Users cannot currently do X, which causes frustration.
   if (role === 'architect') {
     // Test seam: dry-run only. Lets run-pipeline.sh's diagram gate be
     // exercised end-to-end without a real model omitting the diagram.
-    const includeDiagram = process.env.AFP_MOCK_ARCHITECT_NO_DIAGRAM !== '1';
+    const includeDiagram = process.env.RELAY_MOCK_ARCHITECT_NO_DIAGRAM !== '1';
     return {
       ...base,
       artifacts: [
@@ -2033,7 +2033,7 @@ export default function Settings() {
   if (role === 'review') {
     // Test seam: dry-run only. Lets run-pipeline.sh's Review→Dev retry loop
     // be exercised end-to-end without a real model returning FAIL.
-    const verdict = process.env.AFP_MOCK_REVIEW_VERDICT || 'PASS';
+    const verdict = process.env.RELAY_MOCK_REVIEW_VERDICT || 'PASS';
     return {
       ...base,
       verdict,
@@ -2216,12 +2216,12 @@ async function main() {
 
   // 2. Load skill prompt.
   //
-  // AFP_SKILL_<ROLE> lets you run a role with an ALTERNATE prompt file
+  // RELAY_SKILL_<ROLE> lets you run a role with an ALTERNATE prompt file
   // without editing agents.json — the knob for A/B-testing a prompt change
-  // (e.g. AFP_SKILL_PM=.ai/experiments/pm-v2.md). The prompt hash recorded
+  // (e.g. RELAY_SKILL_PM=.ai/experiments/pm-v2.md). The prompt hash recorded
   // in provenance is computed from whatever file is actually used, so an
   // experiment's output is auditable and comparable via the eval harness.
-  const skillEnvKey = `AFP_SKILL_${role.toUpperCase().replace(/-/g, '_')}`;
+  const skillEnvKey = `RELAY_SKILL_${role.toUpperCase().replace(/-/g, '_')}`;
   const skillOverride = (process.env as Record<string, string | undefined>)[
     skillEnvKey
   ];
@@ -2239,7 +2239,7 @@ async function main() {
 
   // Provenance: which prompt version drove this agent. A short content hash
   // of the role's skill prompt — recorded in the status file so the commit
-  // for this stage can carry `AFP-Model` / `AFP-Prompt-SHA` trailers. That
+  // for this stage can carry `Relay-Model` / `Relay-Prompt-SHA` trailers. That
   // makes each stage's output reproducible/auditable ("which model and
   // which prompt produced this?") without diffing prose.
   const promptSha = createHash('sha256').update(skillContent).digest('hex').slice(0, 12);

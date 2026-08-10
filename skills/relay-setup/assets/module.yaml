@@ -1,10 +1,10 @@
-code: afp
-name: 'AI Feature Pipeline'
+code: relay
+name: 'Relay'
 description: 'Multi-agent feature development pipeline'
 module_version: 1.0.0
 default_selected: true
 module_greeting: >
-  Welcome to the AI Feature Pipeline! Let's configure it for your project.
+  Welcome to the Relay! Let's configure it for your project.
 
 project_name:
   prompt: 'What is your project name?'

@@ -1,6 +1,6 @@
 {
   "name": "relay",
-  "owner": { "name": "AI Feature Pipeline" },
+  "owner": { "name": "Relay" },
   "license": "MIT",
 "homepage": "https://github.com/arnaudmanaranche/relay",
 "repository": "https://github.com/arnaudmanaranche/relay",
@@ -11,10 +11,10 @@
       "source": "./",
       "description": "Multi-agent feature development pipeline: PM → Architect → Dev → Review → QA",
       "version": "1.0.0",
-      "author": { "name": "AI Feature Pipeline" },
+      "author": { "name": "Relay" },
       "skills": [
-        "./skills/afp-setup",
-        "./skills/afp-pipeline"
+        "./skills/relay-setup",
+        "./skills/relay-pipeline"
       ]
     }
   ]

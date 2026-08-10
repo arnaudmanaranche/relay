@@ -443,7 +443,7 @@
         <div class="section-head">
           <div class="kicker"><span class="idx">05</span><span>.ai/config.json</span></div>
           <h2>Configuration</h2>
-          <p>Generated once by <code>afp-setup</code>. Full list lives in <code>skills/afp-setup/assets/module.yaml</code>.</p>
+          <p>Generated once by <code>relay-setup</code>. Full list lives in <code>skills/relay-setup/assets/module.yaml</code>.</p>
         </div>
         <div class="config-groups" id="configGroups"></div>
       </div>
@@ -504,10 +504,10 @@
           <div><span class="prompt">$</span> <span class="cmd">npx bmad-method install --custom-source https://github.com/arnaudmanaranche/relay</span></div>
           <div>&nbsp;</div>
           <div><span class="comment"># in Claude Code</span></div>
-          <div><span class="prompt">$</span> <span class="cmd">/start afp-setup</span></div>
+          <div><span class="prompt">$</span> <span class="cmd">/start relay-setup</span></div>
           <div>&nbsp;</div>
           <div><span class="comment"># start a feature</span></div>
-          <div><span class="prompt">$</span> <span class="cmd">/start afp-pipeline new "Add dark mode toggle"</span></div>
+          <div><span class="prompt">$</span> <span class="cmd">/start relay-pipeline new "Add dark mode toggle"</span></div>
         </div>
       </div>
     </section>
@@ -717,7 +717,7 @@
     { tag: 'PERM', title: 'Per-role write permissions', text: 'Enforced in agent-runner.ts regardless of the prompt. Only Dev writes source; only Retro and Memory Compact touch project memory.' },
     { tag: 'PATH', title: 'Path containment', text: 'Every path in a model\'s output is untrusted. A resolved-path prefix check blocks any parent-directory escape before read or write.' },
     { tag: 'SCAN', title: 'Content gates', text: 'Deterministic scans over Dev\'s changed files for placeholder or truncation markers and secret signatures, after every pass.' },
-    { tag: 'PROV', title: 'Provenance trailers', text: 'AFP-Model and AFP-Prompt-SHA on every commit. Trace any artifact back to the exact model and prompt that produced it.' },
+    { tag: 'PROV', title: 'Provenance trailers', text: 'Relay-Model and Relay-Prompt-SHA on every commit. Trace any artifact back to the exact model and prompt that produced it.' },
     { tag: 'HOOK', title: 'Hook-respecting commits', text: 'Never git commit with --no-verify. A real pre-commit rejection stops the run instead of being quietly bypassed.' },
     { tag: 'LOCK', title: 'Concurrency lock', text: 'A per-slug mkdir lock stops two invocations racing the same worktree or branch. A dead-process lock is reclaimed automatically.' },
     { tag: 'BUDGET', title: 'Token budget breaker', text: 'project.maxTokensPerFeature tracks real cumulative spend and refuses further calls once exceeded.' }

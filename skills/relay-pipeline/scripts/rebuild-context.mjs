@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Rebuild .ai/context.json — repo memory for the AFP pipeline.
+// Rebuild .ai/context.json — repo memory for the Relay pipeline.
 // Usage: node rebuild-context.mjs [--project-root=<path>]
 //
 // Two things changed from the original hand-rolled-regex version:

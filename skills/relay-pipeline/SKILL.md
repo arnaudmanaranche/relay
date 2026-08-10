@@ -1,4 +1,4 @@
-# AFP Pipeline — Feature Development Pipeline
+# Relay Pipeline — Feature Development Pipeline
 
 A structured multi-agent pipeline for AI-assisted feature development.
 PM → Dev Review → Architect → Dev → Review → QA → Retro.
@@ -81,7 +81,7 @@ Polls `gh pr checks`, reruns failed jobs up to `--max-reruns` times (real infra 
 
 ## Workspace isolation
 
-Every run — including `--dry-run` — executes inside a dedicated git worktree at `<parent-of-project-root>/.afp-worktrees/<project>-<slug>`, never in your active working directory. This makes the run fully reversible: delete the worktree, delete the branch, or both, without touching your own uncommitted work. The worktree is removed automatically once the pipeline reaches a PR; it is left in place (path printed to stdout) whenever the pipeline halts on a blocker, a failed gate, or exhausted retries, so you can inspect or resume from it directly.
+Every run — including `--dry-run` — executes inside a dedicated git worktree at `<parent-of-project-root>/.relay-worktrees/<project>-<slug>`, never in your active working directory. This makes the run fully reversible: delete the worktree, delete the branch, or both, without touching your own uncommitted work. The worktree is removed automatically once the pipeline reaches a PR; it is left in place (path printed to stdout) whenever the pipeline halts on a blocker, a failed gate, or exhausted retries, so you can inspect or resume from it directly.
 
 ## Registries
 
@@ -94,7 +94,7 @@ Reference these registries when scoping or reviewing features:
 
 ## Configuration
 
-The module reads project configuration from `.ai/config.json`. Run the `afp-setup` skill to generate it.
+The module reads project configuration from `.ai/config.json`. Run the `relay-setup` skill to generate it.
 
 Key config fields: `sourceDirs`, `skipDirs`, `sourceExtensions`, `commands`, `stack`, `e2e`.
 
