@@ -488,7 +488,11 @@ function getMatchingTypeSkills(
 
 // --- Prompt building ---
 
-function buildSystemPrompt(role: string, skillContent: string) {
+function buildSystemPrompt(
+  role: string,
+  skillContent: string,
+  architectPass?: ArchitectPass
+) {
   const isQa = role === 'qa';
   const isDevReview = role === 'dev-review';
   const isPmRespond = role === 'pm-respond';
@@ -508,6 +512,22 @@ If **blocked**, submit a \`blocker.md\` artifact with the **"What we do not know
       : '',
     isPmRespond
       ? `Read the open threads in \`pm-dev-thread.md\`. Answer each question, update \`feature-brief.md\` if needed, then mark threads **Resolved** in the submitted artifact. If you cannot resolve a thread, set status to **blocked** and submit a \`blocker.md\` artifact.`
+      : '',
+    // The skills/relay-pipeline/prompts/architect.md skill file (folded into
+    // ${skillContent} above) unconditionally says "write two artifacts" —
+    // it has no notion of the plan/context split runArchitectSplit performs.
+    // Found live: without an explicit override placed AFTER that file's
+    // content, the model followed the skill file's framing and wrote BOTH
+    // artifacts during the 'plan' pass anyway, defeating the split (and
+    // still nearly hitting the same output-token ceiling this split exists
+    // to avoid). This override is deliberately the LAST instruction before
+    // the tool-call directive so it reads as the most specific, most
+    // current instruction, not the skill file's general framing.
+    architectPass === 'plan'
+      ? `OVERRIDE for this call: you are doing HALF of the Architect job. Write ONLY \`technical-plan.md\` this call. Do NOT write \`repository-context.md\` — a separate follow-up call will produce it (and will have your technical-plan.md available to read). If you include repository-context.md in this call's artifacts anyway, it will be ignored/wasted.`
+      : '',
+    architectPass === 'context'
+      ? `OVERRIDE for this call: \`technical-plan.md\` was already written by a separate prior call this same Architect run (shown above) — do NOT re-write or modify it. Write ONLY \`repository-context.md\` this call.`
       : '',
   ]
     .filter(Boolean)
@@ -1976,13 +1996,19 @@ async function runArchitectSplit(
   slug: string,
   ctx: ReturnType<typeof loadContext>,
   config: RoleConfig,
-  systemPrompt: string
+  skillContent: string
 ): Promise<AgentResult> {
   const passes: ArchitectPass[] = ['plan', 'context'];
   const allArtifacts: ArtifactChange[] = [];
   const rawParts: string[] = [];
 
   for (const pass of passes) {
+    // Built per-pass, not once for the whole role: skills/relay-pipeline/
+    // prompts/architect.md unconditionally says "write two artifacts" —
+    // buildSystemPrompt's architectPass override has to be layered on top
+    // of THIS pass's skill content each time, not a system prompt shared
+    // across both passes.
+    const systemPrompt = buildSystemPrompt('architect', skillContent, pass);
     console.log(`\n  --- Architect pass: ${pass} ---`);
 
     // Same reasoning as runDevBatched: a fresh budget check before each
@@ -2010,7 +2036,23 @@ async function runArchitectSplit(
       config.effort
     );
 
-    allArtifacts.push(...passResult.artifacts);
+    // Defense in depth: the system-prompt override above is a strong
+    // instruction, not a guarantee — drop anything that isn't this pass's
+    // expected artifact rather than trust compliance blindly. Found live:
+    // even with per-pass task text (but before the system-prompt override
+    // existed), the model included repository-context.md in the 'plan'
+    // pass's output anyway.
+    const expectedSuffix = pass === 'plan' ? 'technical-plan.md' : 'repository-context.md';
+    const [expected, unexpected] = [
+      passResult.artifacts.filter(a => a.path.endsWith(expectedSuffix)),
+      passResult.artifacts.filter(a => !a.path.endsWith(expectedSuffix)),
+    ];
+    if (unexpected.length > 0) {
+      console.warn(
+        `  ⚠️  Architect pass '${pass}' also produced ${unexpected.map(a => a.path).join(', ')} — dropping (expected only ${expectedSuffix} this pass).`
+      );
+    }
+    allArtifacts.push(...expected);
     rawParts.push(`### Pass: ${pass}\n\n${passResult.raw}`);
 
     if (typeof passResult.usageTokens === 'number') {
@@ -2028,7 +2070,7 @@ async function runArchitectSplit(
     // Apply immediately — the 'context' pass reads technical-plan.md back
     // off disk via buildUserPrompt's normal read() path, exactly as later
     // Dev batches read back earlier batches' files.
-    applyChanges('architect', [], passResult.artifacts, slug, false);
+    applyChanges('architect', [], expected, slug, false);
   }
 
   return {
@@ -2449,7 +2491,7 @@ async function main() {
       );
       multiCallHandled = true;
     } else if (role === 'architect') {
-      result = await runArchitectSplit(slug, ctx, config, systemPrompt);
+      result = await runArchitectSplit(slug, ctx, config, skillContent);
       multiCallHandled = true;
     } else {
       const userPrompt = buildUserPrompt(role, slug, ctx, config);
