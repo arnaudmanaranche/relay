@@ -1,0 +1,44 @@
+{
+  "project": {
+    "name": "Relay",
+    "appId": "",
+    "githubRepo": "arnaudmanaranche/ai-feature-pipeline",
+    "branchPrefix": "feat",
+    "defaultBranch": "main",
+    "pathAlias": "@",
+    "maxTokensPerFeature": 600000,
+    "devFileBatchSize": 6
+  },
+  "bot": { "name": "relay[bot]", "email": "relay-bot@example.com" },
+  "commands": {
+    "packageManager": "npm",
+    "runScript": "tsx",
+    "typecheck": "npm run typecheck",
+    "lint": "",
+    "test": "npm test",
+    "formatCheck": "",
+    "formatWrite": ""
+  },
+  "stack": {
+    "router": "",
+    "styling": "",
+    "backend": "",
+    "errorTracking": "",
+    "analytics": { "provider": "", "package": "", "hook": "", "file": "" },
+    "paywall": { "provider": "", "package": "", "product": "", "context": "", "screen": "" },
+    "locales": ["en"],
+    "localeDir": "i18n/locales"
+  },
+  "e2e": { "framework": "", "dir": "e2e" },
+  "llm": {
+    "backend": "claude-cli",
+    "baseUrl": "https://openrouter.ai/api/v1/chat/completions",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "model": "unused-claude-cli-backend",
+    "refererUrl": "https://github.com/arnaudmanaranche/relay",
+    "maxBudgetUsd": 1.0
+  },
+  "sourceDirs": ["skills", "test"],
+  "skipDirs": ["node_modules", "dist", "build", ".git"],
+  "providerNesting": []
+}

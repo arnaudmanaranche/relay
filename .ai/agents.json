@@ -1,0 +1,76 @@
+{
+  "roles": {
+    "pm": {
+      "skill": "skills/relay-pipeline/prompts/pm.md",
+      "model": "claude-sonnet-5",
+      "effort": "high",
+      "artifact": "feature-brief.md",
+      "description": "Product Manager",
+      "maxTokens": 8000
+    },
+    "dev-review": {
+      "skill": "skills/relay-pipeline/prompts/dev-review.md",
+      "model": "claude-haiku-4-5-20251001",
+      "effort": "low",
+      "artifact": "pm-dev-thread.md",
+      "description": "Dev Review",
+      "maxTokens": 4000
+    },
+    "pm-respond": {
+      "skill": "skills/relay-pipeline/prompts/pm.md",
+      "model": "claude-haiku-4-5-20251001",
+      "effort": "low",
+      "artifact": "pm-dev-thread.md",
+      "description": "PM Respond",
+      "maxTokens": 4000
+    },
+    "architect": {
+      "skill": "skills/relay-pipeline/prompts/architect.md",
+      "model": "claude-sonnet-5",
+      "effort": "xhigh",
+      "artifact": "technical-plan.md",
+      "description": "Software Architect",
+      "maxTokens": 8000
+    },
+    "dev": {
+      "skill": "skills/relay-pipeline/prompts/dev.md",
+      "model": "claude-sonnet-5",
+      "effort": "high",
+      "artifact": "dev-log.md",
+      "description": "Developer",
+      "maxTokens": 8000
+    },
+    "review": {
+      "skill": "skills/relay-pipeline/prompts/review.md",
+      "model": "claude-sonnet-5",
+      "effort": "xhigh",
+      "artifact": "review-report.md",
+      "description": "Code Reviewer",
+      "maxTokens": 6000
+    },
+    "qa": {
+      "skill": "skills/relay-pipeline/prompts/qa.md",
+      "model": "claude-haiku-4-5-20251001",
+      "effort": "low",
+      "artifact": "qa-report.md",
+      "description": "QA",
+      "maxTokens": 4000
+    },
+    "retro": {
+      "skill": "skills/relay-pipeline/prompts/retro.md",
+      "model": "claude-haiku-4-5-20251001",
+      "effort": "low",
+      "artifact": "retrospective.md",
+      "description": "Retrospective",
+      "maxTokens": 6000
+    },
+    "memory-compact": {
+      "skill": "skills/relay-pipeline/prompts/memory-compact.md",
+      "model": "claude-haiku-4-5-20251001",
+      "effort": "low",
+      "artifact": "project-memory.md",
+      "description": "Memory Compaction",
+      "maxTokens": 4000
+    }
+  }
+}
