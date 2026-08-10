@@ -71,6 +71,14 @@ bash scripts/run-pipeline.sh <slug> [issue-body.md] [--dry-run] [--approve-desig
 
 `--approve-design` skips the design gate (see stage 3) — pass it when the technical plan was already reviewed and approved out of band (e.g. a human approved the design-only commit/PR from a prior run). Without it, the pipeline stops after the Architect stage and tells you how to resume.
 
+Once a PR is open, babysit its CI and (optionally) auto-approve low-risk PRs so a human isn't needed just to rerun a flaky job or rubber-stamp a one-line diff:
+
+```bash
+bash scripts/babysit-pr.sh <branch> [--max-reruns=2] [--poll-interval=30] [--max-polls=40] [--auto-stamp] [--max-diff-lines=300]
+```
+
+Polls `gh pr checks`, reruns failed jobs up to `--max-reruns` times (real infra flakiness, not a code-fix retry), then — only with `--auto-stamp` — approves the PR itself, but only when every signal already comes out of this pipeline's own gates: Review panel verdict `PASS`, QA verdict `PASS`, and the diff under `--max-diff-lines`. Anything short of that gets a comment explaining why, not a silent skip. Not called by `run-pipeline.sh` — CI can take anywhere from seconds to tens of minutes to settle, which has no business blocking the run that opened the PR. Run it by hand, or loop it externally.
+
 ## Workspace isolation
 
 Every run — including `--dry-run` — executes inside a dedicated git worktree at `<parent-of-project-root>/.afp-worktrees/<project>-<slug>`, never in your active working directory. This makes the run fully reversible: delete the worktree, delete the branch, or both, without touching your own uncommitted work. The worktree is removed automatically once the pipeline reaches a PR; it is left in place (path printed to stdout) whenever the pipeline halts on a blocker, a failed gate, or exhausted retries, so you can inspect or resume from it directly.

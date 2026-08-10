@@ -79,6 +79,8 @@ Which one? [1/2/or type your own]
 | `skip_dirs` | Framework-aware (adds `ios`, `android`, `.expo` for React Native; `.next` for Next.js) |
 | `source_extensions` | TypeScript presence, Vue, Svelte |
 
+Not auto-detected — ask directly if the project has one: `commands.build` (e.g. `next build`, `expo export`, `tsc -b`). Optional; when set, `run-pipeline.sh`'s quality gate runs it after typecheck/lint/test on every Dev pass. It exists because typecheck only checks types — a real build also resolves imports and bundles the code, catching breakage (a missing asset, a bad dynamic import, bundler-incompatible syntax) that a clean typecheck can still let through.
+
 ### Mobile-only fields — skip or relabel for web projects
 
 `app_id` and the paywall provider question are meaningless, or at least mobile-framed, for a webapp. Use `project_type` to adjust:
@@ -112,6 +114,17 @@ For fields where nothing was detected (empty string), explain what the field is 
 
 Each role entry needs: `skill` (path to its prompt file under `skills/afp-pipeline/prompts/`, e.g. `skills/afp-pipeline/prompts/pm.md` — `memory-compact` uses `skills/afp-pipeline/prompts/memory-compact.md`), `model`, `artifact` (primary output filename), `description`, and `maxTokens`. Use a smaller/cheaper model for `memory-compact` — it does bounded text reorganization, not novel reasoning.
 
+### Optional: `effort`
+
+Every role entry may also set `effort` (one of `low`, `medium`, `high`, `xhigh`, `max`), passed through as `claude -p --effort` when `llm.backend` is `claude-cli`. It is a separate knob from `model`: model picks capability, effort picks how thoroughly that model works the task (files read, checks run, retries attempted) before answering. Omitted entirely on the generic OpenAI-compatible backend, which has no equivalent flag.
+
+Match effort to how routine the role's work actually is, not uniformly:
+- **Low/medium** — `pm-respond`, `dev-review`, `qa`, `memory-compact`: bounded, mostly mechanical work.
+- **High** — `pm`, `dev`: real but well-scoped reasoning over a spec/plan that already exists.
+- **High/xhigh** — `architect`, `review`: the two stages where under-thinking directly causes downstream cost — a shallow technical plan or a shallow review both propagate their mistakes into code a human ends up debugging later.
+
+A single role's effort can also be bumped for one run without editing `.ai/agents.json`, via `OPENROUTER_EFFORT_<ROLE>` (e.g. `OPENROUTER_EFFORT_ARCHITECT=xhigh`) — mirrors the existing `OPENROUTER_MODEL_<ROLE>` override.
+
 ### Dev-only: `typeSkills` and `extraSkills`
 
 The `dev` role entry additionally supports two optional fields for injecting file-type- or language-specific coding standards into the Dev agent's context. Neither exists for any other role — only Dev writes source code.
@@ -141,6 +154,7 @@ The `dev` role entry additionally supports two optional fields for injecting fil
 - **`extraSkills`** (`string[]`) — injected into every single Dev run regardless of which files are touched. Use this for cross-cutting rules (security baseline, error-handling conventions) rather than `typeSkills`, which is deliberately conditional.
 - The skill files themselves (`.ai/skills/*.md` in the example above — the path is arbitrary, just needs to exist and be readable from the project root) are plain markdown you write yourself. There's no required structure; they're read verbatim and appended to Dev's system prompt under a `## <filename> (cross-cutting)` or matched-skill heading.
 - `typeSkills`/`extraSkills` paths are resolved from the project root, not from `skills/afp-pipeline/`, since they're project-specific standards, not part of the module.
+- For a project with a real UI surface (`project_type` `web` or `mobile`), offer to copy `skills/afp-pipeline/templates/skills/ui-standards.md` into `.ai/skills/ui-standards.md` and wire it as a `typeSkills` entry for the project's UI file extensions (`*.tsx`, `*.css`, `*.vue`, etc., whatever `source_extensions`/`styling` detected). It's a starter set of design-tokens-first and motion/state-completeness rules — meant to be edited to the project's actual design system, not used verbatim.
 
 ## Configuration variables
 

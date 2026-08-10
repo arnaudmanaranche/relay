@@ -41,6 +41,7 @@ RUN_SCRIPT=$(read_config ".commands.runScript" "npx tsx")
 TYPECHECK_CMD=$(read_config ".commands.typecheck" "tsc --noEmit")
 LINT_CMD=$(read_config ".commands.lint" "eslint .")
 TEST_CMD=$(read_config ".commands.test" "")
+BUILD_CMD=$(read_config ".commands.build" "")
 BRANCH_PREFIX=$(read_config ".project.branchPrefix" "feat")
 MEMORY_COMPACT_EVERY=$(read_config ".project.memoryCompactEvery" "10")
 DEFAULT_BRANCH=$(read_config ".project.defaultBranch" "main")
@@ -251,16 +252,21 @@ scan_content_gates() {
 # `commands.lint` was configured but never actually invoked anywhere before
 # this), the project's own test suite (only if `commands.test` is
 # configured — not every project has one runnable command, so this is
-# opt-in rather than defaulting to a guess), and deterministic content gates
-# (no placeholders, no committed secrets in Dev's output). All failures are
-# combined into a single feedback file for the Dev retry rather than several.
+# opt-in rather than defaulting to a guess), an optional real build
+# (`commands.build`, e.g. `next build`/`tsc -b`/`expo export` — verification
+# by observation: a build actually resolves and bundles the code, catching
+# runtime-only breakage typecheck passes right through), and deterministic
+# content gates (no placeholders, no committed secrets in Dev's output). All
+# failures are combined into a single feedback file for the Dev retry rather
+# than several.
 run_quality_gates() {
   local feedback_file="$ARTIFACTS_DIR/.agent-typecheck-feedback.md"
-  local tc_out lint_out test_out
+  local tc_out lint_out test_out build_out
   tc_out=$(mktemp)
   lint_out=$(mktemp)
   test_out=$(mktemp)
-  local tc_ok=true lint_ok=true test_ok=true content_ok=true
+  build_out=$(mktemp)
+  local tc_ok=true lint_ok=true test_ok=true build_ok=true content_ok=true
 
   if ! ${TYPECHECK_CMD} > "$tc_out" 2>&1; then
     tc_ok=false
@@ -273,6 +279,11 @@ run_quality_gates() {
       test_ok=false
     fi
   fi
+  if [ -n "$BUILD_CMD" ]; then
+    if ! ${BUILD_CMD} > "$build_out" 2>&1; then
+      build_ok=false
+    fi
+  fi
 
   local content_out
   content_out=$(mktemp)
@@ -280,7 +291,7 @@ run_quality_gates() {
     content_ok=false
   fi
 
-  if [ "$tc_ok" = false ] || [ "$lint_ok" = false ] || [ "$test_ok" = false ] || [ "$content_ok" = false ]; then
+  if [ "$tc_ok" = false ] || [ "$lint_ok" = false ] || [ "$test_ok" = false ] || [ "$build_ok" = false ] || [ "$content_ok" = false ]; then
     mkdir -p "$(dirname "$feedback_file")"
     {
       if [ "$tc_ok" = false ]; then
@@ -298,16 +309,21 @@ run_quality_gates() {
         cat "$test_out"
         echo ""
       fi
+      if [ "$build_ok" = false ]; then
+        echo "## Build failures"
+        cat "$build_out"
+        echo ""
+      fi
       if [ "$content_ok" = false ]; then
         cat "$content_out"
       fi
     } > "$feedback_file"
     head -60 "$feedback_file"
-    rm -f "$tc_out" "$lint_out" "$test_out" "$content_out"
+    rm -f "$tc_out" "$lint_out" "$test_out" "$build_out" "$content_out"
     return 1
   fi
 
-  rm -f "$tc_out" "$lint_out" "$test_out" "$content_out"
+  rm -f "$tc_out" "$lint_out" "$test_out" "$build_out" "$content_out"
   rm -f "$feedback_file" 2>/dev/null || true
   return 0
 }

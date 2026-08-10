@@ -65,6 +65,14 @@ interface ProjectConfig {
     typecheck: string;
     lint: string;
     test?: string;
+    // Optional: a real build/bundle command (e.g. `next build`, `tsc -b`,
+    // `expo export`). Unlike typecheck, a build actually resolves and
+    // bundles the code — it catches runtime-only breakage (a missing
+    // asset, a broken dynamic import, a bundler-incompatible syntax) that
+    // typechecks past. Verification by observation, not just by reasoning
+    // over the diff. Opt-in: only run-pipeline.sh's quality gate invokes
+    // it, and only when configured.
+    build?: string;
     formatCheck: string;
     formatWrite: string;
   };
@@ -209,12 +217,22 @@ const CONFIG = loadProjectConfig();
 
 // --- Config (loaded from .ai/agents.json) ---
 
+// Effort controls how thoroughly a role works its task (files read, checks
+// run, retries attempted before giving up) — independent from `model`, which
+// controls raw capability. Only meaningful when `llm.backend` is 'claude-cli'
+// (passed through as `claude -p --effort`); silently ignored on the generic
+// OpenAI-compatible backend, which has no equivalent knob. Optional — a role
+// without it gets the CLI's own default.
+const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+type Effort = (typeof EFFORT_LEVELS)[number];
+
 interface RoleConfig {
   skill: string;
   model: string;
   artifact: string;
   description: string;
   maxTokens: number;
+  effort?: Effort;
   typeSkills?: Record<string, string>;
   extraSkills?: string[];
 }
@@ -271,6 +289,14 @@ function validateRegistry(
     if (typeof cfg?.maxTokens !== 'number' || cfg.maxTokens <= 0) {
       fieldErrors.push(`roles.${name}.maxTokens must be a positive number`);
     }
+    if (
+      cfg?.effort !== undefined &&
+      !(EFFORT_LEVELS as readonly string[]).includes(cfg.effort as string)
+    ) {
+      fieldErrors.push(
+        `roles.${name}.effort must be one of ${EFFORT_LEVELS.join(', ')} (or omitted)`
+      );
+    }
   }
   if (fieldErrors.length > 0) {
     console.error(`Invalid ${registryPath}:`);
@@ -322,7 +348,10 @@ function parseArgs() {
   if (args['list-roles']) {
     console.log('Available roles:');
     for (const [name, config] of Object.entries(getRoles())) {
-      console.log(`  ${name} — ${config.description} (${config.model})`);
+      const effortSuffix = config.effort ? `, effort: ${config.effort}` : '';
+      console.log(
+        `  ${name} — ${config.description} (${config.model}${effortSuffix})`
+      );
     }
     process.exit(0);
   }
@@ -1031,6 +1060,7 @@ Write \`${ctx.featureDir}/retrospective.md\` with:
 5. **Patterns identified** — reusable patterns worth noting for future features
 6. **Recommendations** — actionable advice for future pipeline runs
 7. **Blocker log** — any blockers and how they were resolved
+8. **Coherence check** — different roles in this pipeline can run on different models (each role's \`model\` in \`.ai/agents.json\` is independent). Skim the artifacts you just read for signs that a downstream role drifted from an upstream one it should have been consistent with: naming a concept differently than the brief named it, a convention the Architect specified that Dev quietly did differently, terminology that shifts partway through a single artifact. This is not the same failure as a wrong acceptance criterion — it's models talking past each other. List anything you find here; leave this section explicitly empty (not omitted) if nothing drifted.
 
 After writing the feature retrospective, also submit an updated \`.ai/project-memory.md\` artifact (create if missing). This file is read by EVERY role on EVERY future feature, so it must stay small and organized by fixed categories, not grow forever as one section per feature:
 
@@ -1272,10 +1302,11 @@ async function callLlm(
   model: string,
   systemPrompt: string,
   userPrompt: string,
-  maxTokens: number
+  maxTokens: number,
+  effort?: Effort
 ): Promise<AgentResult> {
   if (CONFIG.llm.backend === 'claude-cli') {
-    return callLlmViaClaudeCli(role, slug, model, systemPrompt, userPrompt);
+    return callLlmViaClaudeCli(role, slug, model, systemPrompt, userPrompt, effort);
   }
   return callLlmViaOpenAiCompatible(
     role,
@@ -1357,13 +1388,15 @@ async function callLlmViaClaudeCli(
   slug: string,
   model: string,
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  effort?: Effort
 ): Promise<AgentResult> {
   const MAX_RETRIES = 3;
   const BASE_DELAY = 2000;
   const schema = buildToolSchema(role);
 
   console.log(`  Model: ${model} (backend: claude-cli)`);
+  if (effort) console.log(`  Effort: ${effort}`);
   console.log(`  System prompt: ~${systemPrompt.length} chars`);
   console.log(`  User prompt: ~${userPrompt.length} chars`);
 
@@ -1386,6 +1419,9 @@ async function callLlmViaClaudeCli(
     ];
     if (CONFIG.llm.maxBudgetUsd) {
       args.push('--max-budget-usd', String(CONFIG.llm.maxBudgetUsd));
+    }
+    if (effort) {
+      args.push('--effort', effort);
     }
 
     let stdout: string;
@@ -1809,7 +1845,8 @@ async function runDevBatched(
       config.model,
       systemPrompt,
       userPrompt,
-      config.maxTokens
+      config.maxTokens,
+      config.effort
     );
 
     allFiles.push(...batchResult.files);
@@ -2135,9 +2172,28 @@ async function main() {
     config.model = envOverride;
   }
 
+  // Same override mechanism as model, one knob down: OPENROUTER_EFFORT_PM,
+  // OPENROUTER_EFFORT_DEV, etc. — lets a human bump a single role's effort
+  // for one run (e.g. a stubborn Architect retry) without editing
+  // .ai/agents.json.
+  const effortEnvVarKey = `OPENROUTER_EFFORT_${role.toUpperCase().replace(/-/g, '_')}`;
+  const effortEnvOverride = (process.env as Record<string, string | undefined>)[
+    effortEnvVarKey
+  ];
+  if (effortEnvOverride) {
+    if ((EFFORT_LEVELS as readonly string[]).includes(effortEnvOverride)) {
+      config.effort = effortEnvOverride as Effort;
+    } else {
+      console.warn(
+        `  ⚠️  ${effortEnvVarKey}=${effortEnvOverride} is not one of ${EFFORT_LEVELS.join(', ')} — ignoring.`
+      );
+    }
+  }
+
   console.log(`\n🤖 Agent: ${role.toUpperCase()} | Feature: ${slug}`);
   console.log(`   ${config.description}`);
   console.log(`   Model: ${config.model}`);
+  if (config.effort) console.log(`   Effort: ${config.effort}`);
 
   // 1. Load context
   console.log('\n  Loading context...');
@@ -2232,7 +2288,8 @@ async function main() {
         config.model,
         systemPrompt,
         userPrompt,
-        config.maxTokens
+        config.maxTokens,
+        config.effort
       );
     }
   }
