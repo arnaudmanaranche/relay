@@ -101,5 +101,4 @@ export function detectFormatWriteCmd(pkg, packageManager) {
   if (devDeps?.['biome']) return 'biome format --write .';
   if (devDeps?.['prettier']) return 'prettier --write .';
   return '';
-  return 'prettier --write .';
 }
