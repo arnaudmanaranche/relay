@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Dev-only tooling for the Relay module (not published, not installed by consumers).",
   "scripts": {
-    "test": "node --import tsx --test test/*.test.ts test/*.test.mjs",
+    "test": "node --import tsx --test test/*.test.ts test/*.test.mjs test/detectors/**/*.test.mjs",
     "typecheck": "tsc --noEmit",
     "eval": "node skills/relay-pipeline/scripts/eval-pipeline.mjs"
   },
