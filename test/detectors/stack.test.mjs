@@ -1,77 +1,49 @@
+// Tests for skills/relay-setup/scripts/detectors/stack.mjs
+//
+// Characterization tests against real source (confirmed by reading
+// stack.mjs directly) — happy-path assertions check the exact literal
+// value each detector returns for a given recognized dependency, not just
+// "truthy," so a regression to a wrong-but-still-truthy value is caught.
+
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { detectRouter, detectStyling, detectBackend } from '../../skills/relay-setup/scripts/detectors/stack.mjs'
 
-// NOTE: see dev-log.md ("Batch 2") for the caveat on these fixtures — exact
-// dependency-name signals recognized by stack.mjs could not be confirmed
-// against source in this session, so happy-path assertions check for a
-// truthy/non-empty signal rather than an exact literal value, while
-// no-signal-found assertions confidently check the documented empty
-// (''/[]) convention shared by every detector in this repo.
-
-function hasSignal(result) {
-  if (Array.isArray(result)) return result.length > 0
-  if (typeof result === 'string') return result.length > 0
-  return Boolean(result)
-}
-
-function assertNoSignal(result) {
-  if (Array.isArray(result)) {
-    assert.deepEqual(result, [])
-  } else {
-    assert.equal(result, '')
-  }
-}
-
-test('detectRouter returns a signal when a well-known router dependency is present (next)', () => {
-  const pkg = {
-    dependencies: { next: '^14.0.0' },
-    devDependencies: {},
-  }
-  const result = detectRouter(pkg)
-  assert.ok(hasSignal(result), 'expected detectRouter to return a non-empty signal for a next dependency')
+test('detectRouter returns "next" when next is a dependency', () => {
+  const pkg = { dependencies: { next: '^14.0.0' }, devDependencies: {} }
+  assert.strictEqual(detectRouter(pkg), 'next')
 })
 
-test('detectRouter returns a signal when a well-known router dependency is present (react-router-dom)', () => {
-  const pkg = {
-    dependencies: { 'react-router-dom': '^6.0.0' },
-    devDependencies: {},
-  }
-  const result = detectRouter(pkg)
-  assert.ok(hasSignal(result), 'expected detectRouter to return a non-empty signal for a react-router-dom dependency')
+test('detectRouter returns "react-router" when react-router-dom is a dependency', () => {
+  const pkg = { dependencies: { 'react-router-dom': '^6.0.0' }, devDependencies: {} }
+  assert.strictEqual(detectRouter(pkg), 'react-router')
 })
 
-test('detectRouter returns falsy/empty when no router dependency is present', () => {
+test('detectRouter returns "expo-router" when expo-router is a dependency', () => {
+  const pkg = { dependencies: { 'expo-router': '^3.0.0' }, devDependencies: {} }
+  assert.strictEqual(detectRouter(pkg), 'expo-router')
+})
+
+test("detectRouter returns '' when no router dependency is present", () => {
   const pkg = { dependencies: {}, devDependencies: {} }
-  const result = detectRouter(pkg)
-  assertNoSignal(result)
+  assert.strictEqual(detectRouter(pkg), '')
 })
 
-test('detectRouter returns falsy/empty when dependencies/devDependencies are entirely absent', () => {
-  const pkg = {}
-  const result = detectRouter(pkg)
-  assertNoSignal(result)
+test("detectRouter returns '' when dependencies/devDependencies are entirely absent", () => {
+  assert.strictEqual(detectRouter({}), '')
 })
 
-test('detectStyling returns a signal when a well-known styling dependency is present (tailwindcss)', () => {
-  const pkg = {
-    dependencies: {},
-    devDependencies: { tailwindcss: '^3.0.0' },
-  }
-  const result = detectStyling(pkg)
-  assert.ok(hasSignal(result), 'expected detectStyling to return a non-empty signal for a tailwindcss dependency')
+test('detectStyling returns "tailwind" when tailwindcss is a dependency', () => {
+  const pkg = { dependencies: {}, devDependencies: { tailwindcss: '^3.0.0' } }
+  assert.strictEqual(detectStyling(pkg), 'tailwind')
 })
 
-test('detectStyling returns a signal when a well-known styling dependency is present (styled-components)', () => {
-  const pkg = {
-    dependencies: { 'styled-components': '^6.0.0' },
-    devDependencies: {},
-  }
-  const result = detectStyling(pkg)
-  assert.ok(hasSignal(result), 'expected detectStyling to return a non-empty signal for a styled-components dependency')
+test('detectStyling returns "styled-components" when styled-components is a dependency', () => {
+  const pkg = { dependencies: { 'styled-components': '^6.0.0' }, devDependencies: {} }
+  assert.strictEqual(detectStyling(pkg), 'styled-components')
 })
 
-test('detectStyling defaults to CSS when no recognized styling dependency is present', () => {
+test('detectStyling defaults to "CSS" when no recognized styling dependency is present', () => {
   // Confirmed against source: unlike detectRouter/detectBackend (which
   // return '' with no signal), detectStyling always resolves to a value —
   // 'StyleSheet' for React Native, 'CSS' otherwise. There is no
@@ -80,41 +52,35 @@ test('detectStyling defaults to CSS when no recognized styling dependency is pre
   assert.strictEqual(detectStyling(pkg), 'CSS')
 })
 
-test('detectStyling returns StyleSheet as the React Native default when react-native is a dependency with no other styling library', () => {
+test('detectStyling returns "StyleSheet" as the React Native default when react-native is a dependency with no other styling library', () => {
   const pkg = { dependencies: { 'react-native': '^0.74.0' }, devDependencies: {} }
   assert.strictEqual(detectStyling(pkg), 'StyleSheet')
 })
 
-test('detectBackend returns a signal when a well-known backend/database dependency is present (@supabase/supabase-js)', () => {
+test('detectBackend returns "supabase" when @supabase/supabase-js is a dependency', () => {
   // detectBackend recognizes backend-as-a-service / database client
   // libraries (supabase, firebase, amplify, convex, prisma, drizzle,
   // mongoose, pg/postgres) — not general web frameworks like express or
   // nestjs, which this detector does not check for at all.
-  const pkg = {
-    dependencies: { '@supabase/supabase-js': '^2.0.0' },
-    devDependencies: {},
-  }
-  const result = detectBackend(pkg)
-  assert.ok(hasSignal(result), 'expected detectBackend to return a non-empty signal for a @supabase/supabase-js dependency')
+  const pkg = { dependencies: { '@supabase/supabase-js': '^2.0.0' }, devDependencies: {} }
+  assert.strictEqual(detectBackend(pkg), 'supabase')
 })
 
-test('detectBackend returns a signal when a well-known backend/database dependency is present (@prisma/client)', () => {
-  const pkg = {
-    dependencies: { '@prisma/client': '^5.0.0' },
-    devDependencies: {},
-  }
-  const result = detectBackend(pkg)
-  assert.ok(hasSignal(result), 'expected detectBackend to return a non-empty signal for a @prisma/client dependency')
+test('detectBackend returns "prisma" when @prisma/client is a dependency', () => {
+  const pkg = { dependencies: { '@prisma/client': '^5.0.0' }, devDependencies: {} }
+  assert.strictEqual(detectBackend(pkg), 'prisma')
 })
 
-test('detectBackend returns falsy/empty when no backend dependency is present', () => {
+test('detectBackend returns "postgres" when pg is a dependency', () => {
+  const pkg = { dependencies: { pg: '^8.0.0' }, devDependencies: {} }
+  assert.strictEqual(detectBackend(pkg), 'postgres')
+})
+
+test("detectBackend returns '' when no backend dependency is present", () => {
   const pkg = { dependencies: {}, devDependencies: {} }
-  const result = detectBackend(pkg)
-  assertNoSignal(result)
+  assert.strictEqual(detectBackend(pkg), '')
 })
 
-test('detectBackend returns falsy/empty when dependencies/devDependencies are entirely absent', () => {
-  const pkg = {}
-  const result = detectBackend(pkg)
-  assertNoSignal(result)
+test("detectBackend returns '' when dependencies/devDependencies are entirely absent", () => {
+  assert.strictEqual(detectBackend({}), '')
 })

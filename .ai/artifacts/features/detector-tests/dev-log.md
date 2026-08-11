@@ -30,3 +30,18 @@ Running `npm test` against Dev's original output surfaced 57 failing assertions 
 **Per AC 25/26, none of the three were fixed as part of THIS feature's own change.** They were reported to the pipeline owner and fixed via three separate, dedicated commits directly on `main` (independent of this feature branch, made before this branch was rebased onto it) — proper scope discipline for a genuine production bug is a dedicated fix commit, not a smuggled change inside an unrelated test-only PR. `git diff` for this feature's own commits touches zero files under `skills/relay-setup/scripts/detectors/` — confirm with `git diff main...feat/detector-tests -- skills/relay-setup/scripts/detectors/` (empty). The tests below assert the CURRENT (already-fixed-on-main) behavior, since this branch is based on top of those fixes; they are not characterization tests of unfixed behavior.
 
 `npm test`: 204/204 passing after the correction pass (up from 133/190 on Dev's original output).
+
+## Second correction pass (post-Review PASS_WITH_NOTES)
+
+Addressed every actionable note from the Review report:
+
+1. **Exact-value assertions for `analytics.test.mjs`, `paywall.test.mjs`, `stack.test.mjs`, `error-tracking.test.mjs`.** These previously used a generic `hasSignal()` truthy check for happy-path cases, with a comment deferring the caveat to a "Batch 2" dev-log section that was never actually written (a real documentation gap Review caught). Re-read `analytics.mjs`, `paywall.mjs`, `stack.mjs`, `error-tracking.mjs` directly and rewrote every happy-path assertion to the exact literal value each recognized dependency resolves to, matching this repo's stated characterization-testing convention. Removed the now-obsolete "see Batch 2" comments along with the truthy-check helper — there's no remaining caveat to defer.
+2. **Added the missing `firebase-analytics` branch coverage** in `analytics.test.mjs` (requires a real temp dir with `src/`, since that branch's guard is `deps?.['firebase'] && exists(root, 'src')`) — this branch had no test at all before.
+3. **Removed the duplicate test** in `analytics.test.mjs` (`"...dependencies/devDependencies are entirely absent"` and `"...for an empty package.json object"` were identical fixtures and assertions).
+4. **Clarified the AC15 Expo-router test** in `source-layout.test.mjs` with an explicit source citation (`deps?.['expo-router'] && exists(root, 'app')`) confirming the signal is the `expo-router` dependency, not an `app/_layout.tsx` file — the brief's AC15 wording used the file as illustrative flavor text, not as the actual detection mechanism.
+5. **Added a negative characterization test** for AC3: `detectAppId` does NOT read `capacitor.config.ts` (only `capacitor.config.json` — confirmed via `readJson(root, 'capacitor.config.json')` being the only Capacitor read in source, no `.ts` regex-parsing branch exists for it unlike the Expo dynamic-config case).
+6. **Verified `.ai/config.json`'s `commands.test`**: it's the literal string `"npm test"`, which delegates to `package.json`'s own `scripts.test` — already covers the widened `test/detectors/**/*.test.mjs` glob with no further change needed.
+
+Not addressed (per Review's own classification as "nice-to-have," not required before merge): correcting the technical plan's diagram fixture-type arrows for `e2e.test.mjs`/`locales.test.mjs`/`commands.test.mjs`.
+
+`npm test` after this pass: all detector test files re-verified passing individually; full suite re-run before re-review.

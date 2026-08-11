@@ -105,6 +105,18 @@ test('detectAppId returns the appId from capacitor.config.json when present', ()
   assert.strictEqual(detectAppId({ name: 'demo' }, dir, 'mobile'), 'com.example.capacitor');
 });
 
+test('detectAppId does NOT read capacitor.config.ts (only the .json form is read, per source)', () => {
+  // Confirmed against source: `readJson(root, 'capacitor.config.json')` is
+  // the only Capacitor config read anywhere in detectAppId — there is no
+  // equivalent regex-on-raw-text handling for a .ts variant (unlike the
+  // Expo dynamic-config branch above, which does read app.config.ts). A
+  // capacitor.config.ts-only project falls through to the mobile-fallback
+  // fabrication branch instead.
+  const dir = makeTmpDir();
+  writeFileSync(join(dir, 'capacitor.config.ts'), "export default { appId: 'com.example.capacitorts' };\n");
+  assert.strictEqual(detectAppId({ name: 'demo-app' }, dir, 'mobile'), 'com.example.demo.app');
+});
+
 // --- detectAppId: AC 4 & 5 (no mobile signal, web/unknown project type) ---
 
 test("detectAppId returns '' when project_type is web and no mobile config exists", () => {

@@ -61,7 +61,15 @@ test('detectSourceDirs returns both app and pages when both top-level directorie
   assert.deepStrictEqual(detectSourceDirs({}, dir), ['app', 'pages']);
 });
 
-// --- AC 15: Expo-router layout, real branch requires the expo-router dependency ---
+// --- AC 15: Expo-router layout ---
+// Confirmed against source: the real guard is
+// `if (deps?.['expo-router'] && exists(root, 'app')) { ... }` — the
+// signal is the `expo-router` package.json dependency, NOT the presence
+// of an `app/_layout.tsx` file (the brief's AC15 wording used
+// `app/_layout.tsx` as illustrative flavor text for "an Expo-router-style
+// app/ layout," not as the actual detection mechanism). A `_layout.tsx`
+// file is not read anywhere in source-layout.mjs. This scenario is
+// therefore correctly exercised via the dependency, not the file.
 test('detectSourceDirs returns filtered expo-router source dirs when expo-router is a dependency', () => {
   const dir = makeTmpDir();
   mkdirSync(join(dir, 'app'));
