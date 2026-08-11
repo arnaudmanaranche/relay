@@ -721,6 +721,38 @@ else
   echo "  (manifest or tech plan not found — skipping verification)"
 fi
 
+# Structural pre-check: does the Architect's Mermaid diagram reference any
+# file that actually changed, or is it disconnected from the diff entirely?
+# The diagram gate above only checks a ```mermaid block exists — not that
+# it's meaningful. This is advisory, not a replacement for Review's own
+# "diagram vs diff" lens (run_review_panel): it only catches the trivial
+# case of zero overlap (stale diagram, wrong names) before spending a
+# Review call judging a diagram that was never connected to the diff.
+echo "==> Checking Mermaid diagram against the actual diff..."
+DIFF_FILES=$(git diff --name-only "${DEFAULT_BRANCH}...HEAD" 2>/dev/null || echo "") \
+  node -e "
+    var fs = require('fs');
+    var plan = fs.readFileSync('$TECH_PLAN_FILE', 'utf-8');
+    var m = plan.match(/\x60\x60\x60mermaid([\s\S]*?)\x60\x60\x60/);
+    if (!m) { process.exit(0); }
+    var diagram = m[1];
+    var tokens = [...diagram.matchAll(/[\w.\-\/]+\.[a-zA-Z0-9]{1,5}/g)].map(function(x){return x[0]});
+    var basenames = tokens.map(function(t){return t.split('/').pop()});
+    if (basenames.length === 0) { process.exit(0); }
+    var diffFiles = (process.env.DIFF_FILES || '').split('\n').filter(Boolean);
+    if (diffFiles.length === 0) { process.exit(0); }
+    var diffBasenames = diffFiles.map(function(f){return f.split('/').pop()});
+    var overlap = basenames.some(function(b){return diffBasenames.indexOf(b) !== -1});
+    if (!overlap) {
+      console.log('  WARNING — the Mermaid diagram mentions no file that appears in the actual diff.');
+      console.log('  Diagram file-like tokens: ' + (basenames.slice(0,10).join(', ') || 'none'));
+      console.log('  Diff changed files: ' + (diffBasenames.slice(0,10).join(', ') || 'none'));
+      console.log('  Not blocking — Review still makes the real call — but the diagram may be stale.');
+    } else {
+      console.log('  OK — diagram references at least one file present in the diff.');
+    }
+  " 2>&1 || echo "  (diagram/diff check skipped)"
+
 # 5. Review — with one retry: on FAIL, Dev gets the review findings and one
 # more pass before the pipeline gives up. Unlike the typecheck retry, we do
 # NOT discard the Dev's uncommitted work here: Review runs against committed
