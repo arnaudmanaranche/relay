@@ -1075,23 +1075,57 @@ function buildUserPrompt(
     }
   }
 
-  // Git diff (Review only). Diffs against HEAD~1, not HEAD — found live
-  // while dogfooding: by the time Review runs, run-pipeline.sh has ALREADY
-  // committed Dev's changes (commit_stage "chore(dev): $SLUG" happens right
-  // after quality gates pass, before Review runs at all), so `git diff
-  // HEAD --` is unconditionally empty in the real pipeline flow, every
-  // time — Review never actually saw a diff. HEAD~1 is a safe reference
-  // point specifically because review's own commits (chore(review):...)
-  // only ever touch review-report.md/status files, never source — so even
-  // across a review-FAIL retry (a second Dev commit after a review commit
-  // in between), diffing from HEAD~1 still isolates exactly Dev's own
-  // changes, regardless of how many prior round-trips occurred.
+  // Git diff (Review only). Diffs against the merge-base with the default
+  // branch, not against HEAD or a fixed HEAD~N — two things found live
+  // while dogfooding, in order:
+  //
+  // 1. `git diff HEAD --` is unconditionally empty in the real pipeline
+  //    flow: run-pipeline.sh commits Dev's changes (commit_stage
+  //    "chore(dev): $SLUG") right after quality gates pass, BEFORE Review
+  //    ever runs — so by the time this code executes, HEAD already IS
+  //    Dev's own commit, with nothing left uncommitted to diff against it.
+  //    Review had never actually seen a diff.
+  // 2. The first fix for that — diffing against a fixed `HEAD~1` — assumed
+  //    "the most recent commit is exactly and only Dev's own work," which
+  //    breaks the instant ANY extra commit lands between Dev's commit and
+  //    Review running (a human correction, a docs fix, a CI commit —
+  //    anything). Found live: with HEAD~1, a documentation-only follow-up
+  //    commit made the actual feature commit (two commits back) vanish
+  //    from the diff entirely, while an unrelated, merely-uncommitted file
+  //    still leaked in (git diff against a ref also picks up the working
+  //    tree's current uncommitted state, not just that commit's own
+  //    changes) — Review correctly flagged both as real problems.
+  //
+  // The merge-base with the default branch is the actually-robust
+  // reference point: it shows this feature's full cumulative diff
+  // regardless of how many commits (Dev retries, human fixes, whatever)
+  // accumulated on top, exactly matching what a real PR review looks at.
   if (role === 'review') {
     try {
-      const diff = execSync(
-        'git diff HEAD~1 -- . 2>/dev/null || git diff HEAD -- . 2>/dev/null || echo ""',
-        { encoding: 'utf-8', maxBuffer: 1024 * 1024 }
-      )
+      let baseRef = '';
+      try {
+        baseRef = execSync(
+          'git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null',
+          { encoding: 'utf-8' }
+        )
+          .toString()
+          .trim();
+      } catch {
+        baseRef = '';
+      }
+      // Validate before interpolating into the next shell command — this
+      // should always be a plain SHA from git's own output, but a
+      // malformed/unexpected value must never reach the shell unchecked.
+      if (baseRef && !/^[0-9a-f]{7,40}$/i.test(baseRef)) {
+        baseRef = '';
+      }
+      const diffCmd = baseRef
+        ? `git diff ${baseRef} -- .`
+        : 'git diff HEAD~1 -- . 2>/dev/null || git diff HEAD -- .';
+      const diff = execSync(`(${diffCmd}) 2>/dev/null || echo ""`, {
+        encoding: 'utf-8',
+        maxBuffer: 1024 * 1024,
+      })
         .toString()
         .trim();
       if (diff) {
