@@ -806,11 +806,23 @@ if [ "$DRY_RUN" != "--dry-run" ]; then
   git push origin "$BRANCH" 2>&1 || echo "Push failed (may already exist, continuing)"
 fi
 
-# 9. Create or update PR
+# 9. Create or update PR/MR
 echo ""
 echo "========================================="
 echo "  Creating/updating PR..."
 echo "========================================="
+
+# Heuristic host detection from the remote URL — covers gitlab.com and
+# self-hosted GitLab instances (hostname containing "gitlab") as well as
+# github.com. Unknown hosts skip PR/MR creation instead of guessing.
+REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+if echo "$REMOTE_URL" | grep -qi "gitlab"; then
+  GIT_HOST="gitlab"
+elif echo "$REMOTE_URL" | grep -qi "github"; then
+  GIT_HOST="github"
+else
+  GIT_HOST="unknown"
+fi
 
 # Build PR body from retrospective + diff summary
 RETRO_FILE="$ARTIFACTS_DIR/retrospective.md"
@@ -842,20 +854,43 @@ trap 'rm -f "$PR_BODY_FILE"' EXIT
   echo ''
   echo '**Human:** review and merge.'
 } > "$PR_BODY_FILE"
-EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
-if [ -n "$EXISTING_PR" ]; then
-  gh pr edit "$EXISTING_PR" \
-    --title "feat: $SLUG" \
-    --body-file "$PR_BODY_FILE" \
-    2>&1 || true
-  echo "Updated existing PR #$EXISTING_PR"
+if [ "$GIT_HOST" = "github" ]; then
+  EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+  if [ -n "$EXISTING_PR" ]; then
+    gh pr edit "$EXISTING_PR" \
+      --title "feat: $SLUG" \
+      --body-file "$PR_BODY_FILE" \
+      2>&1 || true
+    echo "Updated existing PR #$EXISTING_PR"
+  else
+    gh pr create \
+      --base ${DEFAULT_BRANCH} \
+      --head "$BRANCH" \
+      --title "feat: $SLUG" \
+      --body-file "$PR_BODY_FILE" \
+      2>&1 || echo "Failed to create PR"
+  fi
+elif [ "$GIT_HOST" = "gitlab" ]; then
+  if command -v glab >/dev/null 2>&1; then
+    # glab has no direct "list MR for this branch, then edit by id" one-liner
+    # as clean as gh's; create first and fall back to update-by-branch on
+    # the "already exists" error, mirroring the push step's create-or-noop
+    # fallback style above instead of a separate lookup call.
+    glab mr create \
+      --source-branch "$BRANCH" \
+      --target-branch "$DEFAULT_BRANCH" \
+      --title "feat: $SLUG" \
+      --description "$(cat "$PR_BODY_FILE")" \
+      --yes \
+      2>&1 || glab mr update "$BRANCH" \
+        --title "feat: $SLUG" \
+        --description "$(cat "$PR_BODY_FILE")" \
+        2>&1 || echo "Failed to create/update MR"
+  else
+    echo "glab CLI not found — skipping MR creation. Install: https://gitlab.com/gitlab-org/cli"
+  fi
 else
-  gh pr create \
-    --base ${DEFAULT_BRANCH} \
-    --head "$BRANCH" \
-    --title "feat: $SLUG" \
-    --body-file "$PR_BODY_FILE" \
-    2>&1 || echo "Failed to create PR"
+  echo "Could not determine git host from remote '$REMOTE_URL' — skipping PR/MR creation."
 fi
 
 # 10. Pipeline reached the end — the isolated worktree has served its
