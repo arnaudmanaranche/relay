@@ -32,20 +32,15 @@ pass (build upload + TestFlight only, vs also metadata/screenshots), how Apple c
 without landing in `.ai/config.json` in plaintext, and whether this is a hard pipeline stage or an opt-in script
 a human triggers manually after Relay hands off the PR.
 
-## Structural verification of diagram/skill-proposal gates
+## Structural verification of the skill-proposal gate
 
-The Architect's Mermaid diagram gate only checks that a ` ```mermaid ` block exists — not that it's meaningful.
-Review's "diagram vs diff" check and Retro's "pattern repeated 3+ times" skill-proposal are both pure LLM
-judgment calls with no structural verification backing them up. They can be satisfied trivially or never fire.
+Retro's "pattern repeated 3+ times" skill-proposal is a pure LLM judgment call with no structural verification
+backing it up — it can be satisfied trivially or never fire. (The sibling diagram-vs-diff gate got this in
+`run-pipeline.sh`: it now extracts file-like tokens from the Mermaid block and warns when none appear in the
+actual diff, advisory and non-blocking, before Review's own judgment runs.)
 
-Possible direction: parse the Mermaid diagram's participants/calls (it's a fairly regular DSL) and cross-check
-that the named participants/functions actually appear in the git diff, as a structural pre-check before Review's
-own judgment — not a replacement for it, but a guardrail against a diagram that's disconnected from the diff
-entirely (e.g. wrong participant names, zero overlap with changed files).
-
-**Diagram half done (2026-08-11):** `run-pipeline.sh` now extracts file-like tokens from the Mermaid block and
-warns (advisory, non-blocking) when none of them appear in the actual diff — catches a stale/disconnected
-diagram before spending a Review call on it. Retro's skill-proposal gate is still unverified pure LLM judgment.
+Possible direction: track pattern occurrences structurally (e.g. count matching diffs/artifacts across past
+features in `.ai/project-memory.md` rather than trusting Retro's own tally) before accepting a proposal.
 
 ## Observability — per-run/per-agent visibility
 
@@ -58,21 +53,13 @@ evaluation/scoring hooks — instead of building bespoke logging further. Would 
 `callOpenRouter()` in `agent-runner.ts` (wrap the fetch call) and log role/slug/model/tokens/latency/verdict
 per call as a trace.
 
-## GitLab support — run-pipeline.sh's PR step is GitHub-only
-
-**Done (2026-08-11):** `run-pipeline.sh` now detects the git host from the remote URL and branches to
-`glab mr create`/`glab mr update` for GitLab, falling back to a clear skip message for unknown hosts or a
-missing `glab` CLI.
-
 ## Provider abstraction — Anthropic/Bedrock-native backends
 
 `agent-runner.ts` now talks to any OpenAI-compatible chat-completions + tool-calling provider via
-`llm.baseUrl`/`llm.apiKeyEnv` (OpenAI, Azure OpenAI, Groq, Together, Fireworks, Ollama). Anthropic's native
-Messages API and Bedrock use a different request/response shape entirely and would need a real adapter, not
-just a config change — scope that separately if/when needed.
-
-**Note:** the subscription-only sub-case (`claude-cli` backend via `claude -p --json-schema`) originally
-tracked here is done — see `agent-runner.ts:1516`.
+`llm.baseUrl`/`llm.apiKeyEnv` (OpenAI, Azure OpenAI, Groq, Together, Fireworks, Ollama), plus the
+subscription-only `claude-cli` backend (`agent-runner.ts:1516`). Anthropic's native Messages API and Bedrock
+use a different request/response shape entirely and would need a real adapter, not just a config change —
+scope that separately if/when needed.
 
 ## Dev's one-shot "full file content per touched file, in one JSON response" doesn't scale
 
@@ -85,35 +72,14 @@ OpenRouter account didn't have enough credit left for another attempt at that si
 tokens, but can only afford 50228").
 
 Current design asks Dev to emit the *complete* content of every touched file (a deliberate anti-hallucination
-choice from early on — diffs invite subtly-wrong context). That's fundamentally at odds with features that
-touch many files: the more files a feature needs, the more likely a single call truncates, and there's no
-graceful degradation — a truncated call just fails schema validation and burns another full-price retry that
-will hit the same ceiling.
+choice from early on — diffs invite subtly-wrong context). Two mitigations are in place:
+- **Batching (2026-07-16):** `agent-runner.ts` splits Dev into sequential batches of `project.devFileBatchSize`
+  files (default 6) whenever the technical plan references more impacted files than that. See
+  `extractImpactedFiles`, `runDevBatched`, and the `DevBatch` prompt-shaping in `buildUserPrompt`.
+- **Truncation retry (2026-08-11):** `callLlmViaOpenAiCompatible` detects `finish_reason: "length"` specifically
+  and retries with a hint to prioritize a complete response over covering every file in full, instead of
+  burning a generic schema-invalid retry that hits the same ceiling again.
 
-Directions worth exploring (not mutually exclusive):
-- ~~Split Dev's work across multiple calls, one per file (or small batch of files) from the technical plan's
-  impacted-files list, instead of one call for everything — bounds each call's output size regardless of
-  total feature size, at the cost of more calls/orchestration complexity in run-pipeline.sh.~~ **Implemented
-  (2026-07-16).** `agent-runner.ts` now splits Dev into sequential batches of
-  `project.devFileBatchSize` files (default `DEFAULT_DEV_FILE_BATCH_SIZE = 6`) whenever the Architect's
-  technical plan references more impacted files than that — below the threshold, behavior is byte-for-byte
-  identical to before (exactly one call). Each batch's result is applied to disk immediately, so later
-  batches see earlier ones' files the same way a retry sees the previous attempt's output — and
-  `run-pipeline.sh` needs zero changes, since quality gates/commits/retries still run once per external
-  `--role=dev` invocation regardless of how many internal batches it took. Token-budget accounting and the
-  abort-if-over-budget check now happen per-batch (not just once per role invocation), since a batched
-  feature can spend far more than a single call would. See `extractImpactedFiles`, `runDevBatched`, and the
-  `DevBatch` prompt-shaping in `buildUserPrompt` for the implementation; `extractImpactedFiles` has unit
-  tests, the batching loop itself doesn't (same pattern as `callLlm` — the network/CLI-calling shell isn't
-  unit tested, only its pure helpers are). Not yet smoke-tested against a real >6-file feature end-to-end.
-- ~~Detect `finish_reason: "length"` specifically (we already log it) and treat it differently from a generic
-  schema-invalid retry: e.g. ask Dev to continue/complete the truncated file list, or explicitly instruct it
-  to prioritize which files matter most if it can't fit everything.~~ **Implemented (2026-08-11).**
-  `callLlmViaOpenAiCompatible` now branches on `finish_reason === 'length'` and retries with a hint telling
-  the model to prioritize a complete, valid response over covering every file in full. Batching (above)
-  reduces how often this fires per call but doesn't eliminate it — a single file that's itself huge can still
-  truncate.
-- Surface a pre-flight estimate (impacted-file count/size from the technical plan) as a warning before even
-  calling Dev, so a human can decide to split the feature into smaller ones rather than discovering the
-  ceiling via a failed, paid call. Largely superseded by automatic batching, but could still be useful as a
-  visible "this will take N batches" log line before the first call.
+Still open: neither eliminates truncation on a single file that's itself huge, and there's no pre-flight
+estimate — a human only learns a feature needs N batches by watching the run, not before triggering it. Worth
+a "this will take N batches" log line before the first Dev call.
