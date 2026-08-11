@@ -509,6 +509,7 @@
           <div><span class="comment"># start a feature</span></div>
           <div><span class="prompt">$</span> <span class="cmd">/start relay-pipeline new "Add dark mode toggle"</span></div>
         </div>
+        <p class="arrow-note">Each feature commits a durable artifact folder under <code>.ai/artifacts/features/</code>. <code>.ai/scripts/prune-artifacts.sh --archive-older-than 90</code> tars up stale ones losslessly — see <a href="https://github.com/arnaudmanaranche/ai-feature-pipeline/blob/main/skills/relay-setup/SKILL.md#repo-hygiene">Repo hygiene</a> in the setup skill.</p>
       </div>
     </section>
 
