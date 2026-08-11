@@ -31,6 +31,8 @@ import {
   trimContextForPrompt,
   evaluateClaudeCliResult,
   extractImpactedFiles,
+  buildArchitectTask,
+  filterArchitectPassArtifacts,
 } from '../skills/relay-pipeline/scripts/agent-runner.ts';
 import type { TokenUsage } from '../skills/relay-pipeline/scripts/agent-runner.ts';
 
@@ -820,6 +822,72 @@ This mirrors the existing \`existing-a.ts\` ↔ \`existing-b.ts\` pattern.
       'package.json',
       'test/detectors/project.test.mjs',
     ]);
+  });
+});
+
+describe('buildArchitectTask — per-pass task text for the Architect split', () => {
+  const ctx = { featureDir: '.ai/artifacts/features/my-feature' } as Parameters<
+    typeof buildArchitectTask
+  >[0];
+
+  test("the 'plan' pass asks only for technical-plan.md, not repository-context.md", () => {
+    const task = buildArchitectTask(ctx, 'plan');
+    assert.match(task, /technical-plan\.md/);
+    assert.doesNotMatch(task, /repository-context\.md/);
+  });
+
+  test("the 'context' pass asks only for repository-context.md, and explicitly forbids rewriting the already-written plan", () => {
+    const task = buildArchitectTask(ctx, 'context');
+    assert.match(task, /repository-context\.md/);
+    assert.match(task, /already been written/);
+    assert.match(task, /do NOT rewrite or modify it/i);
+    assert.match(task, /Do NOT re-emit technical-plan\.md/);
+  });
+
+  test('an undefined pass (unbatched fallback) asks for both artifacts in one call', () => {
+    const task = buildArchitectTask(ctx, undefined);
+    assert.match(task, /technical-plan\.md/);
+    assert.match(task, /repository-context\.md/);
+  });
+
+  test('both passes reference this feature\'s own featureDir, not a hardcoded path', () => {
+    const otherCtx = { featureDir: '.ai/artifacts/features/other-feature' } as Parameters<
+      typeof buildArchitectTask
+    >[0];
+    assert.match(buildArchitectTask(otherCtx, 'plan'), /other-feature\/technical-plan\.md/);
+    assert.match(buildArchitectTask(otherCtx, 'context'), /other-feature\/repository-context\.md/);
+  });
+});
+
+describe('filterArchitectPassArtifacts — defense in depth against a pass producing the wrong artifact', () => {
+  test("the 'plan' pass keeps only technical-plan.md, drops anything else", () => {
+    const artifacts = [
+      { path: '.ai/artifacts/features/x/technical-plan.md', action: 'create' as const, content: 'plan' },
+      { path: '.ai/artifacts/features/x/repository-context.md', action: 'create' as const, content: 'ctx' },
+    ];
+    const { expected, unexpected } = filterArchitectPassArtifacts('plan', artifacts);
+    assert.equal(expected.length, 1);
+    assert.equal(expected[0].content, 'plan');
+    assert.equal(unexpected.length, 1);
+    assert.equal(unexpected[0].content, 'ctx');
+  });
+
+  test("the 'context' pass keeps only repository-context.md, drops anything else", () => {
+    const artifacts = [
+      { path: '.ai/artifacts/features/x/technical-plan.md', action: 'create' as const, content: 'plan' },
+      { path: '.ai/artifacts/features/x/repository-context.md', action: 'create' as const, content: 'ctx' },
+    ];
+    const { expected, unexpected } = filterArchitectPassArtifacts('context', artifacts);
+    assert.equal(expected.length, 1);
+    assert.equal(expected[0].content, 'ctx');
+    assert.equal(unexpected.length, 1);
+    assert.equal(unexpected[0].content, 'plan');
+  });
+
+  test('an empty artifacts array yields no expected and no unexpected entries', () => {
+    const { expected, unexpected } = filterArchitectPassArtifacts('plan', []);
+    assert.deepEqual(expected, []);
+    assert.deepEqual(unexpected, []);
   });
 });
 

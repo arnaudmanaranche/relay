@@ -2051,6 +2051,19 @@ async function runDevBatched(
   };
 }
 
+// Pure decision logic for runArchitectSplit's defense-in-depth artifact
+// filter — separated out so it's unit-testable without mocking callLlm.
+function filterArchitectPassArtifacts(
+  pass: ArchitectPass,
+  artifacts: ArtifactChange[]
+): { expected: ArtifactChange[]; unexpected: ArtifactChange[] } {
+  const expectedSuffix = pass === 'plan' ? 'technical-plan.md' : 'repository-context.md';
+  return {
+    expected: artifacts.filter(a => a.path.endsWith(expectedSuffix)),
+    unexpected: artifacts.filter(a => !a.path.endsWith(expectedSuffix)),
+  };
+}
+
 // Architect splitting — see the comment on buildArchitectTask for why this
 // always runs as two calls (plan, then context) rather than one. Isolated
 // as its own function, dry-run-aware unlike runDevBatched (dry-run never
@@ -2107,14 +2120,10 @@ async function runArchitectSplit(
     // even with per-pass task text (but before the system-prompt override
     // existed), the model included repository-context.md in the 'plan'
     // pass's output anyway.
-    const expectedSuffix = pass === 'plan' ? 'technical-plan.md' : 'repository-context.md';
-    const [expected, unexpected] = [
-      passResult.artifacts.filter(a => a.path.endsWith(expectedSuffix)),
-      passResult.artifacts.filter(a => !a.path.endsWith(expectedSuffix)),
-    ];
+    const { expected, unexpected } = filterArchitectPassArtifacts(pass, passResult.artifacts);
     if (unexpected.length > 0) {
       console.warn(
-        `  ⚠️  Architect pass '${pass}' also produced ${unexpected.map(a => a.path).join(', ')} — dropping (expected only ${expectedSuffix} this pass).`
+        `  ⚠️  Architect pass '${pass}' also produced ${unexpected.map(a => a.path).join(', ')} — dropping (expected only this pass's own artifact).`
       );
     }
     allArtifacts.push(...expected);
@@ -2705,5 +2714,7 @@ export {
   trimContextForPrompt,
   evaluateClaudeCliResult,
   extractImpactedFiles,
+  buildArchitectTask,
+  filterArchitectPassArtifacts,
 };
 export type { FileChange, ArtifactChange, AgentResult, TokenUsage };
