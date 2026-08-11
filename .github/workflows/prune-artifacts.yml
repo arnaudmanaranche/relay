@@ -1,29 +1,41 @@
 name: prune-artifacts
 
 on:
-  push:
-    branches: [main]
+  schedule:
+    # Weekly; feature folders only qualify once untouched for 90+ days, so
+    # there's no benefit to running more often.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   prune:
-    # Skip commits made by this job itself, otherwise the push it makes
-    # would retrigger the workflow indefinitely.
-    if: "!contains(github.event.head_commit.message, '[prune-artifacts]')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
-      - name: Prune per-feature scratch artifacts
-        id: prune
+          fetch-depth: 0
+      - name: Restore feature folder mtimes from git history
+        # `--archive-older-than` reads filesystem mtimes, but checkout resets
+        # every file to the checkout time — without this, nothing ever looks
+        # old enough to archive.
         run: |
-          ./skills/relay-pipeline/scripts/prune-artifacts.sh
-      - name: Commit pruned files
+          for dir in .ai/artifacts/features/*/; do
+            [ -d "$dir" ] || continue
+            ts="$(git log -1 --format=%ct -- "$dir")"
+            [ -n "$ts" ] && touch -d "@$ts" "$dir"
+          done
+      - name: Archive feature folders untouched for 90+ days
+        run: .ai/scripts/prune-artifacts.sh --archive-older-than 90
+      - name: Commit archive
         run: |
+          git add -A .ai/archive .ai/artifacts/features
           if git diff --cached --quiet; then
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: prune per-feature scratch artifacts [prune-artifacts]"
+          git commit -m "chore(relay): archive stale feature folders"
           git push
