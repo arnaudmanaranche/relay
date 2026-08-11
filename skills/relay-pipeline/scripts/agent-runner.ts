@@ -1763,7 +1763,15 @@ async function callLlmViaOpenAiCompatible(
   console.log(`  System prompt: ~${systemPrompt.length} chars`);
   console.log(`  User prompt: ~${userPrompt.length} chars`);
 
+  // Appended to the user prompt on a retry that follows a `finish_reason:
+  // "length"` truncation, so the retry isn't just an identical call hitting
+  // the same output ceiling again.
+  const TRUNCATION_RETRY_HINT =
+    '\n\n## Previous attempt was truncated\n\nYour last response hit the output token limit before finishing — the JSON was cut off mid-file and failed validation. This time, prioritize finishing a complete, valid submit_changes call over completeness of content: if you cannot fit every file in full, cover fewer files (the most critical ones) rather than truncating, and trim explanatory prose to the minimum needed.';
+
   let lastError: string = '';
+  let currentUserPrompt = userPrompt;
+  let retryingAfterTruncation = false;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     let response: Response;
     try {
@@ -1782,7 +1790,7 @@ async function callLlmViaOpenAiCompatible(
           model,
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
+            { role: 'user', content: currentUserPrompt },
           ],
           tools: [tool],
           tool_choice: {
@@ -1825,10 +1833,11 @@ async function callLlmViaOpenAiCompatible(
       if (data.usage) {
         console.log(`  Usage: ${JSON.stringify(data.usage)}`);
       }
-      if (data.choices?.[0]?.finish_reason) {
-        console.log(`  Finish reason: ${data.choices[0].finish_reason}`);
+      const finishReason = data.choices?.[0]?.finish_reason;
+      if (finishReason) {
+        console.log(`  Finish reason: ${finishReason}`);
       }
-      if (data.choices?.[0]?.finish_reason === 'error' || data.error) {
+      if (finishReason === 'error' || data.error) {
         console.log(`  Full response on error finish_reason: ${JSON.stringify(data)}`);
       }
       const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
@@ -1848,6 +1857,27 @@ async function callLlmViaOpenAiCompatible(
       }
       const missing = missingRequiredFields(parsedForValidation, role);
       if (missing.length > 0) {
+        // A `length` finish reason means the call was cut off by max_tokens,
+        // not a phrasing/schema slip — retrying with the exact same prompt
+        // just burns another full-price call hitting the same ceiling. Tell
+        // the model to trade content for a complete response instead.
+        if (finishReason === 'length') {
+          lastError = `Response truncated by the output token limit (finish_reason: length) before a complete submit_changes call — got ${argsRaw.length} chars, missing field(s): ${missing.join(', ')}`;
+          if (attempt < MAX_RETRIES) {
+            const delay = BASE_DELAY * Math.pow(2, attempt - 1);
+            console.warn(
+              `  Truncated by max_tokens (attempt ${attempt}/${MAX_RETRIES}): ${lastError}. Retrying in ${delay}ms with a prioritize-completeness hint...`
+            );
+            currentUserPrompt = userPrompt + TRUNCATION_RETRY_HINT;
+            retryingAfterTruncation = true;
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+          console.error(
+            `LLM API kept truncating submit_changes by the output token limit after ${MAX_RETRIES} attempts: ${lastError}`
+          );
+          process.exit(1);
+        }
         lastError = `submit_changes arguments missing required field(s): ${missing.join(', ')} (raw: ${argsRaw})`;
         if (attempt < MAX_RETRIES) {
           const delay = BASE_DELAY * Math.pow(2, attempt - 1);
@@ -1862,6 +1892,9 @@ async function callLlmViaOpenAiCompatible(
         );
         console.error(argsRaw);
         process.exit(1);
+      }
+      if (retryingAfterTruncation) {
+        console.log('  Completed successfully after a truncation retry.');
       }
 
       const result = parseToolArgs(argsRaw, role, slug);
