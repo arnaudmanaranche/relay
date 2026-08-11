@@ -43,6 +43,10 @@ that the named participants/functions actually appear in the git diff, as a stru
 own judgment — not a replacement for it, but a guardrail against a diagram that's disconnected from the diff
 entirely (e.g. wrong participant names, zero overlap with changed files).
 
+**Diagram half done (2026-08-11):** `run-pipeline.sh` now extracts file-like tokens from the Mermaid block and
+warns (advisory, non-blocking) when none of them appear in the actual diff — catches a stale/disconnected
+diagram before spending a Review call on it. Retro's skill-proposal gate is still unverified pure LLM judgment.
+
 ## Observability — per-run/per-agent visibility
 
 Right now the only visibility into a run is: stdout during the run, `.agent-<role>-response.md` raw logs, and
@@ -56,10 +60,9 @@ per call as a trace.
 
 ## GitLab support — run-pipeline.sh's PR step is GitHub-only
 
-`run-pipeline.sh`'s final stage hardcodes `gh pr create`/`gh pr edit`/`gh pr list`. On a GitLab-hosted project
-this fails harmlessly (the pipeline still completes, just without opening anything) but there's no actual MR
-creation path. Would need a `glab mr create` branch (or GitLab REST API call) gated on detecting the git host
-from the remote URL, mirroring what `detectGithubRepo()` already half-does.
+**Done (2026-08-11):** `run-pipeline.sh` now detects the git host from the remote URL and branches to
+`glab mr create`/`glab mr update` for GitLab, falling back to a clear skip message for unknown hosts or a
+missing `glab` CLI.
 
 ## Provider abstraction — Anthropic/Bedrock-native backends
 
@@ -103,10 +106,13 @@ Directions worth exploring (not mutually exclusive):
   `DevBatch` prompt-shaping in `buildUserPrompt` for the implementation; `extractImpactedFiles` has unit
   tests, the batching loop itself doesn't (same pattern as `callLlm` — the network/CLI-calling shell isn't
   unit tested, only its pure helpers are). Not yet smoke-tested against a real >6-file feature end-to-end.
-- Detect `finish_reason: "length"` specifically (we already log it) and treat it differently from a generic
+- ~~Detect `finish_reason: "length"` specifically (we already log it) and treat it differently from a generic
   schema-invalid retry: e.g. ask Dev to continue/complete the truncated file list, or explicitly instruct it
-  to prioritize which files matter most if it can't fit everything. Batching (above) reduces how often this
-  fires per call but doesn't eliminate it — a single file that's itself huge can still truncate.
+  to prioritize which files matter most if it can't fit everything.~~ **Implemented (2026-08-11).**
+  `callLlmViaOpenAiCompatible` now branches on `finish_reason === 'length'` and retries with a hint telling
+  the model to prioritize a complete, valid response over covering every file in full. Batching (above)
+  reduces how often this fires per call but doesn't eliminate it — a single file that's itself huge can still
+  truncate.
 - Surface a pre-flight estimate (impacted-file count/size from the technical plan) as a warning before even
   calling Dev, so a human can decide to split the feature into smaller ones rather than discovering the
   ceiling via a failed, paid call. Largely superseded by automatic batching, but could still be useful as a
