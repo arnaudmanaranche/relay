@@ -268,11 +268,22 @@ run_quality_gates() {
   build_out=$(mktemp)
   local tc_ok=true lint_ok=true test_ok=true build_ok=true content_ok=true
 
-  if ! ${TYPECHECK_CMD} > "$tc_out" 2>&1; then
-    tc_ok=false
+  # LINT_CMD (and, in principle, TYPECHECK_CMD) can legitimately be empty
+  # — detectLintCmd returns '' for a project with no lint tool configured
+  # at all (see relay-setup's commands.mjs). An empty ${LINT_CMD} used to
+  # rely on bash's own no-op behavior for a redirection with no command
+  # (`> "$lint_out" 2>&1` alone still "succeeds") rather than an explicit
+  # skip — correct today, but fragile and inconsistent with TEST_CMD/
+  # BUILD_CMD's guard below. Made explicit.
+  if [ -n "$TYPECHECK_CMD" ]; then
+    if ! ${TYPECHECK_CMD} > "$tc_out" 2>&1; then
+      tc_ok=false
+    fi
   fi
-  if ! ${LINT_CMD} > "$lint_out" 2>&1; then
-    lint_ok=false
+  if [ -n "$LINT_CMD" ]; then
+    if ! ${LINT_CMD} > "$lint_out" 2>&1; then
+      lint_ok=false
+    fi
   fi
   if [ -n "$TEST_CMD" ]; then
     if ! ${TEST_CMD} > "$test_out" 2>&1; then
