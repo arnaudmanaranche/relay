@@ -34,7 +34,16 @@ export function ls(root, dir) {
   }
 }
 
-/** Recursively find files matching a predicate, up to maxDepth. */
+/**
+ * Recursively find files OR directories matching a predicate, up to
+ * maxDepth. Found while dogfooding: this used to only ever test the
+ * predicate against files (the `else if` branch below) — a directory
+ * always recursed unconditionally, never itself checked against the
+ * predicate. That silently broke locales.mjs's own fallback branch, which
+ * calls this specifically to find a directory NAMED 'i18n'/'intl'/
+ * 'translations'/'locales' — a call that could never succeed, since
+ * directory names were never actually tested.
+ */
 export function findFiles(root, dir, predicate, maxDepth = 3, _depth = 0) {
   if (_depth > maxDepth) return [];
   const results = [];
@@ -43,6 +52,7 @@ export function findFiles(root, dir, predicate, maxDepth = 3, _depth = 0) {
       if (entry.name.startsWith('.')) continue;
       const rel = `${dir}/${entry.name}`;
       if (entry.isDirectory()) {
+        if (predicate(entry.name, rel)) results.push(rel);
         if (!['node_modules', 'dist', 'build', '.git'].includes(entry.name)) {
           results.push(...findFiles(root, rel, predicate, maxDepth, _depth + 1));
         }

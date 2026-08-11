@@ -2,7 +2,10 @@
 
 export function detectErrorTracking(pkg) {
   const deps = { ...pkg?.dependencies, ...pkg?.devDependencies };
-  if (deps?.['@sentry/react'] || deps?.['@sentry/react-native'] || deps?.['@sentry/nextjs']) return 'sentry';
+  // Found while dogfooding: @sentry/node (the plain Node.js/backend SDK,
+  // extremely common for API-only projects) wasn't recognized at all —
+  // only the frontend-framework-flavored Sentry packages were.
+  if (deps?.['@sentry/react'] || deps?.['@sentry/react-native'] || deps?.['@sentry/nextjs'] || deps?.['@sentry/node']) return 'sentry';
   if (deps?.['@bugsnag/js'] || deps?.['@bugsnag/react-native']) return 'bugsnag';
   if (deps?.['@datadog/browser-rum'] || deps?.['@datadog/mobile-react-native']) return 'datadog';
   if (deps?.['rollbar']) return 'rollbar';

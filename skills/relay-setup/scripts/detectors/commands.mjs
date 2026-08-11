@@ -49,7 +49,11 @@ export function detectLintCmd(pkg, packageManager) {
     if (scripts[key]) return `${prefix} ${key}`;
   }
   const devDeps = { ...pkg?.devDependencies, ...pkg?.dependencies };
-  if (devDeps?.['biome']) return 'biome lint .';
+  // Found while dogfooding: this checked the key 'biome', which isn't a
+  // real npm package — the actual Biome package is '@biomejs/biome'.
+  // 'biome' alone would never match a real project, so this fallback
+  // path never fired for any project actually using Biome.
+  if (devDeps?.['@biomejs/biome']) return 'biome lint .';
   if (devDeps?.['eslint']) return 'eslint .';
   // Found live: on a project with no lint script and no lint tool as a
   // dependency, this used to fall back to 'eslint .' anyway — a command
@@ -84,7 +88,7 @@ export function detectFormatCmd(pkg, packageManager) {
     if (scripts[key]) return `${prefix} ${key}`;
   }
   const devDeps = { ...pkg?.devDependencies, ...pkg?.dependencies };
-  if (devDeps?.['biome']) return 'biome format .';
+  if (devDeps?.['@biomejs/biome']) return 'biome format .';
   if (devDeps?.['prettier']) return 'prettier --check .';
   // Same reasoning as detectLintCmd's fallback: don't assert a command for
   // a tool that isn't actually a dependency.
@@ -98,7 +102,7 @@ export function detectFormatWriteCmd(pkg, packageManager) {
     if (scripts[key]) return `${prefix} ${key}`;
   }
   const devDeps = { ...pkg?.devDependencies, ...pkg?.dependencies };
-  if (devDeps?.['biome']) return 'biome format --write .';
+  if (devDeps?.['@biomejs/biome']) return 'biome format --write .';
   if (devDeps?.['prettier']) return 'prettier --write .';
   return '';
 }
