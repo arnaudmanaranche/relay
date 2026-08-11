@@ -15,7 +15,7 @@ import {
   mkdirSync,
   realpathSync,
 } from 'fs';
-import { join, dirname, resolve, sep } from 'path';
+import { join, dirname, resolve, sep, basename } from 'path';
 import { pathToFileURL } from 'url';
 import { createHash } from 'crypto';
 
@@ -630,7 +630,27 @@ function extractImpactedFiles(techPlan: string): string[] {
     // Skip template paths and .ai artifact paths — those are not source files
     if (!p.startsWith('.ai/') && !p.includes('{')) fileRefSet.add(p);
   }
-  return [...fileRefSet];
+
+  // Reconcile bare-filename self-references against their fully-qualified
+  // form. Found live: a bullet's own description sometimes mentions
+  // ANOTHER file by bare name only (e.g. "reused as inputs to
+  // `project.test.mjs`'s cases" inside the fs-helpers.test.mjs bullet),
+  // which the regex above captures as a second, separate entry alongside
+  // the correctly-pathed `test/detectors/project.test.mjs`. Left alone,
+  // Dev could end up asked to create a stray file at the wrong (bare)
+  // path in addition to the real one. When a basename collides between a
+  // bare entry and a directory-qualified one, keep only the qualified
+  // path — a bare entry with no qualified counterpart (a file that
+  // genuinely belongs at the project root) is left untouched.
+  const allRefs = [...fileRefSet];
+  const qualifiedBasenames = new Set(
+    allRefs.filter(p => p.includes('/')).map(p => basename(p))
+  );
+  const reconciled = allRefs.filter(
+    p => p.includes('/') || !qualifiedBasenames.has(basename(p))
+  );
+
+  return reconciled;
 }
 
 // When set, restricts a dev-role prompt to a single batch of the technical

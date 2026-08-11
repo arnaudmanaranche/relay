@@ -790,6 +790,37 @@ This mirrors the existing \`existing-a.ts\` ↔ \`existing-b.ts\` pattern.
     const plan = Array.from({ length: 11 }, (_, i) => `\`test/detectors/mod${i}.test.mjs\``).join('\n');
     assert.equal(extractImpactedFiles(plan).length, 11);
   });
+
+  test('a bare-filename self-reference is reconciled against its fully-qualified path, not duplicated', () => {
+    // Found live: a bullet's own description mentioned ANOTHER file by
+    // bare name only ("reused as inputs to `project.test.mjs`'s cases"),
+    // which used to extract as a second, separate entry alongside the
+    // correctly-pathed `test/detectors/project.test.mjs` — risking Dev
+    // creating a stray file at the wrong (bare) path.
+    const plan = `
+## Impacted Files
+
+- \`test/detectors/fs-helpers.test.mjs\` — NEW. Fixtures reused as inputs to \`project.test.mjs\`'s cases.
+- \`test/detectors/project.test.mjs\` — NEW.
+`;
+    assert.deepEqual(extractImpactedFiles(plan), [
+      'test/detectors/fs-helpers.test.mjs',
+      'test/detectors/project.test.mjs',
+    ]);
+  });
+
+  test('a bare filename with no qualified counterpart is kept (a real root-level file)', () => {
+    const plan = `
+## Impacted Files
+
+- \`package.json\` — widen test glob
+- \`test/detectors/project.test.mjs\` — NEW.
+`;
+    assert.deepEqual(extractImpactedFiles(plan), [
+      'package.json',
+      'test/detectors/project.test.mjs',
+    ]);
+  });
 });
 
 describe('trimContextForPrompt — keeping the Architect prompt small', () => {
