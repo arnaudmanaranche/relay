@@ -31,6 +31,7 @@ import {
   trimContextForPrompt,
   evaluateClaudeCliResult,
   extractImpactedFiles,
+  scopeToRetryFiles,
   buildArchitectTask,
   filterArchitectPassArtifacts,
 } from '../skills/relay-pipeline/scripts/agent-runner.ts';
@@ -822,6 +823,40 @@ This mirrors the existing \`existing-a.ts\` ↔ \`existing-b.ts\` pattern.
       'package.json',
       'test/detectors/project.test.mjs',
     ]);
+  });
+});
+
+describe('scopeToRetryFiles — scoping a quality-gate retry to implicated files', () => {
+  const planned = ['test/detectors/commands.test.mjs', 'test/detectors/error-tracking.test.mjs', 'package.json'];
+
+  test('scopes to the intersection when some retry-files match planned files', () => {
+    const { scoped, matched } = scopeToRetryFiles(planned, 'test/detectors/commands.test.mjs,test/detectors/error-tracking.test.mjs');
+    assert.equal(matched, true);
+    assert.deepEqual(scoped, ['test/detectors/commands.test.mjs', 'test/detectors/error-tracking.test.mjs']);
+  });
+
+  test('trims whitespace and drops empty entries in the retry-files argument', () => {
+    const { scoped, matched } = scopeToRetryFiles(planned, ' test/detectors/commands.test.mjs , , package.json ');
+    assert.equal(matched, true);
+    assert.deepEqual(scoped, ['test/detectors/commands.test.mjs', 'package.json']);
+  });
+
+  test('matched is false and scoped is empty when nothing in retry-files matches a planned file', () => {
+    const { scoped, matched } = scopeToRetryFiles(planned, 'some/unrelated/file.ts');
+    assert.equal(matched, false);
+    assert.deepEqual(scoped, []);
+  });
+
+  test('matched is false for an empty retry-files argument', () => {
+    const { scoped, matched } = scopeToRetryFiles(planned, '');
+    assert.equal(matched, false);
+    assert.deepEqual(scoped, []);
+  });
+
+  test('ignores a retry-files entry that is not in the planned list, keeping only real matches', () => {
+    const { scoped, matched } = scopeToRetryFiles(planned, 'test/detectors/commands.test.mjs,not/a/planned/file.ts');
+    assert.equal(matched, true);
+    assert.deepEqual(scoped, ['test/detectors/commands.test.mjs']);
   });
 });
 

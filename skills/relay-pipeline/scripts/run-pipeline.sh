@@ -145,13 +145,40 @@ fi
 
 run_agent() {
   local role=$1
+  local extra_flags="${2:-}"
   local extra=""
   [ "$DRY_RUN" = "--dry-run" ] && extra="--dry-run"
   echo ""
   echo "========================================="
   echo "  Running $role..."
   echo "========================================="
-  ${RUN_SCRIPT} "$SCRIPT_DIR/agent-runner.ts" --role="$role" --slug="$SLUG" --project-root="$PIPELINE_ROOT" $extra
+  ${RUN_SCRIPT} "$SCRIPT_DIR/agent-runner.ts" --role="$role" --slug="$SLUG" --project-root="$PIPELINE_ROOT" $extra $extra_flags
+}
+
+# Cross-references file paths mentioned in a quality-gate feedback file
+# against this feature's actual planned files (agent-runner.ts's own
+# --list-impacted-files, no LLM call), so a Dev retry can be scoped to just
+# the implicated file(s) instead of always regenerating every batch from
+# scratch. Prints a comma-separated list — empty if nothing can be
+# confidently attributed, which the caller must treat as "fall back to a
+# full regenerate," not as "nothing needs fixing."
+extract_retry_files() {
+  local feedback_file="$1"
+  [ -f "$feedback_file" ] || return 0
+  local planned
+  planned=$(${RUN_SCRIPT} "$SCRIPT_DIR/agent-runner.ts" --list-impacted-files --slug="$SLUG" --project-root="$PIPELINE_ROOT" 2>/dev/null)
+  [ -z "$planned" ] && return 0
+  local matched=()
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    # Fixed-string substring match: works whether the feedback reports
+    # this exact relative path (typecheck/lint) or an absolute path with
+    # this relative path as its suffix (node:test's `location:` field).
+    if grep -qF "$f" "$feedback_file" 2>/dev/null; then
+      matched+=("$f")
+    fi
+  done <<< "$planned"
+  ( IFS=,; echo "${matched[*]}" )
 }
 
 # Commit staged agent output, honoring the project's pre-commit hooks.
@@ -648,10 +675,27 @@ while true; do
 
   echo "  Quality gates FAILED (attempt $TC_ATTEMPT). Feeding errors back to Dev..."
 
-  # Revert all uncommitted changes so Dev retry starts fresh
-  git checkout HEAD -- . 2>/dev/null || true
-
-  run_agent dev
+  # Scope the retry to just the file(s) actually implicated by the
+  # failure when we can confidently tell which ones those are — a large
+  # batched feature previously always paid for every batch's full
+  # regeneration on any single failing file. Falls back to reverting and
+  # regenerating everything when attribution is ambiguous (e.g. a
+  # generic error with no recognizable path): quality gates re-run after
+  # every retry regardless, so a missed attribution costs an unhelpful
+  # retry, never a silently-shipped broken file.
+  RETRY_FILES=$(extract_retry_files "$ARTIFACTS_DIR/.agent-typecheck-feedback.md")
+  if [ -n "$RETRY_FILES" ]; then
+    echo "  Scoping retry to implicated file(s): $RETRY_FILES"
+    IFS=',' read -ra RETRY_FILES_ARR <<< "$RETRY_FILES"
+    for f in "${RETRY_FILES_ARR[@]}"; do
+      git checkout HEAD -- "$f" 2>/dev/null || rm -f "$f"
+    done
+    run_agent dev "--retry-files=$RETRY_FILES"
+  else
+    echo "  Could not confidently attribute the failure to specific planned files — reverting and regenerating the full feature."
+    git checkout HEAD -- . 2>/dev/null || true
+    run_agent dev
+  fi
   TC_ATTEMPT=$((TC_ATTEMPT + 1))
 done
 

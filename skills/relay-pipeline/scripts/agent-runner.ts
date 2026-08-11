@@ -344,6 +344,7 @@ function parseArgs() {
     if (match) args[match[1]] = match[2];
     else if (arg === '--dry-run') args['dry-run'] = 'true';
     else if (arg === '--list-roles') args['list-roles'] = 'true';
+    else if (arg === '--list-impacted-files') args['list-impacted-files'] = 'true';
   }
 
   if (args['list-roles']) {
@@ -353,6 +354,27 @@ function parseArgs() {
       console.log(
         `  ${name} — ${config.description} (${config.model}${effortSuffix})`
       );
+    }
+    process.exit(0);
+  }
+
+  // Prints the technical plan's impacted-files list, one per line, and
+  // exits — no role, no LLM call. Lets run-pipeline.sh cross-reference a
+  // quality-gate failure's mentioned paths against this feature's actual
+  // planned files, to scope a Dev retry to just the implicated batch(es)
+  // instead of always regenerating every batch from scratch.
+  if (args['list-impacted-files']) {
+    if (!args.slug) {
+      console.error(
+        'Usage: --list-impacted-files --slug=<feature-slug> [--project-root=<path>]'
+      );
+      process.exit(1);
+    }
+    const techPlan = read(`.ai/artifacts/features/${args.slug}/technical-plan.md`);
+    if (!techPlan.startsWith('[file not found')) {
+      for (const f of extractImpactedFiles(techPlan)) {
+        console.log(f);
+      }
     }
     process.exit(0);
   }
@@ -582,6 +604,19 @@ function trimContextForPrompt(ctxData: string): string {
 //   **`path/to/file.ts`** — description
 // Shared between prompt injection (existing-file content for Dev) and Dev
 // batch planning in main() (splitting a large file list across calls).
+// Pure intersection logic for --retry-files scoping, separated out of
+// main() so it's unit-testable without a full CLI invocation.
+function scopeToRetryFiles(
+  allPlannedFiles: string[],
+  retryFilesArg: string
+): { scoped: string[]; matched: boolean } {
+  const retrySet = new Set(
+    retryFilesArg.split(',').map(f => f.trim()).filter(Boolean)
+  );
+  const scoped = allPlannedFiles.filter(f => retrySet.has(f));
+  return { scoped, matched: scoped.length > 0 };
+}
+
 function extractImpactedFiles(techPlan: string): string[] {
   if (!techPlan) return [];
   // Found live while dogfooding: no .mjs/.cjs here meant a feature whose
@@ -2544,14 +2579,43 @@ async function main() {
   } else {
     let allPlannedFiles: string[] = [];
     let devBatchSize = DEFAULT_DEV_FILE_BATCH_SIZE;
+    let retryFilesActive = false;
     if (role === 'dev') {
       const techPlan = read(`${ctx.featureDir}/technical-plan.md`);
       allPlannedFiles = extractImpactedFiles(techPlan);
       devBatchSize =
         CONFIG.project.devFileBatchSize || DEFAULT_DEV_FILE_BATCH_SIZE;
+
+      // Scopes a quality-gate retry to just the files run-pipeline.sh
+      // identified as implicated by the failure, instead of always
+      // regenerating every batch from scratch. Falls back to the full
+      // plan if nothing in the provided list actually matches a planned
+      // file (a stale/garbled list is worth ignoring, not trusting
+      // blindly) — the retry then behaves exactly as it did before this
+      // flag existed.
+      if (args['retry-files']) {
+        const { scoped, matched } = scopeToRetryFiles(allPlannedFiles, args['retry-files']);
+        if (matched) {
+          console.log(
+            `  --retry-files scoping Dev to ${scoped.length}/${allPlannedFiles.length} planned file(s): ${scoped.join(', ')}`
+          );
+          allPlannedFiles = scoped;
+          retryFilesActive = true;
+        } else {
+          console.warn(
+            `  --retry-files matched none of this feature's planned files — ignoring, retrying against the full plan.`
+          );
+        }
+      }
     }
 
-    if (role === 'dev' && allPlannedFiles.length > devBatchSize) {
+    // retryFilesActive forces the batched path even for a single small
+    // batch: buildUserPrompt only actually restricts Dev's stated file
+    // scope (and the "other files, don't touch" list) via the devBatch
+    // parameter runDevBatched supplies — the unbatched call path below
+    // recomputes the FULL plan's file list on its own, ignoring any
+    // scoping done above.
+    if (role === 'dev' && (allPlannedFiles.length > devBatchSize || retryFilesActive)) {
       console.log(
         `  Technical plan touches ${allPlannedFiles.length} files (> ${devBatchSize}) — splitting Dev into batches.`
       );
@@ -2714,6 +2778,7 @@ export {
   trimContextForPrompt,
   evaluateClaudeCliResult,
   extractImpactedFiles,
+  scopeToRetryFiles,
   buildArchitectTask,
   filterArchitectPassArtifacts,
 };
