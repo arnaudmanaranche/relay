@@ -1075,11 +1075,21 @@ function buildUserPrompt(
     }
   }
 
-  // Git diff (Review only)
+  // Git diff (Review only). Diffs against HEAD~1, not HEAD — found live
+  // while dogfooding: by the time Review runs, run-pipeline.sh has ALREADY
+  // committed Dev's changes (commit_stage "chore(dev): $SLUG" happens right
+  // after quality gates pass, before Review runs at all), so `git diff
+  // HEAD --` is unconditionally empty in the real pipeline flow, every
+  // time — Review never actually saw a diff. HEAD~1 is a safe reference
+  // point specifically because review's own commits (chore(review):...)
+  // only ever touch review-report.md/status files, never source — so even
+  // across a review-FAIL retry (a second Dev commit after a review commit
+  // in between), diffing from HEAD~1 still isolates exactly Dev's own
+  // changes, regardless of how many prior round-trips occurred.
   if (role === 'review') {
     try {
       const diff = execSync(
-        'git diff HEAD -- . 2>/dev/null || git diff --cached -- . 2>/dev/null || echo ""',
+        'git diff HEAD~1 -- . 2>/dev/null || git diff HEAD -- . 2>/dev/null || echo ""',
         { encoding: 'utf-8', maxBuffer: 1024 * 1024 }
       )
         .toString()
