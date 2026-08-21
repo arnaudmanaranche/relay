@@ -7,6 +7,7 @@
     "defaultBranch": "main",
     "pathAlias": "@",
     "maxTokensPerFeature": 5000000,
+    "maxCostUsdPerFeature": 15,
     "devFileBatchSize": 6
   },
   "bot": { "name": "relay[bot]", "email": "relay-bot@example.com" },

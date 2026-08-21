@@ -22,6 +22,7 @@ import {
   applyChanges,
   isWithinRoot,
   isOverBudget,
+  isOverCostBudget,
   loadTokenUsage,
   saveTokenUsage,
   validateRegistry,
@@ -386,17 +387,40 @@ describe('applyChanges — golden write behavior', () => {
 
 describe('isOverBudget — token spend circuit breaker', () => {
   test('no budget configured means never over budget', () => {
-    assert.equal(isOverBudget({ totalTokens: 999_999_999, calls: [] }, undefined), false);
-    assert.equal(isOverBudget({ totalTokens: 999_999_999, calls: [] }, 0), false);
+    assert.equal(isOverBudget({ totalTokens: 999_999_999, totalCostUsd: 0, calls: [] }, undefined), false);
+    assert.equal(isOverBudget({ totalTokens: 999_999_999, totalCostUsd: 0, calls: [] }, 0), false);
   });
 
   test('under budget is not blocked', () => {
-    assert.equal(isOverBudget({ totalTokens: 100, calls: [] }, 1000), false);
+    assert.equal(isOverBudget({ totalTokens: 100, totalCostUsd: 0, calls: [] }, 1000), false);
   });
 
   test('at or over budget is blocked', () => {
-    assert.equal(isOverBudget({ totalTokens: 1000, calls: [] }, 1000), true);
-    assert.equal(isOverBudget({ totalTokens: 1500, calls: [] }, 1000), true);
+    assert.equal(isOverBudget({ totalTokens: 1000, totalCostUsd: 0, calls: [] }, 1000), true);
+    assert.equal(isOverBudget({ totalTokens: 1500, totalCostUsd: 0, calls: [] }, 1000), true);
+  });
+});
+
+describe('isOverCostBudget — $ spend circuit breaker', () => {
+  test('no budget configured means never over budget', () => {
+    assert.equal(isOverCostBudget({ totalTokens: 0, totalCostUsd: 999, calls: [] }, undefined), false);
+    assert.equal(isOverCostBudget({ totalTokens: 0, totalCostUsd: 999, calls: [] }, 0), false);
+  });
+
+  test('under budget is not blocked', () => {
+    assert.equal(isOverCostBudget({ totalTokens: 0, totalCostUsd: 5, calls: [] }, 15), false);
+  });
+
+  test('at or over budget is blocked', () => {
+    assert.equal(isOverCostBudget({ totalTokens: 0, totalCostUsd: 15, calls: [] }, 15), true);
+    assert.equal(isOverCostBudget({ totalTokens: 0, totalCostUsd: 20, calls: [] }, 15), true);
+  });
+
+  test('untracked cost (backend never reported one) never false-triggers', () => {
+    // totalCostUsd stays 0 when no call ever reported cost — must not be
+    // mistaken for "$0 spent, still under any budget" in a way that later
+    // reads as "cost tracking works" when it silently never ran.
+    assert.equal(isOverCostBudget({ totalTokens: 50_000, totalCostUsd: 0, calls: [] }, 15), false);
   });
 });
 
@@ -414,14 +438,19 @@ describe('loadTokenUsage / saveTokenUsage — disk round-trip', () => {
       // narrow literal type) to TokenUsage, otherwise the empty `calls: []`
       // narrows to `never[]` and the .push() below fails to typecheck even
       // though it's runtime-correct.
-      assert.deepEqual(initial, { totalTokens: 0, calls: [] } as TokenUsage);
+      assert.deepEqual(initial, { totalTokens: 0, totalCostUsd: 0, calls: [] } as TokenUsage);
 
       initial.totalTokens += 500;
-      initial.calls.push({ role: 'pm', tokens: 500 });
+      initial.totalCostUsd += 0.12;
+      initial.calls.push({ role: 'pm', tokens: 500, costUsd: 0.12 });
       saveTokenUsage(featureDir, initial);
 
       const reloaded = loadTokenUsage(featureDir);
-      assert.deepEqual(reloaded, { totalTokens: 500, calls: [{ role: 'pm', tokens: 500 }] });
+      assert.deepEqual(reloaded, {
+        totalTokens: 500,
+        totalCostUsd: 0.12,
+        calls: [{ role: 'pm', tokens: 500, costUsd: 0.12 }],
+      });
     } finally {
       process.chdir(cwd);
       rmSync(root, { recursive: true, force: true });

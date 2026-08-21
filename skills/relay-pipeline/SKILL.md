@@ -99,6 +99,8 @@ The module reads project configuration from `.ai/config.json`. Run the `relay-se
 
 Key config fields: `sourceDirs`, `skipDirs`, `sourceExtensions`, `commands`, `stack`, `e2e`.
 
+`project.maxTokensPerFeature` and `project.maxCostUsdPerFeature` are both opt-in circuit breakers on cumulative spend per feature (across every stage and retry, tracked in `.agent-token-usage.json`) — undefined or 0 means unlimited. Track both, not just tokens: `.ai/agents.json` routinely assigns different models per role (e.g. a cheap model for `qa`/`dev-review`, a stronger one for `architect`/`dev`), so two features with the same token total can have very different real cost. Cost tracking is best-effort — it only populates when the backend reports it (`claude-cli` always does; the `openai-compatible` backend only does when the upstream provider returns `usage.cost`, e.g. OpenRouter with `usage.include: true`, sent automatically).
+
 ## Version
 
 Current: 1.0.0

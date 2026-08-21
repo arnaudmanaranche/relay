@@ -546,17 +546,29 @@ run_agent pm
 commit_stage "chore(pm): $SLUG" pm
 
 # 2. Dev review + clarification loop
+#
+# ROUND_HISTORY tracks each round's verdict so a human hitting the
+# exhausted-loops guard below doesn't have to reconstruct the chronology by
+# reading pm-dev-thread.md's raw, append-only Q&A themselves — it's a
+# summary alongside the full record, not a replacement for it. Purely
+# observational: it does not change any loop/retry decision.
 loop=0
+ROUND_HISTORY=""
 while [ $loop -lt $MAX_LOOPS ]; do
   run_agent dev-review
   commit_stage "chore(dev-review): $SLUG" dev-review
 
   VERDICT=$(read_verdict)
+  ROUND_HISTORY="${ROUND_HISTORY}  Round $((loop + 1)): dev-review verdict = ${VERDICT:-none}
+"
 
   if [ -f "$ARTIFACTS_DIR/blocker.md" ] || [ "$VERDICT" = "blocked" ]; then
     echo ""
     echo "  BLOCKER found - human intervention required."
     echo "  See $ARTIFACTS_DIR/blocker.md"
+    echo ""
+    echo "  Clarification round history:"
+    printf '%s' "$ROUND_HISTORY"
     echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
     exit 1
   fi
@@ -566,6 +578,8 @@ while [ $loop -lt $MAX_LOOPS ]; do
     echo "  Dev has questions. Running PM respond..."
     run_agent pm-respond
     commit_stage "chore(pm-respond): $SLUG" pm-respond
+    ROUND_HISTORY="${ROUND_HISTORY}           pm-respond verdict = $(read_verdict pm-respond)
+"
     loop=$((loop + 1))
     continue
   fi
@@ -591,6 +605,10 @@ fi
 # questions instead of halting for human input.
 if [ "$(read_verdict dev-review)" = "questions" ]; then
   echo "  Unresolved threads after max clarification loops."
+  echo ""
+  echo "  Clarification round history:"
+  printf '%s' "$ROUND_HISTORY"
+  echo "  Full thread: $PIPELINE_ROOT/$ARTIFACTS_DIR/pm-dev-thread.md"
   echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
   exit 1
 fi

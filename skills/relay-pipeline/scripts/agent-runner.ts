@@ -53,6 +53,17 @@ interface ProjectConfig {
     // Opt-in circuit breaker on total OpenRouter token spend per feature.
     // Undefined or 0 means unlimited (the pre-existing behavior).
     maxTokensPerFeature?: number;
+    // Opt-in circuit breaker on total real $ spend per feature. Tokens
+    // alone are a poor proxy for spend once roles use different models
+    // (.ai/agents.json routinely mixes e.g. claude-sonnet-5 and
+    // claude-haiku-4-5 across roles) — two features with the same token
+    // total can cost very different amounts. Undefined or 0 means
+    // unlimited, same convention as maxTokensPerFeature. Best-effort: only
+    // enforced when the backend actually reports a per-call cost (claude-cli
+    // always does via total_cost_usd; the openai-compatible backend only
+    // does when the upstream provider returns usage.cost, e.g. OpenRouter
+    // with `usage.include: true`).
+    maxCostUsdPerFeature?: number;
     // Max files Dev is asked to touch in a single call before main() splits
     // the technical plan's impacted-file list into multiple sequential
     // calls (see "Dev batching" in main()). Undefined/0 falls back to
@@ -1343,6 +1354,10 @@ interface AgentResult {
   verdict: string;
   raw: string;
   usageTokens?: number;
+  // Real $ cost of this one call, when the backend reports it. See
+  // ProjectConfig.maxCostUsdPerFeature for why this is tracked alongside
+  // (not instead of) usageTokens.
+  costUsd?: number;
 }
 
 const FILE_ITEM_SCHEMA = {
@@ -1616,6 +1631,9 @@ function evaluateClaudeCliResult(
       (data.usage.cache_creation_input_tokens ?? 0);
     result.usageTokens = inputTokens + data.usage.output_tokens;
   }
+  if (typeof data.total_cost_usd === 'number') {
+    result.costUsd = data.total_cost_usd;
+  }
   return { status: 'success', result };
 }
 
@@ -1804,6 +1822,12 @@ async function callLlmViaOpenAiCompatible(
           ...(isOpenRouter && CONFIG.llm.provider
             ? { provider: CONFIG.llm.provider }
             : {}),
+          // OpenRouter-only: without this, `usage` in the response omits
+          // real $ cost entirely (only token counts). Harmless to send to
+          // other OpenAI-compatible providers in principle, but they don't
+          // document the field, so scope it to OpenRouter like `provider`
+          // above.
+          ...(isOpenRouter ? { usage: { include: true } } : {}),
         }),
       });
     } catch (err) {
@@ -1901,6 +1925,10 @@ async function callLlmViaOpenAiCompatible(
       if (typeof data.usage?.total_tokens === 'number') {
         result.usageTokens = data.usage.total_tokens;
         console.log(`  Tokens used this call: ${result.usageTokens}`);
+      }
+      if (typeof data.usage?.cost === 'number') {
+        result.costUsd = data.usage.cost;
+        console.log(`  Cost this call: $${result.costUsd}`);
       }
       return result;
     }
@@ -2112,6 +2140,16 @@ async function runDevBatched(
       );
       process.exit(1);
     }
+    const costBudget = CONFIG.project.maxCostUsdPerFeature;
+    if (isOverCostBudget(usageBefore, costBudget)) {
+      console.error(
+        `❌ Cost budget exceeded for feature "${slug}" mid-batch (${i}/${batches.length} batches done): $${usageBefore.totalCostUsd.toFixed(2)}/$${costBudget} already spent.`
+      );
+      console.error(
+        `   Raise project.maxCostUsdPerFeature in .ai/config.json, or take over this feature manually.`
+      );
+      process.exit(1);
+    }
 
     const userPrompt = buildUserPrompt('dev', slug, ctx, config, {
       files: batchFiles,
@@ -2136,14 +2174,20 @@ async function runDevBatched(
       `### Batch ${i + 1}/${batches.length} (${batchFiles.join(', ')})\n\n${batchResult.raw}`
     );
 
-    if (typeof batchResult.usageTokens === 'number') {
+    if (typeof batchResult.usageTokens === 'number' || typeof batchResult.costUsd === 'number') {
       const usage = loadTokenUsage(ctx.featureDir);
-      usage.totalTokens += batchResult.usageTokens;
-      usage.calls.push({ role: 'dev', tokens: batchResult.usageTokens });
+      usage.totalTokens += batchResult.usageTokens ?? 0;
+      usage.totalCostUsd += batchResult.costUsd ?? 0;
+      usage.calls.push({ role: 'dev', tokens: batchResult.usageTokens ?? 0, costUsd: batchResult.costUsd });
       saveTokenUsage(ctx.featureDir, usage);
       if (budget && budget > 0) {
         console.log(
           `  Cumulative tokens for "${slug}": ${usage.totalTokens}/${budget}`
+        );
+      }
+      if (costBudget && costBudget > 0) {
+        console.log(
+          `  Cumulative cost for "${slug}": $${usage.totalCostUsd.toFixed(2)}/$${costBudget}`
         );
       }
     }
@@ -2214,6 +2258,16 @@ async function runArchitectSplit(
       );
       process.exit(1);
     }
+    const costBudget = CONFIG.project.maxCostUsdPerFeature;
+    if (isOverCostBudget(usageBefore, costBudget)) {
+      console.error(
+        `❌ Cost budget exceeded for feature "${slug}" mid-split (pass: ${pass}): $${usageBefore.totalCostUsd.toFixed(2)}/$${costBudget} already spent.`
+      );
+      console.error(
+        `   Raise project.maxCostUsdPerFeature in .ai/config.json, or take over this feature manually.`
+      );
+      process.exit(1);
+    }
 
     const userPrompt = buildUserPrompt('architect', slug, ctx, config, undefined, pass);
     const passResult = await callLlm(
@@ -2241,14 +2295,20 @@ async function runArchitectSplit(
     allArtifacts.push(...expected);
     rawParts.push(`### Pass: ${pass}\n\n${passResult.raw}`);
 
-    if (typeof passResult.usageTokens === 'number') {
+    if (typeof passResult.usageTokens === 'number' || typeof passResult.costUsd === 'number') {
       const usage = loadTokenUsage(ctx.featureDir);
-      usage.totalTokens += passResult.usageTokens;
-      usage.calls.push({ role: 'architect', tokens: passResult.usageTokens });
+      usage.totalTokens += passResult.usageTokens ?? 0;
+      usage.totalCostUsd += passResult.costUsd ?? 0;
+      usage.calls.push({ role: 'architect', tokens: passResult.usageTokens ?? 0, costUsd: passResult.costUsd });
       saveTokenUsage(ctx.featureDir, usage);
       if (budget && budget > 0) {
         console.log(
           `  Cumulative tokens for "${slug}": ${usage.totalTokens}/${budget}`
+        );
+      }
+      if (costBudget && costBudget > 0) {
+        console.log(
+          `  Cumulative cost for "${slug}": $${usage.totalCostUsd.toFixed(2)}/$${costBudget}`
         );
       }
     }
@@ -2582,22 +2642,30 @@ N/A — E2E suite ran successfully.
 
 interface TokenUsage {
   totalTokens: number;
-  calls: { role: string; tokens: number }[];
+  // Sum of every call's costUsd that actually reported one. Stays 0 (not
+  // undefined) when no call ever reported cost, e.g. a project on the
+  // openai-compatible backend against a provider that doesn't return
+  // usage.cost — same "0 means untracked/unlimited" convention as
+  // maxCostUsdPerFeature itself, so isOverCostBudget degrades safely to
+  // "never blocked" rather than false-triggering on a real 0.
+  totalCostUsd: number;
+  calls: { role: string; tokens: number; costUsd?: number }[];
 }
 
 function loadTokenUsage(featureDir: string): TokenUsage {
   const raw = read(`${featureDir}/.agent-token-usage.json`);
   if (!raw || raw.startsWith('[file not found')) {
-    return { totalTokens: 0, calls: [] };
+    return { totalTokens: 0, totalCostUsd: 0, calls: [] };
   }
   try {
     const parsed = JSON.parse(raw);
     return {
       totalTokens: typeof parsed.totalTokens === 'number' ? parsed.totalTokens : 0,
+      totalCostUsd: typeof parsed.totalCostUsd === 'number' ? parsed.totalCostUsd : 0,
       calls: Array.isArray(parsed.calls) ? parsed.calls : [],
     };
   } catch {
-    return { totalTokens: 0, calls: [] };
+    return { totalTokens: 0, totalCostUsd: 0, calls: [] };
   }
 }
 
@@ -2607,6 +2675,10 @@ function saveTokenUsage(featureDir: string, usage: TokenUsage): void {
 
 function isOverBudget(usage: TokenUsage, budget: number | undefined): boolean {
   return typeof budget === 'number' && budget > 0 && usage.totalTokens >= budget;
+}
+
+function isOverCostBudget(usage: TokenUsage, budget: number | undefined): boolean {
+  return typeof budget === 'number' && budget > 0 && usage.totalCostUsd >= budget;
 }
 
 async function main() {
@@ -2651,7 +2723,7 @@ async function main() {
   console.log('\n  Loading context...');
   const ctx = loadContext(role, slug);
 
-  // Token budget check — real calls only, dry-run never spends anything.
+  // Token/cost budget check — real calls only, dry-run never spends anything.
   if (!isDryRun) {
     const usage = loadTokenUsage(ctx.featureDir);
     const budget = CONFIG.project.maxTokensPerFeature;
@@ -2661,6 +2733,16 @@ async function main() {
       );
       console.error(
         `   Raise project.maxTokensPerFeature in .ai/config.json, or take over this feature manually.`
+      );
+      process.exit(1);
+    }
+    const costBudget = CONFIG.project.maxCostUsdPerFeature;
+    if (isOverCostBudget(usage, costBudget)) {
+      console.error(
+        `❌ Cost budget exceeded for feature "${slug}": $${usage.totalCostUsd.toFixed(2)}/$${costBudget} already spent.`
+      );
+      console.error(
+        `   Raise project.maxCostUsdPerFeature in .ai/config.json, or take over this feature manually.`
       );
       process.exit(1);
     }
@@ -2783,15 +2865,22 @@ async function main() {
   // Batched Dev already recorded its own spend per-batch inside
   // runDevBatched (its abort check needs it up to date between batches) —
   // skip double-recording here.
-  if (!isDryRun && !multiCallHandled && typeof result.usageTokens === 'number') {
+  if (!isDryRun && !multiCallHandled && (typeof result.usageTokens === 'number' || typeof result.costUsd === 'number')) {
     const usage = loadTokenUsage(ctx.featureDir);
-    usage.totalTokens += result.usageTokens;
-    usage.calls.push({ role, tokens: result.usageTokens });
+    usage.totalTokens += result.usageTokens ?? 0;
+    usage.totalCostUsd += result.costUsd ?? 0;
+    usage.calls.push({ role, tokens: result.usageTokens ?? 0, costUsd: result.costUsd });
     saveTokenUsage(ctx.featureDir, usage);
     const budget = CONFIG.project.maxTokensPerFeature;
     if (budget && budget > 0) {
       console.log(
         `  Cumulative tokens for "${slug}": ${usage.totalTokens}/${budget}`
+      );
+    }
+    const costBudget = CONFIG.project.maxCostUsdPerFeature;
+    if (costBudget && costBudget > 0) {
+      console.log(
+        `  Cumulative cost for "${slug}": $${usage.totalCostUsd.toFixed(2)}/$${costBudget}`
       );
     }
   }
@@ -2901,6 +2990,7 @@ export {
   applyChanges,
   isWithinRoot,
   isOverBudget,
+  isOverCostBudget,
   loadTokenUsage,
   saveTokenUsage,
   validateRegistry,
