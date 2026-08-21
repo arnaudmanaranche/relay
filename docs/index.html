@@ -784,7 +784,7 @@
     { status: 'done', title: 'Structural check of the diagram gate', text: 'run-pipeline.sh extracts file-like tokens from the Mermaid block and warns when none appear in the actual diff — advisory, before Review runs.' },
     { status: 'done', title: 'Structural verification of the skill-proposal gate', text: 'Each Retro proposal\'s Evidence is checked against (slug) tags in project memory; fewer than 3 verifiable warns for the human reviewer, never blocks.' },
     { status: 'tracked', title: 'Design agent, Figma or Storybook fidelity check', text: 'Nothing today checks the implementation against an actual design source of truth, only a structural diagram-versus-diff check.' },
-    { status: 'tracked', title: 'iOS: App Store Connect CLI integration', text: 'The pipeline stops at PR creation. No path yet to TestFlight or App Store distribution via asc.' },
+    { status: 'tracked', title: 'iOS: App Store Connect CLI integration', text: 'Shipped: opt-in --upload-build stage (asc archive → export → upload → TestFlight) plus setup-time install of the 25-skill asc pack. Still tracked: metadata/screenshot sync and submission-health wiring.' },
     { status: 'tracked', title: 'Observability: per-run and per-agent visibility', text: 'Evaluating Opik for cost, latency, and retry-rate traces instead of bespoke logging.' }
   ];
   var roadmapList = document.getElementById('roadmapList');

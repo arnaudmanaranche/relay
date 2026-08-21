@@ -17,6 +17,7 @@ import { detectPaywall } from './detectors/paywall.mjs';
 import { detectErrorTracking } from './detectors/error-tracking.mjs';
 import { detectE2E } from './detectors/e2e.mjs';
 import { detectLocales } from './detectors/locales.mjs';
+import { detectIos } from './detectors/ios.mjs';
 import { detectSourceDirs, detectSkipDirs, detectSourceExtensions } from './detectors/source-layout.mjs';
 
 const ROOT = (() => {
@@ -30,6 +31,7 @@ const ROOT = (() => {
 const pkg = readJson(ROOT, 'package.json');
 const e2e = detectE2E(ROOT);
 const { locales, dir: localeDir } = detectLocales(ROOT);
+const ios = detectIos(ROOT);
 const sourceDirs = detectSourceDirs(pkg, ROOT);
 const skipDirs = detectSkipDirs(pkg, ROOT);
 const sourceExtensions = detectSourceExtensions(pkg);
@@ -63,6 +65,9 @@ const detected = {
   source_extensions:  sourceExtensions.join(','),
   router:             detectRouter(pkg),
   styling:            detectStyling(pkg),
+  ios_scheme:         ios.scheme,
+  ios_workspace:      ios.workspace,
+  ios_project:        ios.project,
 };
 
 // Print as JSON — relay-setup reads this to pre-fill prompts

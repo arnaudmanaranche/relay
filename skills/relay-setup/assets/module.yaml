@@ -16,6 +16,30 @@ app_id:
   prompt: 'What is your app bundle ID?'
   default: 'com.example.app'
 
+# Mobile-only — the ios.* section powers the opt-in --upload-build pipeline
+# stage (archive → export → upload → optional TestFlight via the asc CLI).
+# All five fields can stay empty; --upload-build fails fast with an
+# actionable message when it runs without them.
+ios_scheme:
+  prompt: 'Which Xcode scheme should be archived for App Store uploads? (leave blank to skip iOS build upload support)'
+  default: ''
+
+ios_workspace:
+  prompt: 'Path to your .xcworkspace, relative to the repo root? (leave blank if you archive from a bare .xcodeproj)'
+  default: ''
+
+ios_project:
+  prompt: 'Path to your .xcodeproj, relative to the repo root? (leave blank if you archive from a workspace)'
+  default: ''
+
+ios_configuration:
+  prompt: 'Build configuration for release archives?'
+  default: 'Release'
+
+ios_testflight_group:
+  prompt: 'TestFlight group to distribute to after upload — name or ID? (blank = upload only, no TestFlight step)'
+  default: ''
+
 github_repo:
   prompt: 'What is your GitHub repository (org/repo)?'
   default: 'org/repo'

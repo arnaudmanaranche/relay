@@ -75,6 +75,7 @@ Which one? [1/2/or type your own]
 | `e2e_dir` | Framework-specific directory (`e2e/maestro`, `cypress/e2e`, etc.) |
 | `router` | `package.json` deps (expo-router, react-navigation, next, tanstack-router, etc.) |
 | `styling` | `package.json` deps (nativewind, tailwind, styled-components, emotion, etc.) |
+| `ios_scheme` / `ios_workspace` / `ios_project` | Filesystem scan of `ios/` then repo root for `.xcworkspace`/`.xcodeproj`; scheme defaults to the project's base name. Best-effort prompt defaults — Xcode has no canonical dir→scheme mapping, so always show them for confirmation. Only offered when a workspace/project was actually found |
 | `source_dirs` | Directory presence (`src`, `app`, `pages`) and framework |
 | `skip_dirs` | Framework-aware (adds `ios`, `android`, `.expo` for React Native; `.next` for Next.js) |
 | `source_extensions` | TypeScript presence, Vue, Svelte |
@@ -86,8 +87,8 @@ Not auto-detected — ask directly if the project has one: `commands.build` (e.g
 `app_id` and the paywall provider question are meaningless, or at least mobile-framed, for a webapp. Use `project_type` to adjust:
 
 - **`project_type: "web"`** — skip the `app_id` prompt entirely (don't ask; write `""` to config). When prompting for `paywall_provider`, don't frame the question in mobile terms — Stripe or LemonSqueezy are the expected answers, not RevenueCat/expo-iap.
-- **`project_type: "mobile"`** — prompt for `app_id` as usual; any paywall provider (including Stripe, if it's a hybrid app with a web billing portal) is fair game.
-- **`project_type: "unknown"`** — still prompt for `app_id`, but don't assume a default beyond what `detect-stack.mjs` returned; ask plainly rather than presenting a mobile-flavored example.
+- **`project_type: "mobile"`** — prompt for `app_id` as usual; any paywall provider (including Stripe, if it's a hybrid app with a web billing portal) is fair game. Also prompt for the `ios.*` fields below (pre-filled from the detector), writing them into an `ios` config object: `scheme`, `workspace`, `project`, `configuration`, `testflightGroup`. These power the pipeline's opt-in `--upload-build` stage (`skills/relay-pipeline/scripts/upload-build.sh`: archive → export → upload → optional TestFlight via the `asc` CLI). Apple credentials are never part of config — the stage reads `ASC_KEY_ID`/`ASC_ISSUER_ID`/`ASC_PRIVATE_KEY_PATH` env vars or keychain auth at run time; say so when prompting, and note that the `asc` CLI must be installed separately.
+- **`project_type: "unknown"`** — still prompt for `app_id`, but don't assume a default beyond what `detect-stack.mjs` returned; ask plainly rather than presenting a mobile-flavored example. Skip the `ios.*` prompts unless a workspace/project was detected anyway.
 
 ### Optional: App Store Connect skill pack (mobile/iOS projects)
 

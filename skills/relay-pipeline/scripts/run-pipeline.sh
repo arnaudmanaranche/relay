@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the full agent pipeline — Relay module
-# Usage: bash scripts/run-pipeline.sh <slug> [issue-body.md] [--dry-run] [--approve-design] [--project-root=<path>]
+# Usage: bash scripts/run-pipeline.sh <slug> [issue-body.md] [--dry-run] [--approve-design] [--upload-build] [--project-root=<path>]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -15,11 +15,14 @@ SLUG="${1:?Usage: $0 <slug> [issue-body.md] [--dry-run] [--approve-design] [--pr
 ISSUE_BODY=""
 DRY_RUN=""
 APPROVE_DESIGN="false"
+UPLOAD_BUILD="false"
 for arg in "${@:2}"; do
   if [ "$arg" = "--dry-run" ]; then
     DRY_RUN="--dry-run"
   elif [ "$arg" = "--approve-design" ]; then
     APPROVE_DESIGN="true"
+  elif [ "$arg" = "--upload-build" ]; then
+    UPLOAD_BUILD="true"
   elif [ -z "$ISSUE_BODY" ] && [[ "$arg" != --* ]]; then
     ISSUE_BODY="$arg"
   fi
@@ -940,6 +943,36 @@ elif [ "$GIT_HOST" = "gitlab" ]; then
   fi
 else
   echo "Could not determine git host from remote '$REMOTE_URL' — skipping PR/MR creation."
+fi
+
+# 9.5 Optional iOS build upload — strictly opt-in via --upload-build, and only
+# after the full pipeline (QA PASS, PR created) has succeeded. Deterministic
+# asc CLI steps (archive → export → upload → optional TestFlight), no LLM.
+# Skipped in dry-run: an upload is a real external side effect, not a
+# rehearsal mechanic. A failure here preserves the worktree like any other
+# gate failure — the PR already exists, so only the upload needs attention.
+if [ "$UPLOAD_BUILD" = "true" ]; then
+  if [ "$DRY_RUN" = "--dry-run" ]; then
+    echo ""
+    echo "==> --upload-build requested but dry-run skips real uploads."
+    bash "$SCRIPT_DIR/upload-build.sh" "$SLUG" --project-root="$PIPELINE_ROOT" --dry-run || \
+      echo "  (upload dry-run reported a config problem — see above)"
+  else
+    echo ""
+    echo "==> Uploading iOS build (--upload-build)..."
+    if ! bash "$SCRIPT_DIR/upload-build.sh" "$SLUG" --project-root="$PIPELINE_ROOT"; then
+      echo ""
+      echo "  Build upload FAILED. The feature branch and PR are unaffected;"
+      echo "  fix the issue and re-upload manually (see $ARTIFACTS_DIR/build-upload.md)."
+      echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
+      exit 1
+    fi
+    # upload-build.sh committed the build-number bump and the upload report
+    # AFTER step 8's push — push them now so the open PR carries the full
+    # provenance (which commit produced which build) instead of stranding
+    # those commits on the local branch.
+    git push origin "$BRANCH" 2>&1 || echo "  Push failed — bump/report commits remain local on $BRANCH."
+  fi
 fi
 
 # 10. Pipeline reached the end — the isolated worktree has served its

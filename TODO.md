@@ -22,15 +22,21 @@ judgment), and whether it's a hard gate or an advisory note in the artifact.
 For iOS projects, the pipeline currently stops at PR creation with no path to TestFlight/App Store distribution —
 shipping a build still means dropping out of Relay into the App Store Connect web UI or a separate Fastlane setup.
 [asc](https://asccli.sh/#skills) is a single-binary, dependency-free CLI wrapping the App Store Connect API, and
-ships 23 pre-built AI-agent skills covering release submission, TestFlight distribution, build uploads, code
+ships 25 pre-built AI-agent skills covering release submission, TestFlight distribution, build uploads, code
 signing/provisioning, and metadata/screenshot sync across locales.
 
-Direction to explore: a post-QA, iOS-specific stage (or an extension of Retro/a new "Ship" role, gated on
-detecting an iOS/Expo project in `.ai/config.json`) that invokes the relevant `asc` skill(s) to upload the build
-and kick off TestFlight distribution once QA passes. Needs scoping: which `asc` skills are in scope for a first
-pass (build upload + TestFlight only, vs also metadata/screenshots), how Apple credentials/API keys are supplied
-without landing in `.ai/config.json` in plaintext, and whether this is a hard pipeline stage or an opt-in script
-a human triggers manually after Relay hands off the PR.
+**Done (2026-08-21):** the asc skill pack (25 `asc-*` skills) is installed globally (`~/.agents/skills/`), and
+relay-setup offers the one-time install when it detects a mobile/iOS project. The build-upload half of this item
+also shipped: an opt-in `--upload-build` flag on `run-pipeline.sh` runs a deterministic post-PR stage
+(`skills/relay-pipeline/scripts/upload-build.sh` — remote-safe build number → archive → export → upload → optional
+TestFlight via `asc`, configured through the new `ios.*` config section that relay-setup now detects/prompts for).
+Credentials stay in env/keychain; dry-run plans the steps without executing; failures preserve the worktree and
+never touch the already-open PR.
+
+Still open: metadata/screenshots sync after upload (the `asc-metadata-sync` / `asc-shots-pipeline` skills are
+installed but not wired into any stage), submission/review tracking (`asc-release-flow`,
+`asc-submission-health`), and whether a future hard-gate variant should block merge on a successfully processed
+build rather than treating upload as best-effort.
 
 ## Structural verification of the skill-proposal gate
 
