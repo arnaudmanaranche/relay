@@ -2513,6 +2513,61 @@ N/A — E2E suite ran successfully.
       ],
     };
   }
+  if (role === 'retro') {
+    // Test seam: dry-run only. Lets run-pipeline.sh's skill-proposal
+    // verification be exercised end-to-end without a real model filing a
+    // proposal. RELAY_MOCK_RETRO_SKILL_PROPOSAL=1 emits a proposal whose
+    // Evidence cites three slugs that exist as tags in the submitted
+    // project memory (verification should say OK); 'weak' cites only one
+    // of them (verification should WARN). Unset keeps the old no-op mock.
+    const mode = process.env.RELAY_MOCK_RETRO_SKILL_PROPOSAL;
+    if (!mode) return { ...base, verdict: 'clear' };
+    const slugs = ['settings-toggle', 'analytics-event', 'i18n-keys'];
+    const cited = mode === 'weak' ? [slugs[0]] : slugs;
+    return {
+      ...base,
+      verdict: 'clear',
+      artifacts: [
+        {
+          path: `${featureDir}/retrospective.md`,
+          action: 'create',
+          content: `# Retrospective\n\nA settings-toggle-shaped pattern recurred across features.\n`,
+        },
+        {
+          path: '.ai/project-memory.md',
+          action: 'update',
+          content: [
+            '# Project memory',
+            '',
+            '## Pitfalls',
+            '',
+            '- Unrelated pitfall. (unrelated-slug)',
+            '',
+            '## Conventions confirmed',
+            '',
+            ...slugs.map(s => `- Settings toggles follow the registry-first pattern. (${s})`),
+            '',
+            '## Architecture decisions',
+            '',
+            '## Integration notes',
+            '',
+          ].join('\n'),
+        },
+        {
+          path: '.ai/artifacts/skill-proposals/settings-toggle.md',
+          action: 'create',
+          content: [
+            '# Skill proposal: settings-toggle',
+            '',
+            '- **Pattern observed** — settings toggles recur across features.',
+            `- **Evidence** — seen in ${cited.map(s => '`' + s + '`').join(', ')}; copy varied, structure fixed.`,
+            '- **Proposed skill** — takes a toggle spec, emits registry entries.',
+            '- **Worth a deterministic script?** — yes, mostly mechanical.',
+          ].join('\n'),
+        },
+      ],
+    };
+  }
   return { ...base, verdict: 'clear' };
 }
 

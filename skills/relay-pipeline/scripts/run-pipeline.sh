@@ -178,7 +178,10 @@ extract_retry_files() {
       matched+=("$f")
     fi
   done <<< "$planned"
-  ( IFS=,; echo "${matched[*]}" )
+  # :- default: expanding an empty array with [*] is an unbound-variable
+  # error under `set -u` on macOS's stock bash 3.2 — found live when a
+  # quality-gate failure matched none of the planned files.
+  ( IFS=,; echo "${matched[*]:-}" )
 }
 
 # Commit staged agent output, honoring the project's pre-commit hooks.
@@ -490,6 +493,14 @@ run_memory_compact_if_due() {
 # noticed a pattern recurring across 3+ features and proposed a dedicated
 # skill instead of routing it through the full pipeline every time. Never
 # auto-applied — just surfaced here so a human actually sees it.
+#
+# Structural verification of the gate itself: "repeated 3+ times" is an LLM
+# judgment call, so each proposal's Evidence section is checked against
+# .ai/project-memory.md deterministically — how many of the slugs it cites
+# actually appear as (slug) tags under Conventions confirmed. Advisory and
+# non-blocking (same posture as the diagram-vs-diff pre-check): it catches
+# evidence that doesn't hold up before a human spends time on the proposal,
+# not instead of their judgment.
 notify_skill_proposals() {
   local proposals_dir=".ai/artifacts/skill-proposals"
   [ -d "$proposals_dir" ] || return 0
@@ -503,6 +514,12 @@ notify_skill_proposals() {
     fi
     echo "    $f"
   done
+  if [ -n "$printed_header" ]; then
+    echo ""
+    echo "==> Verifying proposal evidence against .ai/project-memory.md..."
+    node "$SCRIPT_DIR/verify-skill-proposals.mjs" 2>&1 \
+      || echo "  (skill-proposal verification skipped)"
+  fi
 }
 
 # 0. Scaffold if not exists
