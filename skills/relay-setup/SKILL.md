@@ -89,6 +89,34 @@ Not auto-detected — ask directly if the project has one: `commands.build` (e.g
 - **`project_type: "mobile"`** — prompt for `app_id` as usual; any paywall provider (including Stripe, if it's a hybrid app with a web billing portal) is fair game.
 - **`project_type: "unknown"`** — still prompt for `app_id`, but don't assume a default beyond what `detect-stack.mjs` returned; ask plainly rather than presenting a mobile-flavored example.
 
+### Optional: App Store Connect skill pack (mobile/iOS projects)
+
+When `project_type` is `mobile`, or iOS signals exist regardless of type (`app_id` detected, an `ios/` directory, or an `.xcodeproj`/`.xcworkspace` anywhere in the repo), offer a one-time install of the App Store Connect CLI skill pack (`rorkai/app-store-connect-cli-skills` — 25 `asc-*` skills covering builds, signing, TestFlight, release flow, submission health, metadata, screenshots, pricing, analytics, and crash triage). For a `web` or Android-only project, skip silently — never mention it.
+
+This is an **agent-level** plugin, not project config: the skills install globally and activate contextually via their own "Use when..." descriptions whenever any agent works on iOS/App Store tasks. Nothing is written to `.ai/config.json` and nothing is wired into `typeSkills`/`extraSkills`.
+
+Before offering, check whether it's already installed:
+
+```bash
+ls ~/.agents/skills/ | grep -q '^asc-cli-usage$' && echo installed
+```
+
+If installed, don't offer — just note it's available. If not, ask once:
+
+```
+This looks like an iOS/mobile app. Install the App Store Connect (asc)
+skill pack? 25 skills for builds, signing, TestFlight, releases,
+metadata, screenshots, pricing, and crash triage. [Y/n]
+```
+
+On yes, run:
+
+```bash
+npx skills add rorkai/app-store-connect-cli-skills --skill '*' -g -y
+```
+
+Then verify with `ls ~/.agents/skills/ | grep -c '^asc-'` (expect 25) and remind the user the skills drive the `asc` CLI, which is a separate install (`asc --version` to check). On no, move on without re-asking on subsequent setup runs.
+
 ### Prompt format
 
 Show detected values clearly before asking for confirmation:
