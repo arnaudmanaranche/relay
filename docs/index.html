@@ -1,3 +1,4 @@
+<meta charset="UTF-8">
 <title>Relay</title>
 <style>
   @font-face {
@@ -232,6 +233,23 @@
 
   @media (max-width: 640px) { .detail-grid { grid-template-columns: 1fr; } }
 
+  /* ============ Example output (a running "dark mode toggle" feature, ============ */
+  /* threaded through every stage so a newcomer sees actual generated content) */
+  .example-block { margin-top: 2rem; padding-top: 1.8rem; border-top: 1px solid var(--line); }
+  .example-block .field-label { margin-bottom: 0.9rem; }
+  .example-files { display: flex; flex-direction: column; gap: 1.1rem; }
+  .file-preview { border: 1px solid var(--line); background: var(--bg-raised); }
+  .file-preview .fp-head {
+    display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid var(--line); font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted);
+  }
+  .file-preview .fp-head .fp-dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+  .file-preview .fp-head .fp-name { color: var(--text-hi); }
+  .file-preview pre {
+    margin: 0; padding: 0.95rem 1.1rem; font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.65;
+    color: var(--text-lo); overflow-x: auto; white-space: pre; max-height: 15rem; overflow-y: auto;
+  }
+
   /* ============ Anatomy list ============ */
   .anatomy { border-top: 1px solid var(--line); }
   .anatomy-row { display: grid; grid-template-columns: 9rem 1fr; padding: 1.15rem 0; border-bottom: 1px solid var(--line); }
@@ -361,7 +379,7 @@
       <div class="section-head">
         <div class="kicker"><span class="idx">01</span><span>Step through a run</span></div>
         <h2>The line</h2>
-        <p>Every feature moves down eight stations, left to right. Click a station, use the arrow keys, or press play. The panel below always shows exactly what that role reads, writes, and is gated on.</p>
+        <p>Every feature moves down eight stations, left to right. Click a station, use the arrow keys, or press play. The panel below shows what that role reads, writes, and is gated on &mdash; plus a real excerpt of the file it produces, followed through one running example feature (<code>dark-mode-toggle</code>) from station to station.</p>
       </div>
 
       <div class="rail-controls">
@@ -466,6 +484,7 @@
               <li><code>fetch()</code> to any OpenAI-compatible chat-completions endpoint</li>
               <li>Works with OpenRouter, OpenAI, Azure OpenAI, Groq, Together, Fireworks, or a local Ollama</li>
               <li>Retries keyed off HTTP status: 429, 500, 502, 503</li>
+              <li>On OpenRouter, requests real per-call $ cost (<code>usage.include</code>) to feed <code>project.maxCostUsdPerFeature</code></li>
             </ul>
           </div>
           <div class="col">
@@ -475,6 +494,7 @@
               <li>Needs only <code>claude setup-token</code>: a Claude subscription, no API key at all</li>
               <li>Shells out to <code>claude -p --json-schema</code> instead of an HTTP call</li>
               <li><code>llm.maxBudgetUsd</code> optionally caps spend per individual call</li>
+              <li>Always reports real per-call $ cost, feeding <code>project.maxCostUsdPerFeature</code></li>
               <li>Retries keyed off exit code and <code>is_error</code></li>
             </ul>
           </div>
@@ -525,49 +545,63 @@
       role: 'Reads the original issue and the project\'s directory tree, then writes the requirements down before anyone touches code.',
       produces: 'feature-brief.md',
       producesDesc: 'Problem, goals, numbered acceptance criteria, UX notes, i18n keys, analytics events, scope.',
-      gate: { type: 'none', label: 'No gate', text: 'Straight handoff to Dev Review.' }
+      gate: { type: 'none', label: 'No gate', text: 'Straight handoff to Dev Review.' },
+      example: [{ file: 'feature-brief.md', content:
+'# Feature Brief: dark-mode-toggle\n\n## Problem\nUsers working at night have no way to reduce screen glare inside the\napp. Competitor apps ship this; support gets 1-2 tickets/week asking\nfor it.\n\n## Acceptance criteria\n1. A toggle in Settings > Appearance switches light / dark / system.\n2. Preference persists across app restarts.\n3. Toggle fires the settings_theme_changed analytics event.\n4. Every existing screen renders correctly in dark mode.\n\n## Scope\nIN: toggle UI, theme persistence, analytics event.\nOUT: per-screen custom theming beyond the existing token set.\n\n## i18n\nNew strings: "Appearance", "Light", "Dark", "System".' }]
     },
     {
       code: '02', key: 'dev-review', label: 'Dev Review', short: 'Clarify',
       role: 'Reads the brief as if about to implement it, and raises anything genuinely ambiguous before real work starts.',
       produces: 'pm-dev-thread.md',
       producesDesc: 'Clarifying questions and PM answers, threaded. Loops up to three times.',
-      gate: { type: 'halt', label: 'Halt on blocked', text: 'A verdict of blocked stops the run. The spec is genuinely unclear, not just missing minor detail.' }
+      gate: { type: 'halt', label: 'Halt on blocked', text: 'A verdict of blocked stops the run. The spec is genuinely unclear, not just missing minor detail.' },
+      example: [{ file: 'pm-dev-thread.md', content:
+'### Thread 1\n**Dev Review:** AC 4 says "every existing screen" — does that\ninclude the onboarding flow? It uses a separate navigation stack.\n**Status:** Open\n\n**PM:** Yes, onboarding too. Added to scope.\n**Status:** Resolved\n\n---\nVerdict: clear — proceeding to Architect.' }]
     },
     {
       code: '03', key: 'architect', label: 'Architect', short: 'Design',
       role: 'Turns the brief into an implementation plan: exact files, order of operations, and a required Mermaid diagram of the actual control and data flow.',
       produces: 'technical-plan.md + repository-context.md',
       producesDesc: 'A file-by-file plan, a mandatory mermaid block, and the relevant existing patterns and conventions.',
-      gate: { type: 'pause', label: 'Human sign-off', text: 'Diagram gate first: a missing mermaid block earns one automatic retry, then abort. Design gate second: the run pauses for a human to review, then resumes with --approve-design. The approval binds to the plan\'s content hash, so any later edit forces a fresh review.' }
+      gate: { type: 'pause', label: 'Human sign-off', text: 'Diagram gate first: a missing mermaid block earns one automatic retry, then abort. Design gate second: the run pauses for a human to review, then resumes with --approve-design. The approval binds to the plan\'s content hash, so any later edit forces a fresh review.' },
+      example: [{ file: 'technical-plan.md', content:
+'## Files\n- src/hooks/useTheme.ts (new) — reads/writes theme preference\n- src/components/SettingsAppearance.tsx (modify) — add the toggle\n- src/theme/ThemeProvider.tsx (modify) — resolve light/dark/system\n\n## Flow\n```mermaid\ngraph TD\n  A[User taps toggle] --> B[useTheme.setTheme]\n  B --> C[AsyncStorage.setItem]\n  B --> D[ThemeProvider context update]\n  D --> E[Screens re-render with new tokens]\n```' }]
     },
     {
       code: '04', key: 'dev', label: 'Dev', short: 'Build',
       role: 'The only role allowed to write source code. Implements the plan file by file, splitting into batches automatically past six impacted files.',
       produces: 'code changes + dev-log.md',
       producesDesc: 'Complete file contents (never diffs) for every touched file, plus a running log of what changed and why.',
-      gate: { type: 'retry', label: 'One retry', text: 'Typecheck, lint, and deterministic content scans (no placeholders, no committed secrets) all feed one combined retry. Still failing afterward halts the run.' }
+      gate: { type: 'retry', label: 'One retry', text: 'Typecheck, lint, and deterministic content scans (no placeholders, no committed secrets) all feed one combined retry. Still failing afterward halts the run.' },
+      example: [{ file: 'dev-log.md', content:
+'- Created src/hooks/useTheme.ts (42 lines)\n- Modified src/components/SettingsAppearance.tsx: 3-way toggle\n- Modified src/theme/ThemeProvider.tsx: resolves \'system\' via\n  Appearance.getColorScheme()\n- Fired settings_theme_changed on every change\n- Persisted via AsyncStorage under the theme:preference key' }]
     },
     {
       code: '05', key: 'review', label: 'Review', short: 'Review',
       role: 'Checks the diff against the feature brief\'s acceptance criteria, and, uniquely, against the Architect\'s own diagram: does the code actually flow the way the plan said it would?',
       produces: 'review-report.md',
       producesDesc: 'Verdict: PASS, PASS_WITH_NOTES, or FAIL, with findings per item.',
-      gate: { type: 'retry', label: 'Retry, then halt', text: 'A FAIL feeds findings back to Dev for one retry. Still FAIL afterward halts before QA and before any PR opens.' }
+      gate: { type: 'retry', label: 'Retry, then halt', text: 'A FAIL feeds findings back to Dev for one retry. Still FAIL afterward halts before QA and before any PR opens.' },
+      example: [{ file: 'review-report.md', content:
+'## Verdict: PASS_WITH_NOTES\n\n- AC 1-4: covered.\n- Diagram vs diff: matches — useTheme, ThemeProvider, and\n  SettingsAppearance are all touched exactly as the Architect drew.\n- Note: onboarding stack re-renders on theme change but has no\n  dedicated test — non-blocking, flagged for QA.' }]
     },
     {
       code: '06', key: 'qa', label: 'QA', short: 'Verify',
       role: 'Reads real end-to-end results dropped by the project\'s own CI, framework agnostic: Maestro, Playwright, Cypress, whatever is configured. Never invents a result if none exists.',
       produces: 'qa-report.md',
       producesDesc: 'Verdict: PASS, FAIL, or BLOCKED_ENV when results genuinely are not available.',
-      gate: { type: 'halt', label: 'Halt on FAIL', text: 'A FAIL skips PR creation entirely.' }
+      gate: { type: 'halt', label: 'Halt on FAIL', text: 'A FAIL skips PR creation entirely.' },
+      example: [{ file: 'qa-report.md', content:
+'## Verdict: PASS\n\nE2E (Maestro): toggle switches theme, preference survives an app\nrestart, onboarding screens render correctly in dark mode.\nThe note Review flagged is now covered.' }]
     },
     {
       code: '07', key: 'retro', label: 'Retro', short: 'Learn',
       role: 'Reads every artifact this feature produced and compiles what happened, including failed attempts and repair loops.',
       produces: 'retrospective.md + project-memory.md',
       producesDesc: 'A squad retro, plus merged learnings into four fixed cross-feature categories. Proposes a new skill file when a pattern has now repeated three or more times.',
-      gate: { type: 'warn', label: 'Evidence check (advisory)', text: 'Each proposal\'s cited slugs are counted against the (slug) tags in project memory; fewer than 3 verifiable prints a warning for the human reviewer, never blocks.' }
+      gate: { type: 'warn', label: 'Evidence check (advisory)', text: 'Each proposal\'s cited slugs are counted against the (slug) tags in project memory; fewer than 3 verifiable prints a warning for the human reviewer, never blocks.' },
+      example: [{ file: 'retrospective.md', content:
+'## What went well\nDev Review caught the onboarding-stack ambiguity before Dev started —\nwould have shipped inconsistent otherwise.\n\n## Pattern seen a 3rd time\n"system" theme resolution via the platform Appearance API — same\nshape as notifications and locale. Skill proposal submitted.\n(dark-mode-toggle)' }]
     }
   ];
   var branch = {
@@ -575,7 +609,9 @@
     role: 'Runs on a schedule, not per feature: every project.memoryCompactEvery shipped features, ten by default.',
     produces: '.ai/project-memory.md (rewritten)',
     producesDesc: 'Deduplicates and drops stale entries so project memory stays four fixed categories, never one section per feature forever.',
-    gate: { type: 'none', label: 'No gate', text: 'A housekeeping pass, not a feature-blocking stage.' }
+    gate: { type: 'none', label: 'No gate', text: 'A housekeeping pass, not a feature-blocking stage.' },
+    example: [{ file: '.ai/project-memory.md', content:
+'Before: 34 feature-specific entries under "Conventions confirmed",\nincluding (dark-mode-toggle), (push-notifications), (locale-switch).\n\nAfter: 9 deduplicated, generalized entries — the three above merge\ninto one: "Resolve platform-level preferences (theme, notifications,\nlocale) through the Appearance/OS API, never a manual override table."' }]
   };
 
   var rail = document.getElementById('rail');
@@ -605,8 +641,27 @@
   branchBtn.addEventListener('click', function () { stopAutoplay(); goToBranch(); });
   branchRow.appendChild(branchBtn);
 
+  function escapeHtml(str) {
+    return str.replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; });
+  }
+
   function renderDetail(s, index, total) {
     stationCount.textContent = (index + 1) + ' of ' + total;
+    var exampleHtml = '';
+    if (s.example && s.example.length) {
+      exampleHtml =
+        '<div class="example-block">' +
+          '<span class="field-label">Example output &mdash; the same running feature, station by station</span>' +
+          '<div class="example-files">' +
+            s.example.map(function (f) {
+              return '<div class="file-preview">' +
+                '<div class="fp-head"><span class="fp-dot"></span><span class="fp-name">' + f.file + '</span></div>' +
+                '<pre>' + escapeHtml(f.content) + '</pre>' +
+              '</div>';
+            }).join('') +
+          '</div>' +
+        '</div>';
+    }
     detailCard.innerHTML =
       '<span class="stage-tag mono">Stage ' + s.code + '</span>' +
       '<h3>' + s.label + ', ' + s.short + '</h3>' +
@@ -625,7 +680,8 @@
           '<div class="gate-line g-' + s.gate.type + '"><span class="gdot"></span><span class="glabel">' + s.gate.label + '</span></div>' +
           '<p class="gate-text">' + s.gate.text + '</p>' +
         '</div>' +
-      '</div>';
+      '</div>' +
+      exampleHtml;
   }
 
   function paint() {
@@ -722,7 +778,7 @@
     { tag: 'PROV', title: 'Provenance trailers', text: 'Relay-Model and Relay-Prompt-SHA on every commit. Trace any artifact back to the exact model and prompt that produced it.' },
     { tag: 'HOOK', title: 'Hook-respecting commits', text: 'Never git commit with --no-verify. A real pre-commit rejection stops the run instead of being quietly bypassed.' },
     { tag: 'LOCK', title: 'Concurrency lock', text: 'A per-slug mkdir lock stops two invocations racing the same worktree or branch. A dead-process lock is reclaimed automatically.' },
-    { tag: 'BUDGET', title: 'Token budget breaker', text: 'project.maxTokensPerFeature tracks real cumulative spend and refuses further calls once exceeded.' }
+    { tag: 'BUDGET', title: 'Token and cost budget breaker', text: 'project.maxTokensPerFeature and project.maxCostUsdPerFeature both track real cumulative spend and refuse further calls once exceeded — cost matters on its own since .ai/agents.json routinely mixes cheaper and pricier models across roles.' }
   ];
   var safetyGrid = document.getElementById('safetyGrid');
   guardrails.forEach(function (g) {
@@ -757,7 +813,8 @@
     ]},
     { name: 'Quality and cost', rows: [
       ['project.devFileBatchSize', 'Files per Dev call before batching kicks in', '6'],
-      ['project.maxTokensPerFeature', 'Circuit breaker on cumulative spend, 0 is unlimited', '0'],
+      ['project.maxTokensPerFeature', 'Circuit breaker on cumulative token spend, 0 is unlimited', '0'],
+      ['project.maxCostUsdPerFeature', 'Circuit breaker on cumulative $ spend, 0 is unlimited', '0'],
       ['review.verifiers', 'Independent Review passes, an adversarial panel', '1']
     ]},
     { name: 'Backend', rows: [
