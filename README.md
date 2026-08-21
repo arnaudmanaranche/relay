@@ -71,7 +71,7 @@ Or interactively: "Run the Relay pipeline to scope a new feature."
 | 4 | Dev | Code changes + `dev-log.md` | typecheck gate, 1 retry |
 | 5 | Review | `review-report.md` — verdict PASS / PASS_WITH_NOTES / FAIL, checks the diff against the Architect's diagram | FAIL feeds findings back to Dev, 1 retry; halts before QA and PR if still FAIL |
 | 6 | QA | `qa-report.md` — verdict PASS / FAIL / BLOCKED_ENV | FAIL skips PR creation |
-| 7 | Retro | `retrospective.md` + `.ai/project-memory.md`, plus a skill proposal at `.ai/artifacts/skill-proposals/<name>.md` if a pattern has recurred 3+ times | |
+| 7 | Retro | `retrospective.md` + `.ai/project-memory.md`, plus a skill proposal at `.ai/artifacts/skill-proposals/<name>.md` if a pattern has recurred 3+ times | **Evidence check** — each proposal's cited slugs are counted against the `(slug)` tags in Conventions confirmed; fewer than 3 verifiable prints an advisory warning (never blocks) |
 | — | Memory Compact | rewrites `.ai/project-memory.md` | Runs every `project.memoryCompactEvery` shipped features (default 10), not per-feature |
 
 `.ai/project-memory.md` is read by **every** role, not just PM/Architect/Retro, and is organized into four fixed categories (Pitfalls, Conventions confirmed, Architecture decisions, Integration notes) instead of growing one section per feature forever. The Memory Compact role periodically deduplicates and prunes it — note that both this counter and the memory file itself live on feature branches, so they only accumulate correctly across features whose PRs get merged in between runs.

@@ -34,13 +34,12 @@ a human triggers manually after Relay hands off the PR.
 
 ## Structural verification of the skill-proposal gate
 
-Retro's "pattern repeated 3+ times" skill-proposal is a pure LLM judgment call with no structural verification
-backing it up — it can be satisfied trivially or never fire. (The sibling diagram-vs-diff gate got this in
-`run-pipeline.sh`: it now extracts file-like tokens from the Mermaid block and warns when none appear in the
-actual diff, advisory and non-blocking, before Review's own judgment runs.)
-
-Possible direction: track pattern occurrences structurally (e.g. count matching diffs/artifacts across past
-features in `.ai/project-memory.md` rather than trusting Retro's own tally) before accepting a proposal.
+**Done (2026-08-21):** `run-pipeline.sh` now verifies each skill proposal's Evidence section against
+`.ai/project-memory.md` deterministically (`verify-skill-proposals.mjs`): slugs cited as evidence must appear
+as `(slug)` tags under Conventions confirmed, and fewer than 3 verifiable prints an advisory WARNING
+(non-blocking, same posture as the diagram-vs-diff check) before a human spends time on the proposal.
+Exercisable end-to-end in `--dry-run` via `RELAY_MOCK_RETRO_SKILL_PROPOSAL=1` (verifiable evidence) or `weak`
+(under-evidenced, triggers the warning).
 
 ## Observability — per-run/per-agent visibility
 

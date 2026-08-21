@@ -49,6 +49,7 @@ Each stage produces an artifact in `.ai/artifacts/features/<slug>/`.
 ### 7. Retro — Retrospective
 **Prompt:** `prompts/retro.md`
 **Output:** `retrospective.md` + merges learnings into `.ai/project-memory.md`'s four fixed categories (Pitfalls, Conventions confirmed, Architecture decisions, Integration notes). If a pattern has recurred essentially unchanged across 3+ features, also submits a skill proposal at `.ai/artifacts/skill-proposals/<name>.md` — a suggestion for a human to review, never applied automatically.
+**Gate:** Evidence check — `verify-skill-proposals.mjs` counts how many slugs each proposal cites that actually appear as `(slug)` tags under Conventions confirmed in `.ai/project-memory.md`; fewer than 3 verifiable prints an advisory warning for the human reviewer (non-blocking — the tally is Retro's claim, this just makes it auditable).
 
 ### Memory Compact (periodic, not per-feature)
 **Prompt:** `prompts/memory-compact.md`

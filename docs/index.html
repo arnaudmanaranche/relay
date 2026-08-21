@@ -226,8 +226,9 @@
   .g-retry .gdot, .g-retry .glabel { color: var(--retry); }
   .g-halt .gdot, .g-halt .glabel { color: var(--halt); }
   .g-pause .gdot, .g-pause .glabel { color: var(--accent); }
+  .g-warn .gdot, .g-warn .glabel { color: var(--retry); }
   .g-none .gdot, .g-none .glabel { color: var(--text-muted); }
-  .g-pass .gdot, .g-retry .gdot, .g-halt .gdot, .g-pause .gdot, .g-none .gdot { background: currentColor; }
+  .g-pass .gdot, .g-retry .gdot, .g-warn .gdot, .g-halt .gdot, .g-pause .gdot, .g-none .gdot { background: currentColor; }
 
   @media (max-width: 640px) { .detail-grid { grid-template-columns: 1fr; } }
 
@@ -566,7 +567,7 @@
       role: 'Reads every artifact this feature produced and compiles what happened, including failed attempts and repair loops.',
       produces: 'retrospective.md + project-memory.md',
       producesDesc: 'A squad retro, plus merged learnings into four fixed cross-feature categories. Proposes a new skill file when a pattern has now repeated three or more times.',
-      gate: { type: 'none', label: 'No gate', text: 'The terminal stage. The PR is already open by this point.' }
+      gate: { type: 'warn', label: 'Evidence check (advisory)', text: 'Each proposal\'s cited slugs are counted against the (slug) tags in project memory; fewer than 3 verifiable prints a warning for the human reviewer, never blocks.' }
     }
   ];
   var branch = {
@@ -778,12 +779,13 @@
   var roadmap = [
     { status: 'done', title: 'Claude-subscription backend, claude-cli', text: 'Shells out to the Claude Code CLI itself via claude -p --json-schema. No API key needed, just claude setup-token.' },
     { status: 'done', title: 'Dev batching for large features', text: 'Splits Dev into sequential file batches past project.devFileBatchSize, fixing the truncation problem above.' },
+    { status: 'done', title: 'GitLab support', text: 'run-pipeline.sh detects the git host from the remote URL and creates MRs via glab mr create/update.' },
+    { status: 'done', title: 'Truncation-aware Dev retry', text: 'finish_reason: length now gets its own retry hint — prioritize a complete response over covering every file in full.' },
+    { status: 'done', title: 'Structural check of the diagram gate', text: 'run-pipeline.sh extracts file-like tokens from the Mermaid block and warns when none appear in the actual diff — advisory, before Review runs.' },
+    { status: 'done', title: 'Structural verification of the skill-proposal gate', text: 'Each Retro proposal\'s Evidence is checked against (slug) tags in project memory; fewer than 3 verifiable warns for the human reviewer, never blocks.' },
     { status: 'tracked', title: 'Design agent, Figma or Storybook fidelity check', text: 'Nothing today checks the implementation against an actual design source of truth, only a structural diagram-versus-diff check.' },
     { status: 'tracked', title: 'iOS: App Store Connect CLI integration', text: 'The pipeline stops at PR creation. No path yet to TestFlight or App Store distribution via asc.' },
-    { status: 'tracked', title: 'Structural verification of the diagram gate', text: 'The Mermaid gate only checks a block exists, not that its participants match the actual diff.' },
-    { status: 'tracked', title: 'Observability: per-run and per-agent visibility', text: 'Evaluating Opik for cost, latency, and retry-rate traces instead of bespoke logging.' },
-    { status: 'tracked', title: 'GitLab support', text: 'run-pipeline.sh\'s PR step hardcodes gh pr create. No glab mr create path yet.' },
-    { status: 'tracked', title: 'Detect finish_reason: length specifically', text: 'Batching reduces truncation, but a single huge file can still hit it. Worth a distinct retry path.' }
+    { status: 'tracked', title: 'Observability: per-run and per-agent visibility', text: 'Evaluating Opik for cost, latency, and retry-rate traces instead of bespoke logging.' }
   ];
   var roadmapList = document.getElementById('roadmapList');
   roadmap.forEach(function (r) {
