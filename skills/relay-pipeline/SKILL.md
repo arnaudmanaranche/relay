@@ -80,6 +80,16 @@ bash scripts/babysit-pr.sh <branch> [--max-reruns=2] [--poll-interval=30] [--max
 
 Polls `gh pr checks`, reruns failed jobs up to `--max-reruns` times (real infra flakiness, not a code-fix retry), then — only with `--auto-stamp` — approves the PR itself, but only when every signal already comes out of this pipeline's own gates: Review panel verdict `PASS`, QA verdict `PASS`, and the diff under `--max-diff-lines`. Anything short of that gets a comment explaining why, not a silent skip. Not called by `run-pipeline.sh` — CI can take anywhere from seconds to tens of minutes to settle, which has no business blocking the run that opened the PR. Run it by hand, or loop it externally.
 
+### Status — what is Relay doing right now?
+
+```bash
+node scripts/status.mjs                 # human-readable table for this repo
+node scripts/status.mjs --json          # machine-readable (one line per run state)
+node scripts/status.mjs ~/proj-a ~/proj-b   # several Relay repos in one call
+```
+
+Read-only aggregation over state the pipeline already writes: live worktrees and their concurrency locks (`running` vs crashed), per-role verdict files, cumulative cost from `.agent-token-usage.json`, the design-gate approval hash (`awaiting design approval`, including the plan-changed-since-approval case), quality-gate feedback presence, and merged features under `.ai/artifacts/features/`. Never writes, never calls an LLM. The `--json` output is a stable contract intended for external consumers (menu-bar extras, dashboards): `{ generatedAt, repos: [{ root, name, budget, active: [{ slug, branch, state, lastRole, costUsd, lock, resumeHint }], completed }] }`. Run states: `running | design-gate | blocked-dev-review | failed-typecheck | failed-review | failed-qa | halted | crashed`.
+
 ## Workspace isolation
 
 Every run — including `--dry-run` — executes inside a dedicated git worktree at `<parent-of-project-root>/.relay-worktrees/<project>-<slug>`, never in your active working directory. This makes the run fully reversible: delete the worktree, delete the branch, or both, without touching your own uncommitted work. The worktree is removed automatically once the pipeline reaches a PR; it is left in place (path printed to stdout) whenever the pipeline halts on a blocker, a failed gate, or exhausted retries, so you can inspect or resume from it directly.

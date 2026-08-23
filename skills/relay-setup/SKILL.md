@@ -19,6 +19,8 @@ Run this skill when you first install the module in a project. It auto-detects t
 11. Copies `skills/relay-pipeline/templates/scripts/prune-artifacts.sh` into `.ai/scripts/prune-artifacts.sh` and makes it executable (`chmod +x`) — a human-run maintenance tool for repo hygiene (see **Repo hygiene** below)
 12. Runs the target project's own `format_write_cmd` scoped to `skills/` and `.ai/`, and appends `skills/`/`.ai/` to every lint/format/typecheck exclude mechanism the target project has (see **Excluding module content from the target's tooling** below) — otherwise the module's own copied-in files can fail the target's pre-commit hooks or typecheck gate on the very first commit, for reasons that have nothing to do with the target project itself
 
+The pipeline's own helper scripts (`run-pipeline.sh`, `agent-runner.ts`, `status.mjs`, `babysit-pr.sh`, …) are part of the module copy and need no per-project configuration. `status.mjs` is strictly read-only over existing state files (worktrees, locks, `.agent-*` JSON) and is always safe to run: `node skills/relay-pipeline/scripts/status.mjs [--json]`.
+
 ## Auto-detection
 
 Before asking any questions, run:

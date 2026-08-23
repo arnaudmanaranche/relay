@@ -79,6 +79,16 @@ Or interactively: "Run the Relay pipeline to scope a new feature."
 
 Every run (including `--dry-run`) executes inside a dedicated git worktree under `../.relay-worktrees/`, isolated from your working checkout. The worktree is removed automatically once the pipeline reaches a PR (or a dry-run rehearsal completes); it's preserved for inspection whenever the pipeline halts on a blocker, a failed gate, or exhausted retries.
 
+### Run status
+
+`node skills/relay-pipeline/scripts/status.mjs` aggregates what Relay is doing right now — running/halted/crashed runs (via the worktree concurrency locks), design-gate approvals waiting on you (including plan-changed-since-approval), failed gates, cumulative cost per in-flight feature, and completed features — across one or many repos, from state files the pipeline already writes. Strictly read-only. `--json` emits a stable contract for external consumers (menu-bar extra, dashboard):
+
+```bash
+node skills/relay-pipeline/scripts/status.mjs                  # human-readable
+node skills/relay-pipeline/scripts/status.mjs --json           # machine-readable
+node skills/relay-pipeline/scripts/status.mjs ~/proj ~/other   # several Relay repos at once
+```
+
 A fresh worktree has no `node_modules` and none of the generated hook glue some tools regenerate on install (e.g. husky's `.husky/_/husky.sh`). The pipeline runs `commands.install` (default: `<packageManager> install`) once per worktree, before any agent, and skips it on a resumed run that already has `node_modules`. Agent commits use `chore(<role>): <slug>` rather than `agent(<role>): <slug>` specifically so they pass a standard conventional-commits `commitlint` type-enum out of the box.
 
 ---
@@ -137,6 +147,7 @@ skills/
     │   ├── agent-runner.ts          # LLM-agnostic agent executor
     │   ├── rebuild-context.mjs      # Repo memory builder (AST + incremental cache)
     │   ├── eval-pipeline.mjs        # Output-quality eval harness (structural + optional LLM judge)
+    │   ├── status.mjs               # Read-only run-state dashboard (human table + --json for dashboards/menu bars)
     │   └── run-pipeline.sh          # Full pipeline runner
     ├── eval/                   # Evaluation harness data
     │   ├── cases/                   # Golden rubric cases (*.json)
