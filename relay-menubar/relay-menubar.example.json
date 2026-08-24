@@ -1,0 +1,7 @@
+{
+  "repos": [
+    "/Users/manaranche/ai-feature-pipeline",
+    "/Users/manaranche/little-nook"
+  ],
+  "statusScript": "/Users/manaranche/ai-feature-pipeline/skills/relay-pipeline/scripts/status.mjs"
+}

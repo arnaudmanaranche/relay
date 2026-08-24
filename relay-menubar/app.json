@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.native-sdk.dev/app/v1.json",
+  "id": "sh.relay.menubar",
+  "name": "relay-menubar",
+  "display_name": "Relay",
+  "description": "Menu-bar status for Relay pipeline runs across your repos.",
+  "version": "0.1.0",
+  "icons": ["assets/icon.png"],
+  "platforms": ["macos"],
+  "permissions": ["view", "command", "filesystem", "clipboard", "reveal_path"],
+  "capabilities": ["tray", "native_views", "gpu_surfaces", "clipboard", "reveal_path"],
+  "dock_visible": false,
+  "service_carrier": "child",
+  "shell": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Relay",
+        "width": 500,
+        "height": 460,
+        "initially_hidden": true,
+        "close_policy": "hide",
+        "views": [
+          { "label": "main-canvas", "kind": "gpu_surface", "fill": true, "role": "Dashboard canvas", "accessibility_label": "Relay dashboard", "gpu_backend": "metal", "gpu_pixel_format": "bgra8_unorm", "gpu_present_mode": "timer", "gpu_alpha_mode": "opaque", "gpu_color_space": "srgb", "gpu_vsync": true }
+        ]
+      }
+    ]
+  },
+  "security": {
+    "navigation": {
+      "allowed_origins": ["zero://app", "zero://inline"],
+      "external_links": { "action": "deny" }
+    }
+  },
+  "web_engine": "system",
+  "cef": { "dir": "third_party/cef/macos", "auto_install": false }
+}

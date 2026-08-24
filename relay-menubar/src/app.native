@@ -1,0 +1,123 @@
+<!-- Relay dashboard. Binds helpers exported from src/core.ts ({isBoot},
+     {watching}, {runs}, {emptyQuiet}, {erroredRepos}, {hasSyncError},
+     {syncError}, {runningCount}, {attentionCount}, {hasAttention},
+     {totalCompleted}). Buttons dispatch Msg arms directly:
+     on-press="reveal:{r.index}" / "reveal_artifacts:{r.index}" /
+     "copy_resume:{r.index}" / "refresh" / "open_settings" / "do_quit".
+     Style attributes take literal token names only, so severity tinting is
+     chosen by flag bindings ({r.running} / {r.gated} / {r.failed}). Repo
+     grouping is flattened: the first row of each repo renders the group
+     header ({r.showHeader}). Validate with: native check -->
+<column gap="0" padding="0">
+  <column gap="10" padding="16">
+    <if test="{isBoot}">
+      <row gap="8" cross="center">
+        <spinner/>
+        <text grow="1" foreground="text_muted">Starting…</text>
+        <button size="sm" variant="ghost" icon="settings" on-press="open_settings">Settings</button>
+        <button size="sm" variant="ghost" icon="refresh-cw" on-press="refresh">Refresh</button>
+      </row>
+    </if>
+    <if test="{watching}">
+      <row gap="24" cross="center">
+        <column gap="0">
+          <text size="heading">{runningCount}</text>
+          <text foreground="text_muted">running</text>
+        </column>
+        <if test="{hasAttention}">
+          <column gap="0">
+            <text size="heading" foreground="warning">{attentionCount}</text>
+            <text foreground="text_muted">need attention</text>
+          </column>
+        </if>
+        <column gap="0">
+          <text size="heading" foreground="success">{totalCompleted}</text>
+          <text foreground="text_muted">merged</text>
+        </column>
+        <spacer grow="1"/>
+        <button size="sm" variant="ghost" icon="settings" on-press="open_settings">Settings</button>
+        <button size="sm" variant="ghost" icon="refresh-cw" on-press="refresh">Refresh</button>
+      </row>
+    </if>
+    <if test="{hasSyncError}">
+      <status-bar>{syncError}</status-bar>
+    </if>
+  </column>
+
+  <separator/>
+
+  <scroll grow="1">
+    <column gap="10" padding="14">
+      <for each="runs" key="seq" as="r">
+        <if test="{r.showHeader}">
+          <column gap="4">
+            <row gap="8" cross="center">
+              <icon name="git-branch" foreground="text_muted" width="14" height="14"/>
+              <text grow="1" size="heading">{r.repoName}</text>
+              <text text-alignment="end" foreground="success">{r.repoDone} merged</text>
+            </row>
+            <separator/>
+          </column>
+        </if>
+        <column gap="3">
+          <row gap="8" cross="center">
+            <if test="{r.running}">
+              <icon name="play" foreground="info" width="15" height="15"/>
+            </if>
+            <if test="{r.gated}">
+              <icon name="pause" foreground="warning" width="15" height="15"/>
+            </if>
+            <if test="{r.failed}">
+              <icon name="alert" foreground="destructive" width="15" height="15"/>
+            </if>
+            <text grow="1">{r.slug}</text>
+            <if test="{r.hasArtifacts}">
+              <button size="sm" variant="ghost" icon="archive" on-press="reveal_artifacts:{r.index}">Artifacts</button>
+            </if>
+            <button size="sm" variant="ghost" icon="folder-open" on-press="reveal:{r.index}">Reveal</button>
+          </row>
+          <text foreground="text_muted">{r.caption}</text>
+          <if test="{r.resumable}">
+            <row gap="8" cross="center">
+              <icon name="copy" foreground="warning" width="13" height="13"/>
+              <text grow="1" wrap="false" overflow="clip" foreground="warning">{r.resumeHint}</text>
+              <button size="sm" on-press="copy_resume:{r.index}">Copy resume</button>
+            </row>
+          </if>
+          <if test="{r.hasGuidance}">
+            <text wrap="true" foreground="text_muted">{r.guidance}</text>
+          </if>
+        </column>
+      </for>
+
+      <for each="erroredRepos" key="name" as="e">
+        <column gap="2">
+          <row gap="8" cross="center">
+            <icon name="alert" foreground="destructive" width="15" height="15"/>
+            <text grow="1">{e.name}</text>
+          </row>
+          <text wrap="true" foreground="destructive_text">{e.errorText}</text>
+        </column>
+      </for>
+
+      <if test="{emptyQuiet}">
+        <card padding="28">
+          <column gap="6" cross="center">
+            <icon name="check-circle" foreground="success" width="30" height="30"/>
+            <text>All quiet</text>
+            <text foreground="text_muted">No active Relay runs.</text>
+            <text foreground="text_muted">Repos are configured in ~/.config/relay-menubar.json</text>
+          </column>
+        </card>
+      </if>
+    </column>
+  </scroll>
+
+  <separator/>
+  <column padding="10">
+    <row gap="8" cross="center">
+      <text grow="1" foreground="text_muted">Polls every 5s · Option-click the menu-bar title to refresh</text>
+      <button size="sm" variant="ghost" on-press="do_quit">Quit Relay</button>
+    </row>
+  </column>
+</column>

@@ -1,0 +1,61 @@
+<!-- Relay settings (model-declared window, label "settings"). Edits a
+     draft copy of the configured repo roots; Save persists via the
+     relaySaveRepos service op, which rewrites ~/.config/relay-menubar.json
+     atomically and preserves unknown keys. Bindings come from src/core.ts:
+     {draftRows} {hasDrafts} {noDrafts} {draftCount} {newText} {addDisabled}
+     {saving} {saveLabel} {hasSaveError} {saveErrorText}. Presses dispatch
+     Msg arms: remove_draft:{d.seq} add_new_repo new_repo_edit save_repos
+     close_settings. Validate with: native check -->
+<column gap="0" padding="0">
+  <column gap="6" padding="16">
+    <row gap="8" cross="center">
+      <icon name="settings" foreground="text_muted" width="16" height="16"/>
+      <text size="heading">Repositories</text>
+    </row>
+    <text foreground="text_muted">
+      Folders polled by status.mjs. Saved to ~/.config/relay-menubar.json.
+    </text>
+  </column>
+
+  <separator/>
+
+  <scroll grow="1">
+    <column gap="8" padding="14">
+      <for each="draftRows" key="seq" as="d">
+        <row gap="8" cross="center">
+          <icon name="folder" foreground="text_muted" width="14" height="14"/>
+          <text grow="1" wrap="false" overflow="clip">{d.path}</text>
+          <button size="sm" variant="ghost" on-press="remove_draft:{d.seq}">Remove</button>
+        </row>
+      </for>
+
+      <if test="{noDrafts}">
+        <text foreground="text_muted">No repositories yet — add one below.</text>
+      </if>
+
+      <separator/>
+      <row gap="8" cross="center">
+        <text-field
+          grow="1"
+          text="{newText}"
+          placeholder="/path/to/repo or ~/repo"
+          on-input="new_repo_edit"
+          on-submit="add_new_repo"
+        />
+        <button size="sm" disabled="{addDisabled}" on-press="add_new_repo">Add</button>
+      </row>
+    </column>
+  </scroll>
+
+  <separator/>
+  <column padding="12">
+    <if test="{hasSaveError}">
+      <status-bar>{saveErrorText}</status-bar>
+    </if>
+    <row gap="8" cross="center">
+      <text grow="1" foreground="text_muted">{draftCount}</text>
+      <button size="sm" variant="ghost" on-press="close_settings">Cancel</button>
+      <button size="sm" disabled="{saving}" on-press="save_repos">{saveLabel}</button>
+    </row>
+  </column>
+</column>
