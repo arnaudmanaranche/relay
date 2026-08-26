@@ -45,6 +45,17 @@ TYPECHECK_CMD=$(read_config ".commands.typecheck" "tsc --noEmit")
 LINT_CMD=$(read_config ".commands.lint" "eslint .")
 TEST_CMD=$(read_config ".commands.test" "")
 BUILD_CMD=$(read_config ".commands.build" "")
+# Sandboxing only applies to web/backend projects: Docker Linux images can't
+# run Xcode, so a project with ios.scheme set (the same signal upload-build.sh
+# gates on) always runs commands.test/build directly on the host.
+SANDBOX_ENABLED=$(read_config ".sandbox.enabled" "false")
+SANDBOX_IMAGE=$(read_config ".sandbox.image" "node:20-slim")
+# Not everyone runs Docker (licensing, resource footprint, or simply a
+# preference for a lighter alternative), and the runtimes below all accept
+# the same `run --rm --network=none -v ... -w ... <image> sh -c ...`
+# invocation, so the choice is a config value, not a hardcoded assumption.
+SANDBOX_RUNTIME=$(read_config ".sandbox.runtime" "docker")
+IOS_SCHEME=$(read_config ".ios.scheme" "")
 BRANCH_PREFIX=$(read_config ".project.branchPrefix" "feat")
 MEMORY_COMPACT_EVERY=$(read_config ".project.memoryCompactEvery" "10")
 DEFAULT_BRANCH=$(read_config ".project.defaultBranch" "main")
@@ -281,6 +292,25 @@ scan_content_gates() {
   return $ok
 }
 
+# Runs a project command directly on the host, unless sandbox.enabled is true
+# — in which case it runs inside a disposable, network-disabled Linux
+# container instead. This exists because commands.test/build execute
+# Dev-authored code (the LLM just wrote the test suite it's about to run),
+# so without this the pipeline gives that code full, unmediated access to
+# the host filesystem and network. Skipped in favor of the host when this
+# is an iOS project (see IOS_SCHEME above) or when Docker isn't installed —
+# in both cases we fall back to direct execution rather than failing the
+# gate on an environment problem unrelated to the code being tested.
+run_project_cmd() {
+  local cmd="$1" out="$2"
+  if [ "$SANDBOX_ENABLED" = "true" ] && [ -z "$IOS_SCHEME" ] && command -v "$SANDBOX_RUNTIME" >/dev/null 2>&1; then
+    "$SANDBOX_RUNTIME" run --rm --network=none -v "$PWD:/repo" -w /repo "$SANDBOX_IMAGE" \
+      sh -c "${INSTALL_CMD} >/dev/null 2>&1; ${cmd}" > "$out" 2>&1
+  else
+    ${cmd} > "$out" 2>&1
+  fi
+}
+
 # Quality gates run after every Dev pass: typecheck (always), lint (always —
 # `commands.lint` was configured but never actually invoked anywhere before
 # this), the project's own test suite (only if `commands.test` is
@@ -319,12 +349,12 @@ run_quality_gates() {
     fi
   fi
   if [ -n "$TEST_CMD" ]; then
-    if ! ${TEST_CMD} > "$test_out" 2>&1; then
+    if ! run_project_cmd "$TEST_CMD" "$test_out"; then
       test_ok=false
     fi
   fi
   if [ -n "$BUILD_CMD" ]; then
-    if ! ${BUILD_CMD} > "$build_out" 2>&1; then
+    if ! run_project_cmd "$BUILD_CMD" "$build_out"; then
       build_ok=false
     fi
   fi

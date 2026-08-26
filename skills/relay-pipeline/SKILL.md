@@ -34,7 +34,7 @@ Each stage produces an artifact in `.ai/artifacts/features/<slug>/`.
 ### 4. Dev — Developer
 **Prompt:** `prompts/dev.md`
 **Output:** Code changes + `dev-log.md` — implements the feature per the tech plan
-**Gate:** Typecheck runs after Dev. One retry allowed with error feedback. Fails pipeline on second failure.
+**Gate:** Typecheck, lint, `commands.test`, `commands.build`, and content gates all run after Dev. One retry allowed with combined error feedback. Fails pipeline on second failure. When `sandbox.enabled` is `true` in `.ai/config.json` and this isn't an iOS project (no `ios.scheme` set) and the configured `sandbox.runtime` (default `docker`; `podman`/`nerdctl` also work) is available, `commands.test`/`commands.build` run inside a disposable `--network=none` container instead of directly on the host — the code under test was just written by an LLM, so it gets no unmediated access to the host filesystem or network. iOS projects always run these on the host (Xcode has no Linux container image); if sandboxing is enabled but the runtime binary isn't installed, the pipeline falls back to host execution rather than failing the gate on an environment problem.
 
 ### 5. Review — Code Reviewer
 **Prompt:** `prompts/review.md`
@@ -107,7 +107,9 @@ Reference these registries when scoping or reviewing features:
 
 The module reads project configuration from `.ai/config.json`. Run the `relay-setup` skill to generate it.
 
-Key config fields: `sourceDirs`, `skipDirs`, `sourceExtensions`, `commands`, `stack`, `e2e`.
+Key config fields: `sourceDirs`, `skipDirs`, `sourceExtensions`, `commands`, `stack`, `e2e`, `sandbox`.
+
+`sandbox.enabled` (default `false`) isolates the Dev stage's `commands.test`/`commands.build` execution inside a disposable, network-disabled container instead of running Dev-authored code directly on the host. `sandbox.runtime` (default `docker`) picks the CLI used to run it — any runtime accepting the same `run --rm --network=none -v ... -w ... <image> sh -c ...` invocation works, e.g. `podman` or `nerdctl`, so it's not tied to Docker specifically. `sandbox.image` (default `node:20-slim`) sets the container image. Only takes effect for web/backend projects — an `ios.scheme` config (see Build Upload) always runs these commands on the host, since Xcode has no Linux container image; the pipeline also falls back to host execution if the configured runtime binary isn't found.
 
 `project.maxTokensPerFeature` and `project.maxCostUsdPerFeature` are both opt-in circuit breakers on cumulative spend per feature (across every stage and retry, tracked in `.agent-token-usage.json`) — undefined or 0 means unlimited. Track both, not just tokens: `.ai/agents.json` routinely assigns different models per role (e.g. a cheap model for `qa`/`dev-review`, a stronger one for `architect`/`dev`), so two features with the same token total can have very different real cost. Cost tracking is best-effort — it only populates when the backend reports it (`claude-cli` always does; the `openai-compatible` backend only does when the upstream provider returns `usage.cost`, e.g. OpenRouter with `usage.include: true`, sent automatically).
 
