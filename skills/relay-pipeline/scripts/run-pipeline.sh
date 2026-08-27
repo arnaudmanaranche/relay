@@ -4,7 +4,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+# SCRIPT_DIR is .../<project-root>/skills/relay-pipeline/scripts — three
+# levels under the project root (scripts -> relay-pipeline -> skills -> root),
+# not two. `../..` silently landed one level short, at <root>/skills, for
+# any invocation that didn't pass --project-root explicitly.
+ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 # Check for --project-root in args
 for arg in "$@"; do
   case "$arg" in

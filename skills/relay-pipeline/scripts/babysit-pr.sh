@@ -22,7 +22,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+# See run-pipeline.sh: SCRIPT_DIR is three levels under the project root
+# (scripts -> relay-pipeline -> skills -> root), not two.
+ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 BRANCH="${1:?Usage: $0 <branch> [--project-root=<path>] [--max-reruns=N] [--poll-interval=SECONDS] [--max-polls=N] [--auto-stamp] [--max-diff-lines=N]}"
 
 MAX_RERUNS=2
