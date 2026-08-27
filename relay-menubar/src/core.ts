@@ -18,7 +18,13 @@ import type {
 } from "@native-sdk/core/events";
 import { applyTextInputEvent, trimAsciiSpaces } from "@native-sdk/core/text";
 import type { TextInputEvent, TextEditState } from "@native-sdk/core/text";
-import { relayLoadConfig, relayFetchStatus, relaySaveRepos } from "@native-sdk/services";
+import {
+  relayLoadConfig,
+  relayFetchStatus,
+  relaySaveRepos,
+  relayRetryRun,
+  relayOpenInEditor,
+} from "@native-sdk/services";
 import type {
   ActiveRun,
   AppConfig,
@@ -26,6 +32,8 @@ import type {
   RunState,
   SaveResult,
   StatusSnapshot,
+  RetryResult,
+  OpenResult,
 } from "./shared.ts";
 
 export type Phase = "boot" | "watching";
@@ -46,6 +54,10 @@ export interface Model {
   readonly newTextEditor: TextEditState;
   readonly saving: boolean;
   readonly saveError: Uint8Array;
+  // Last Retry / Open in Code failure, shown in the dashboard until the
+  // next successful action or poll clears it. Not tied to a specific row —
+  // there is at most one in flight at a time (each is a single click).
+  readonly actionError: Uint8Array;
 }
 
 export type Msg =
@@ -60,6 +72,12 @@ export type Msg =
   | { readonly kind: "reveal"; readonly index: number }
   | { readonly kind: "reveal_artifacts"; readonly index: number }
   | { readonly kind: "copy_resume"; readonly index: number }
+  | { readonly kind: "retry"; readonly index: number }
+  | { readonly kind: "retried"; readonly result: RetryResult }
+  | { readonly kind: "retry_failed"; readonly error: Uint8Array }
+  | { readonly kind: "open_in_editor"; readonly index: number }
+  | { readonly kind: "editor_opened"; readonly result: OpenResult }
+  | { readonly kind: "editor_open_failed"; readonly error: Uint8Array }
   | { readonly kind: "open_dashboard" }
   | { readonly kind: "do_quit" }
   | { readonly kind: "open_settings" }
@@ -68,7 +86,7 @@ export type Msg =
   | { readonly kind: "add_new_repo" }
   | { readonly kind: "remove_draft"; readonly index: number }
   | { readonly kind: "save_repos" }
-  | { readonly kind: "repos_saved" }
+  | { readonly kind: "repos_saved"; readonly result: SaveResult }
   | { readonly kind: "repos_save_failed"; readonly error: Uint8Array };
 
 // Host-dispatched arms never appear in markup.
@@ -80,6 +98,10 @@ export const viewUnbound = [
   "fetched",
   "sync_failed",
   "synced",
+  "retried",
+  "retry_failed",
+  "editor_opened",
+  "editor_open_failed",
   "configScript",
   "roots",
   "fetchInFlight",
@@ -104,6 +126,7 @@ export function initialModel(): [Model, Cmd<Msg>] {
     newTextEditor: emptyEditor(),
     saving: false,
     saveError: new Uint8Array(0),
+    actionError: new Uint8Array(0),
   };
   return [
     model,
@@ -163,6 +186,14 @@ export interface RunRow {
   readonly guidance: Uint8Array;
   readonly resumeHint: Uint8Array;
   readonly resumable: boolean;
+  // Mechanical re-run of a failed/crashed/halted run — excludes design-gate
+  // (that one needs a human to read technical-plan.md first, so it only
+  // ever offers the copy-and-paste-yourself resumeHint above) and
+  // blocked-dev-review (needs pm-dev-thread.md answered first; status.mjs
+  // never gives that state a resumeArgs, so retryable is false for it too).
+  readonly retryable: boolean;
+  readonly resumeArgs: readonly Uint8Array[];
+  readonly repoRoot: Uint8Array;
   readonly hasArtifacts: boolean;
   // Severity groups pick the row icon + tint in markup (style attributes
   // are literals-only there, so the variant choice must be a flag).
@@ -208,6 +239,9 @@ export function runs(model: Model): readonly RunRow[] {
         guidance: run.guidance,
         resumeHint: run.resumeHint,
         resumable: run.state === "designGate",
+        retryable: run.state !== "designGate" && run.resumeArgs.length > 0,
+        resumeArgs: run.resumeArgs,
+        repoRoot: run.repoRoot,
         hasArtifacts: run.artifactsDir.length > 0,
         running: run.state === "running",
         gated: run.state !== "running" && !severityFailed(run.state),
@@ -363,6 +397,14 @@ export function saveErrorText(model: Model): Uint8Array {
   return model.saveError;
 }
 
+export function hasActionError(model: Model): boolean {
+  return model.actionError.length > 0;
+}
+
+export function actionErrorText(model: Model): Uint8Array {
+  return model.actionError;
+}
+
 export function saveLabel(model: Model): Uint8Array {
   if (model.saving) return utf8Bytes("Saving…");
   return asciiBytes("Save");
@@ -459,6 +501,42 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
       if (run === null || run.resumeHint.length === 0) return model;
       return [model, Cmd.clipboardWrite(run.resumeHint)];
     }
+
+    case "retry": {
+      const run = findRun(model, msg.index);
+      if (run === null || run.resumeArgs.length === 0) return model;
+      return [
+        model,
+        relayRetryRun(
+          { repoRoot: run.repoRoot, resumeArgs: run.resumeArgs },
+          { key: "retry", ok: "retried", err: "retry_failed" },
+        ),
+      ];
+    }
+
+    case "retried":
+      return { ...model, actionError: new Uint8Array(0) };
+
+    case "retry_failed":
+      return { ...model, actionError: msg.error };
+
+    case "open_in_editor": {
+      const run = findRun(model, msg.index);
+      if (run === null || run.artifactsDir.length === 0) return model;
+      return [
+        model,
+        relayOpenInEditor(
+          { path: run.artifactsDir },
+          { key: "open_in_editor", ok: "editor_opened", err: "editor_open_failed" },
+        ),
+      ];
+    }
+
+    case "editor_opened":
+      return { ...model, actionError: new Uint8Array(0) };
+
+    case "editor_open_failed":
+      return { ...model, actionError: msg.error };
 
     case "open_dashboard":
       return [model, Cmd.showWindow("main")];

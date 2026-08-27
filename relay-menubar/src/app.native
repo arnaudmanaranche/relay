@@ -1,13 +1,15 @@
 <!-- Relay dashboard. Binds helpers exported from src/core.ts ({isBoot},
      {watching}, {runs}, {emptyQuiet}, {erroredRepos}, {hasSyncError},
-     {syncError}, {runningCount}, {attentionCount}, {hasAttention},
-     {totalCompleted}). Buttons dispatch Msg arms directly:
-     on-press="reveal:{r.index}" / "reveal_artifacts:{r.index}" /
-     "copy_resume:{r.index}" / "refresh" / "open_settings" / "do_quit".
-     Style attributes take literal token names only, so severity tinting is
-     chosen by flag bindings ({r.running} / {r.gated} / {r.failed}). Repo
-     grouping is flattened: the first row of each repo renders the group
-     header ({r.showHeader}). Validate with: native check -->
+     {syncError}, {hasActionError}, {actionErrorText}, {runningCount},
+     {attentionCount}, {hasAttention}, {totalCompleted}). Buttons dispatch
+     Msg arms directly: on-press="reveal:{r.index}" /
+     "reveal_artifacts:{r.index}" / "copy_resume:{r.index}" /
+     "retry:{r.index}" / "open_in_editor:{r.index}" / "refresh" /
+     "open_settings" / "do_quit". Style attributes take literal token names
+     only, so severity tinting is chosen by flag bindings ({r.running} /
+     {r.gated} / {r.failed}). Repo grouping is flattened: the first row of
+     each repo renders the group header ({r.showHeader}). Validate with:
+     native check -->
 <column gap="0" padding="0">
   <column gap="10" padding="16">
     <if test="{isBoot}">
@@ -42,6 +44,9 @@
     <if test="{hasSyncError}">
       <status-bar>{syncError}</status-bar>
     </if>
+    <if test="{hasActionError}">
+      <status-bar>{actionErrorText}</status-bar>
+    </if>
   </column>
 
   <separator/>
@@ -72,6 +77,7 @@
             </if>
             <text grow="1">{r.slug}</text>
             <if test="{r.hasArtifacts}">
+              <button size="sm" variant="ghost" icon="edit" on-press="open_in_editor:{r.index}">Open in Code</button>
               <button size="sm" variant="ghost" icon="archive" on-press="reveal_artifacts:{r.index}">Artifacts</button>
             </if>
             <button size="sm" variant="ghost" icon="folder-open" on-press="reveal:{r.index}">Reveal</button>
@@ -82,6 +88,13 @@
               <icon name="copy" foreground="warning" width="13" height="13"/>
               <text grow="1" wrap="false" overflow="clip" foreground="warning">{r.resumeHint}</text>
               <button size="sm" on-press="copy_resume:{r.index}">Copy resume</button>
+            </row>
+          </if>
+          <if test="{r.retryable}">
+            <row gap="8" cross="center">
+              <icon name="repeat" foreground="destructive" width="13" height="13"/>
+              <text grow="1" wrap="false" overflow="clip" foreground="destructive">{r.resumeHint}</text>
+              <button size="sm" on-press="retry:{r.index}">Retry</button>
             </row>
           </if>
           <if test="{r.hasGuidance}">

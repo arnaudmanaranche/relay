@@ -190,9 +190,19 @@ export function inspectWorktree({ repoRoot, repoDirName, entry, worktreeRoot, br
     run.state = 'crashed';
     run.detail = 'Stale lock from a dead process — the run died without cleanup (SIGKILL?). Remove the lock and re-run.';
   }
-  if (cls.state === 'design-gate') {
-    run.resumeHint =
-      `bash skills/relay-pipeline/scripts/run-pipeline.sh ${slug} --approve-design --project-root=${repoRoot}`;
+  // A resume command makes sense for any halted/failed/gated state — not
+  // just design-gate. blocked-dev-review is deliberately excluded: it needs
+  // a human to answer pm-dev-thread.md first, so a bare re-run would just
+  // fail the same way again. resumeArgs is the same command as resumeHint
+  // (the display string), but as argv — a programmatic consumer (e.g. the
+  // menu-bar app's Retry button) must never shell out `resumeHint` as a
+  // string, since slug/repoRoot ultimately come from the filesystem.
+  if (run.state !== 'running' && run.state !== 'blocked-dev-review') {
+    const args = ['skills/relay-pipeline/scripts/run-pipeline.sh', slug];
+    if (run.resumeFlag) args.push(run.resumeFlag);
+    args.push(`--project-root=${repoRoot}`);
+    run.resumeHint = `bash ${args.join(' ')}`;
+    run.resumeArgs = args;
   }
   return run;
 }

@@ -189,6 +189,12 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
       });
       assert.equal(run.state, 'design-gate');
       assert.match(run.resumeHint, /--approve-design --project-root=\/somewhere\/myrepo$/);
+      assert.deepEqual(run.resumeArgs, [
+        'skills/relay-pipeline/scripts/run-pipeline.sh',
+        'auth',
+        '--approve-design',
+        '--project-root=/somewhere/myrepo',
+      ]);
     } finally {
       fx.cleanup();
     }
@@ -207,6 +213,11 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
       });
       assert.equal(run.state, 'crashed');
       assert.equal(run.lock.alive, false);
+      assert.deepEqual(run.resumeArgs, [
+        'skills/relay-pipeline/scripts/run-pipeline.sh',
+        'ghost',
+        '--project-root=/somewhere/myrepo',
+      ]);
     } finally {
       fx.cleanup();
     }
@@ -224,6 +235,31 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
       });
       assert.equal(run.lock, null);
       assert.equal(run.state, 'halted');
+      assert.deepEqual(run.resumeArgs, [
+        'skills/relay-pipeline/scripts/run-pipeline.sh',
+        'quiet',
+        '--project-root=/somewhere/myrepo',
+      ]);
+    } finally {
+      fx.cleanup();
+    }
+  });
+
+  test('blocked-dev-review never gets a resumeArgs — needs a human answer first', () => {
+    const fx = fixture();
+    try {
+      const art = '.relay-worktrees/myrepo-thread/.ai/artifacts/features/thread';
+      fx.write(`${art}/.agent-status-dev-review.json`, JSON.stringify({ verdict: 'questions' }));
+      const run = inspectWorktree({
+        repoRoot: '/somewhere/myrepo',
+        repoDirName: 'myrepo',
+        entry: 'myrepo-thread',
+        worktreeRoot: fx.path('.relay-worktrees'),
+        branchPrefix: 'feat',
+      });
+      assert.equal(run.state, 'blocked-dev-review');
+      assert.equal(run.resumeArgs, undefined);
+      assert.equal(run.resumeHint, undefined);
     } finally {
       fx.cleanup();
     }

@@ -33,8 +33,17 @@ export interface ActiveRun {
   readonly guidance: Uint8Array;
   // Design gate only: the plan changed since the recorded approval.
   readonly staleApproval: boolean;
-  // Ready-to-run resume command for design-gate runs; empty otherwise.
+  // Ready-to-run resume command, display form; empty when not resumable
+  // (running, or blocked-dev-review — that one needs a human answer first).
   readonly resumeHint: Uint8Array;
+  // Same command as resumeArgs (argv form: script path relative to
+  // repoRoot, then flags) — a programmatic Retry must never shell out
+  // resumeHint as a string, since slug/repoRoot ultimately come from the
+  // filesystem. Empty exactly when resumeHint is empty.
+  readonly resumeArgs: readonly Uint8Array[];
+  // Project root (not the worktree) — needed to resolve resumeArgs[0] and
+  // as the retry process's cwd.
+  readonly repoRoot: Uint8Array;
   readonly worktree: Uint8Array;
   // Producer `artifactsDir` (.relay/artifacts/<slug>); empty when absent.
   readonly artifactsDir: Uint8Array;
@@ -71,4 +80,21 @@ export interface SaveResult {
 
 export interface StatusSnapshot {
   readonly repos: readonly RepoSummary[];
+}
+
+export interface RetryRunRequest {
+  readonly repoRoot: Uint8Array;
+  readonly resumeArgs: readonly Uint8Array[];
+}
+
+export interface RetryResult {
+  readonly started: boolean;
+}
+
+export interface OpenInEditorRequest {
+  readonly path: Uint8Array;
+}
+
+export interface OpenResult {
+  readonly opened: boolean;
 }

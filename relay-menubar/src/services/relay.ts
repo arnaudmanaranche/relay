@@ -1,12 +1,20 @@
 // relay service — ordinary TypeScript behind the effect boundary.
 //
-// Two operations, both synchronous:
-//   loadConfig()   reads ~/.config/relay-menubar.json and resolves the
-//                  status.mjs path.
-//   fetchStatus()  spawns `node <statusScript> --json <roots...>` and maps
-//                  the JSON into the shared boundary records. All parsing
-//                  and process work lives here so src/core.ts stays in the
-//                  deterministic subset (no JSON/regex/child_process there).
+// Operations:
+//   loadConfig()    reads ~/.config/relay-menubar.json and resolves the
+//                   status.mjs path.
+//   fetchStatus()   spawns `node <statusScript> --json <roots...>` and maps
+//                   the JSON into the shared boundary records. All parsing
+//                   and process work lives here so src/core.ts stays in the
+//                   deterministic subset (no JSON/regex/child_process there).
+//   retryRun()      spawns a run's resumeArgs (argv, never a shell string —
+//                   see shared.ts) detached, stdout/stderr to a log file
+//                   next to the worktree, and returns immediately. The
+//                   pipeline is a multi-minute LLM-driven process; the next
+//                   poll of fetchStatus() picks up its state via the lock
+//                   file it writes, same as any run started from a terminal.
+//   openInEditor()  opens a path in VS Code: the `code` CLI if it's on
+//                   PATH, else macOS `open -a "Visual Studio Code"`.
 //
 // The child carrier runs with an environment allowlist (HOME, PATH, …) and
 // stdout reserved for framed transport — this file must never console.log.
@@ -15,14 +23,26 @@
 // so every JSON interface declares CONCRETE field types; `unknown`-typed
 // fields would make each later read a blocked dynamic operation.
 
-import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { execFileSync, spawn } from "node:child_process";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
   ActiveRun,
   AppConfig,
+  OpenInEditorRequest,
+  OpenResult,
   RepoSummary,
+  RetryResult,
+  RetryRunRequest,
   RunState,
   SaveReposRequest,
   SaveResult,
@@ -97,6 +117,7 @@ interface RunEntry {
   detail?: string;
   staleApproval?: boolean;
   resumeHint?: string;
+  resumeArgs?: string[];
   worktree?: string;
   artifactsDir?: string;
 }
@@ -199,12 +220,13 @@ export function saveRepos(request: SaveReposRequest): SaveResult {
   return { saved: true };
 }
 
-function mapRun(repoName: string, raw: RunEntry): ActiveRun {
+function mapRun(repoName: string, repoRoot: string, raw: RunEntry): ActiveRun {
   const stateName = typeof raw.state === "string" ? raw.state : "";
   const state = parseState(stateName);
   const slug = typeof raw.slug === "string" ? raw.slug : "";
   const guidance = typeof raw.detail === "string" ? raw.detail : "";
   const resumeHint = typeof raw.resumeHint === "string" ? raw.resumeHint : "";
+  const resumeArgs = Array.isArray(raw.resumeArgs) ? raw.resumeArgs : [];
   const worktree = typeof raw.worktree === "string" ? raw.worktree : "";
   const artifactsDir = typeof raw.artifactsDir === "string" ? raw.artifactsDir : "";
   return {
@@ -215,6 +237,8 @@ function mapRun(repoName: string, raw: RunEntry): ActiveRun {
     guidance: bytes(guidance),
     staleApproval: raw.staleApproval === true,
     resumeHint: bytes(resumeHint),
+    resumeArgs: resumeArgs.map((arg) => bytes(arg)),
+    repoRoot: bytes(repoRoot),
     worktree: bytes(worktree),
     artifactsDir: bytes(artifactsDir),
   };
@@ -258,7 +282,7 @@ export function fetchStatus(request: StatusRequest): StatusSnapshot {
     let mapped: ActiveRun[] = [];
     if (errorText.length === 0) {
       for (const run of activeRaw) {
-        mapped = mapped.concat([mapRun(name, run)]);
+        mapped = mapped.concat([mapRun(name, rootRaw, run)]);
       }
     }
     repos.push({
@@ -270,4 +294,60 @@ export function fetchStatus(request: StatusRequest): StatusSnapshot {
     });
   }
   return { repos };
+}
+
+// Fires the same command a human would paste from resumeHint, but as argv
+// (see shared.ts) so nothing here goes through a shell. Detached + logged
+// to a file rather than awaited: the pipeline is a multi-minute, LLM-driven
+// process, and the app already polls status.mjs every 5s, which will show
+// it as `running` via the lock file run-pipeline.sh writes on its own.
+export function retryRun(request: RetryRunRequest): RetryResult {
+  const repoRoot = decodeBytes(request.repoRoot);
+  const args = request.resumeArgs.map((arg) => decodeBytes(arg));
+  if (!repoRoot || args.length === 0) {
+    throw { kind: "not_resumable", message: "This run has no resume command." };
+  }
+  const script = join(repoRoot, args[0]);
+  if (!existsSync(script)) {
+    throw { kind: "script_missing", message: `${script} does not exist.` };
+  }
+
+  const slug = args[1] ?? "run";
+  const logDir = join(tmpdir(), "relay-menubar");
+  mkdirSync(logDir, { recursive: true });
+  const logFd = openSync(join(logDir, `retry-${slug}-${Date.now()}.log`), "a");
+  try {
+    const child = spawn("bash", [script, ...args.slice(1)], {
+      cwd: repoRoot,
+      detached: true,
+      stdio: ["ignore", logFd, logFd],
+    });
+    child.unref();
+  } catch (e) {
+    throw { kind: "spawn_failed", message: `retry spawn failed: ${(e as Error).message}` };
+  } finally {
+    closeSync(logFd);
+  }
+  return { started: true };
+}
+
+// `code` (the VS Code CLI shim) if it's on PATH, else macOS `open -a`,
+// which resolves the app by display name regardless of CLI shim install.
+export function openInEditor(request: OpenInEditorRequest): OpenResult {
+  const path = decodeBytes(request.path);
+  if (!path || !existsSync(path)) {
+    throw { kind: "path_missing", message: `${path || "(empty path)"} does not exist.` };
+  }
+  try {
+    execFileSync("code", [path], { timeout: 10_000 });
+    return { opened: true };
+  } catch {
+    // fall through to the macOS launcher below
+  }
+  try {
+    execFileSync("open", ["-a", "Visual Studio Code", path], { timeout: 10_000 });
+    return { opened: true };
+  } catch (e) {
+    throw { kind: "open_failed", message: `Could not open ${path} in VS Code: ${(e as Error).message}` };
+  }
 }
