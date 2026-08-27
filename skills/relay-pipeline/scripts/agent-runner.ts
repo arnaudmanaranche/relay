@@ -811,16 +811,6 @@ function buildUserPrompt(
     sections.push(`## Feature brief\n\nNo feature brief yet. Create one.`);
   }
 
-  // Dev log (for review/qa/retro)
-  if (
-    ctx.devLog &&
-    role !== 'pm' &&
-    role !== 'pm-respond' &&
-    role !== 'dev-review'
-  ) {
-    sections.push(`## Dev log\n\n\`\`\`markdown\n${ctx.devLog}\n\`\`\``);
-  }
-
   // PM ↔ Dev thread (for dev-review, pm-respond, retro)
   if (
     ctx.pmDevThread &&
@@ -953,6 +943,31 @@ function buildUserPrompt(
         );
       }
     }
+  }
+
+  // Dev log (for review/qa/retro, and for Dev's own later batches reading
+  // back earlier ones). Placed here — after every fully-stable section
+  // (brief, governance, denied actions, registries, project memory,
+  // directory tree, technical plan, repository context) and right before
+  // the batch-specific content that follows — deliberately, not
+  // incidentally: this is the one section whose content grows with every
+  // Dev batch (each batch appends its own entry, and the next batch's
+  // prompt re-reads the now-longer file). Prompt caching keys off the
+  // longest matching PREFIX, so when this sat near the top (right after
+  // Feature brief) every batch's growing dev log invalidated the cache for
+  // everything after it too — the entire governance/registries/tech-plan
+  // block, unchanged and unchanging, paid full cache-creation cost on every
+  // single batch instead of being read from cache after the first. Found
+  // live: batch 2's cache_creation_input_tokens (73,395) was bigger than
+  // its own prompt growth over batch 1 could explain — the whole stable
+  // prefix was being recreated, not reused, every single call.
+  if (
+    ctx.devLog &&
+    role !== 'pm' &&
+    role !== 'pm-respond' &&
+    role !== 'dev-review'
+  ) {
+    sections.push(`## Dev log\n\n\`\`\`markdown\n${ctx.devLog}\n\`\`\``);
   }
 
   // Extra skills + type-specific skills (Dev only)
