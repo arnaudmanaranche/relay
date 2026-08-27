@@ -33,6 +33,15 @@
 //   node eval-pipeline.mjs --case=<name> --dir=<run> --record=<file> [--label=<s>]
 //                                               # append a JSONL history line
 //                                               # (score keyed by prompt hash)
+//   node eval-pipeline.mjs --case=<name> --dir=<run> \
+//     --touched-files=$(git -C <worktree> diff --name-only <base>...HEAD | paste -sd,)
+//                                               # feeds a 'file-coverage' check the real
+//                                               # diff, so it can catch a plan that names
+//                                               # a file Dev never actually touched. Add
+//                                               # --compare-touched-files=<...> for the
+//                                               # --compare candidate side. A check with
+//                                               # its own `touchedFiles` array (fixtures)
+//                                               # takes precedence over this flag.
 
 import { readFileSync, readdirSync, existsSync, appendFileSync } from 'fs';
 import { join, dirname, resolve } from 'path';
@@ -45,10 +54,37 @@ function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// Mirrors agent-runner.ts's extractImpactedFiles (kept in sync by hand:
+// eval-pipeline.mjs runs under plain `node`, agent-runner.ts under tsx, so
+// they can't share one import without adding a loader to this script).
+// Scoped to the "Impacted Files" heading only — scanning the whole plan
+// counts every incidentally-backticked existing path too (see
+// agent-runner.ts's own extractImpactedFiles for the live incident this
+// scoping fixed).
+export function extractImpactedFiles(techPlan) {
+  if (!techPlan) return [];
+  const fileRefPattern = /`([a-zA-Z0-9_./@()/-]+\.(?:ts|tsx|js|jsx|mjs|cjs|css|json|yaml|yml|md))`/g;
+  const headingMatch = techPlan.match(/#{2,4}\s*impacted files|\*\*impacted files\*\*/i);
+  let scope = techPlan;
+  if (headingMatch && typeof headingMatch.index === 'number') {
+    const afterHeading = techPlan.slice(headingMatch.index + headingMatch[0].length);
+    const nextHeadingMatch = afterHeading.match(/\n#{2,4}\s/);
+    scope = nextHeadingMatch
+      ? afterHeading.slice(0, nextHeadingMatch.index)
+      : afterHeading;
+  }
+  const files = new Set();
+  for (const m of scope.matchAll(fileRefPattern)) files.add(m[1]);
+  return [...files];
+}
+
 // --- Pure scoring (exported for unit tests) ---
 
-// A single rubric check against one artifact's text content.
-export function runCheck(check, content) {
+// A single rubric check against one artifact's text content. `context`
+// carries run-level data no single artifact's text has on its own —
+// currently just `touchedFiles`, the real changed-file list a 'file-coverage'
+// check compares the plan against (see scoreCase).
+export function runCheck(check, content, context = {}) {
   const text = content ?? '';
   switch (check.type) {
     case 'contains':
@@ -62,26 +98,46 @@ export function runCheck(check, content) {
       );
     case 'regex':
       return new RegExp(check.value, check.flags || 'im').test(text);
+    case 'file-coverage':
+      return fileCoverageMissing(check, text, context).length === 0;
     default:
       throw new Error(`Unknown check type: ${check.type}`);
   }
+}
+
+// The files a 'file-coverage' check's plan names that never show up in the
+// real touched-files list — empty means full coverage. A check's own
+// `touchedFiles` (for a static fixture, paired by hand with a plan that
+// will never have a real diff) wins over the run-level `context.touchedFiles`
+// (for scoring a real produced run against its actual `git diff`).
+export function fileCoverageMissing(check, planText, context = {}) {
+  const planned = extractImpactedFiles(planText);
+  const touched = check.touchedFiles || context.touchedFiles || [];
+  const touchedSet = new Set(touched);
+  return planned.filter(f => !touchedSet.has(f));
 }
 
 // Score one case. `readArtifact(name)` returns the artifact's text, or null
 // if it doesn't exist. A missing artifact fails every check that references
 // it (a case only lists artifacts that are supposed to be there), so a
 // pipeline that silently drops an artifact is caught, not scored as absent.
-export function scoreCase(caseDef, readArtifact) {
+// `context` is optional run-level data (see runCheck) — omit it for cases
+// that only use checks carrying their own `touchedFiles`.
+export function scoreCase(caseDef, readArtifact, context = {}) {
   const results = caseDef.checks.map(c => {
     const content = readArtifact(c.artifact);
-    const ok = content == null ? false : runCheck(c, content);
-    return {
+    const ok = content == null ? false : runCheck(c, content, context);
+    const result = {
       artifact: c.artifact,
       type: c.type,
       value: c.value,
       ok,
       missing: content == null,
     };
+    if (c.type === 'file-coverage' && content != null) {
+      result.missingFiles = fileCoverageMissing(c, content, context);
+    }
+    return result;
   });
   const passedCount = results.filter(r => r.ok).length;
   const score = results.length ? passedCount / results.length : 0;
@@ -174,6 +230,15 @@ function parseArgs() {
   return args;
 }
 
+// "a.ts,b.ts" -> ["a.ts", "b.ts"]; unset/empty -> [].
+function parseTouchedFiles(raw) {
+  if (typeof raw !== 'string' || raw.length === 0) return [];
+  return raw
+    .split(',')
+    .map(f => f.trim())
+    .filter(Boolean);
+}
+
 // Optional LLM-as-judge. Reuses the OpenAI-compatible chat-completions
 // config from .ai/config.json (same shape agent-runner uses). Returns null
 // — never throws the run — when config or key is unavailable, so the
@@ -247,12 +312,16 @@ async function main() {
       ? resolve(args.dir)
       : resolve(EVAL_ROOT, caseDef.artifactsDir);
     const readArtifact = readArtifactFrom(baseDir);
-    const scored = scoreCase(caseDef, readArtifact);
+    const context = { touchedFiles: parseTouchedFiles(args['touched-files']) };
+    const scored = scoreCase(caseDef, readArtifact, context);
 
     // --- A/B mode: baseline (baseDir) vs candidate (--compare dir) ---
     if (args.compare) {
       const candDir = resolve(args.compare);
-      const cand = scoreCase(caseDef, readArtifactFrom(candDir));
+      const candContext = {
+        touchedFiles: parseTouchedFiles(args['compare-touched-files']),
+      };
+      const cand = scoreCase(caseDef, readArtifactFrom(candDir), candContext);
       const cmp = compareScores(scored, cand);
       const baseProv = formatProvenance(readProvenance(baseDir));
       const candProv = formatProvenance(readProvenance(candDir));
@@ -278,8 +347,12 @@ async function main() {
       `${mark}  ${scored.name}  ${pct}% (threshold ${(scored.threshold * 100).toFixed(0)}%)${prov ? `  [${prov}]` : ''}`
     );
     for (const r of scored.results.filter(r => !r.ok)) {
+      const filesNote =
+        r.missingFiles && r.missingFiles.length
+          ? ` — plan names these but they're not in the touched-files list: ${r.missingFiles.join(', ')}`
+          : '';
       console.log(
-        `        ✗ ${r.artifact}: ${r.type} "${r.value}"${r.missing ? ' (artifact missing)' : ''}`
+        `        ✗ ${r.artifact}: ${r.type} "${r.value}"${r.missing ? ' (artifact missing)' : ''}${filesNote}`
       );
     }
     if (args['llm-judge']) {

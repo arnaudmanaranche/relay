@@ -13,6 +13,17 @@
     { "artifact": "technical-plan.md", "type": "contains", "value": "```mermaid" },
     { "artifact": "technical-plan.md", "type": "section", "value": "Impacted" },
     { "artifact": "technical-plan.md", "type": "section", "value": "Implementation order" },
-    { "artifact": "review-report.md", "type": "regex", "value": "Verdict.*(PASS|PASS_WITH_NOTES)" }
+    { "artifact": "review-report.md", "type": "regex", "value": "Verdict.*(PASS|PASS_WITH_NOTES)" },
+    {
+      "artifact": "technical-plan.md",
+      "type": "file-coverage",
+      "value": "every planned file actually touched",
+      "touchedFiles": [
+        "services/preferences.ts",
+        "app/(tabs)/settings.tsx",
+        "i18n/locales/en.ts",
+        "i18n/locales/fr.ts"
+      ]
+    }
   ]
 }

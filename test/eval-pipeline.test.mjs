@@ -16,6 +16,8 @@ import {
   loadCases,
   readArtifactFrom,
   compareScores,
+  extractImpactedFiles,
+  fileCoverageMissing,
 } from '../skills/relay-pipeline/scripts/eval-pipeline.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -43,6 +45,78 @@ describe('runCheck — individual rubric checks', () => {
 
   test('unknown check type throws', () => {
     assert.throws(() => runCheck({ type: 'bogus', value: 'x' }, 'y'), /Unknown check type/);
+  });
+
+  test('file-coverage passes when every planned file was touched', () => {
+    const plan = [
+      '## Impacted Files',
+      '- `hooks/use-add-item.ts` — wire the branch.',
+      '- `utils/clothingSize.ts` — add the shoe table.',
+    ].join('\n');
+    const check = {
+      type: 'file-coverage',
+      touchedFiles: ['hooks/use-add-item.ts', 'utils/clothingSize.ts'],
+    };
+    assert.equal(runCheck(check, plan), true);
+  });
+
+  test('file-coverage fails and names the untouched file — the add-shoes-category-style gap', () => {
+    // Mirrors the real incident: the plan named hooks/use-size-transition.ts
+    // as needing a shoe-category branch, but Dev's batch judged (wrongly)
+    // that no change was needed there, so it never landed in the diff.
+    const plan = [
+      '## Impacted Files',
+      '- `utils/clothingSize.ts` — add the shoe outgrow progression.',
+      '- `hooks/use-size-transition.ts` — branch on category === "shoes".',
+    ].join('\n');
+    const check = {
+      type: 'file-coverage',
+      // Only clothingSize.ts actually shows up in the real diff.
+      touchedFiles: ['utils/clothingSize.ts'],
+    };
+    assert.equal(runCheck(check, plan), false);
+    assert.deepEqual(fileCoverageMissing(check, plan), [
+      'hooks/use-size-transition.ts',
+    ]);
+  });
+
+  test('file-coverage falls back to context.touchedFiles when the check has none of its own', () => {
+    const plan = '## Impacted Files\n- `a.ts` — thing.\n';
+    assert.equal(
+      runCheck({ type: 'file-coverage' }, plan, { touchedFiles: ['a.ts'] }),
+      true
+    );
+    assert.equal(
+      runCheck({ type: 'file-coverage' }, plan, { touchedFiles: [] }),
+      false
+    );
+  });
+
+  test("a check's own touchedFiles wins over context.touchedFiles", () => {
+    const plan = '## Impacted Files\n- `a.ts` — thing.\n';
+    const check = { type: 'file-coverage', touchedFiles: ['a.ts'] };
+    // context says nothing was touched — the check's own list still wins.
+    assert.equal(runCheck(check, plan, { touchedFiles: [] }), true);
+  });
+});
+
+describe('extractImpactedFiles — parses the plan\'s own file list', () => {
+  test('reads backticked paths under the Impacted Files heading only', () => {
+    const plan = [
+      '## Architecture',
+      'Mirrors the existing `agent-runner.test.ts` pattern for comparison.',
+      '## Impacted Files',
+      '- `a.ts` — does a thing.',
+      '- `b/c.tsx` — does another.',
+      '## Risks',
+      'None beyond the usual `d.ts` caveat mentioned for context.',
+    ].join('\n');
+    assert.deepEqual(extractImpactedFiles(plan), ['a.ts', 'b/c.tsx']);
+  });
+
+  test('empty/missing plan text yields no files', () => {
+    assert.deepEqual(extractImpactedFiles(''), []);
+    assert.deepEqual(extractImpactedFiles(undefined), []);
   });
 });
 
@@ -78,6 +152,21 @@ describe('scoreCase — aggregate scoring', () => {
     const planResult = r.results.find(x => x.artifact === 'plan.md');
     assert.equal(planResult.ok, false);
     assert.equal(planResult.missing, true);
+  });
+
+  test('a file-coverage check reports which planned files were missed, via run-level context', () => {
+    const coverageCase = {
+      name: 'demo',
+      threshold: 1.0,
+      checks: [
+        { artifact: 'plan.md', type: 'file-coverage' },
+      ],
+    };
+    const reader = () =>
+      '## Impacted Files\n- `a.ts` — x.\n- `b.ts` — y.\n';
+    const r = scoreCase(coverageCase, reader, { touchedFiles: ['a.ts'] });
+    assert.equal(r.passed, false);
+    assert.deepEqual(r.results[0].missingFiles, ['b.ts']);
   });
 });
 

@@ -825,6 +825,47 @@ DIFF_FILES=$(git diff --name-only "${DEFAULT_BRANCH}...HEAD" 2>/dev/null || echo
     }
   " 2>&1 || echo "  (diagram/diff check skipped)"
 
+# Structural pre-check: which files the plan's own "Impacted Files" list
+# names that never showed up in the diff at all. Advisory only, surfaced to
+# the human/Review, never a gate — found live: a real Dev pass silently
+# judged "no change needed" for two hooks and a util the plan explicitly
+# named as needing a shoe-category branch, and nothing caught it until a
+# full paid Review pass did. This check's own false-positive rate is high
+# by design (roughly half a real plan's file list is typically "verify X,
+# patch only if needed" prose that this regex can't tell apart from "add X"
+# — it does not parse the surrounding bullet's verb), so it prints a lead
+# for a human/Review to check, not a verdict. See
+# skills/relay-pipeline/scripts/eval-pipeline.mjs's 'file-coverage' check
+# for the same logic wired into the eval harness instead.
+echo "==> Checking the technical plan's file list against the actual diff..."
+DIFF_FILES=$(git diff --name-only "${DEFAULT_BRANCH}...HEAD" 2>/dev/null || echo "") \
+  node -e "
+    var fs = require('fs');
+    var plan = fs.readFileSync('$TECH_PLAN_FILE', 'utf-8');
+    var fileRefPattern = /\x60([a-zA-Z0-9_.\/@()\/-]+\.(?:ts|tsx|js|jsx|mjs|cjs|css|json|yaml|yml|md))\x60/g;
+    var headingMatch = plan.match(/#{2,4}\s*impacted files|\*\*impacted files\*\*/i);
+    var scope = plan;
+    if (headingMatch && typeof headingMatch.index === 'number') {
+      var afterHeading = plan.slice(headingMatch.index + headingMatch[0].length);
+      var nextHeadingMatch = afterHeading.match(/\n#{2,4}\s/);
+      scope = nextHeadingMatch ? afterHeading.slice(0, nextHeadingMatch.index) : afterHeading;
+    }
+    var planned = [...new Set([...scope.matchAll(fileRefPattern)].map(function(m){return m[1];}))];
+    if (planned.length === 0) { process.exit(0); }
+    var diffFiles = new Set((process.env.DIFF_FILES || '').split('\n').filter(Boolean));
+    var missing = planned.filter(function(f){return !diffFiles.has(f);});
+    if (missing.length === 0) {
+      console.log('  OK — every file the plan names under Impacted Files appears in the diff.');
+    } else {
+      console.log('  ADVISORY — ' + missing.length + '/' + planned.length + ' plan-named file(s) never appear in the diff:');
+      missing.slice(0, 15).forEach(function(f){ console.log('    - ' + f); });
+      if (missing.length > 15) console.log('    ... and ' + (missing.length - 15) + ' more');
+      console.log('  Not blocking, and not all of these are bugs — many are legitimately');
+      console.log('  \"verify X, patch only if needed\" files where no change was correct.');
+      console.log('  A human or Review should treat this as a checklist to spot-check, not a verdict.');
+    }
+  " 2>&1 || echo "  (plan/diff coverage check skipped)"
+
 # 5. Review — with one retry: on FAIL, Dev gets the review findings and one
 # more pass before the pipeline gives up. Unlike the typecheck retry, we do
 # NOT discard the Dev's uncommitted work here: Review runs against committed
