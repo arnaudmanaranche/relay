@@ -2240,7 +2240,14 @@ async function runArchitectSplit(
   config: RoleConfig,
   skillContent: string
 ): Promise<AgentResult> {
-  const passes: ArchitectPass[] = ['plan', 'context'];
+  // RELAY_ARCHITECT_PASSES lets an operator re-run just one pass (e.g.
+  // "context") after manually restoring the other pass's artifact to
+  // disk — useful to recover a paid 'plan' call whose 'context' pass
+  // failed/was interrupted, without re-paying for 'plan'. Unset in
+  // normal operation; both passes always run.
+  const passes: ArchitectPass[] = process.env.RELAY_ARCHITECT_PASSES
+    ? (process.env.RELAY_ARCHITECT_PASSES.split(',') as ArchitectPass[])
+    : ['plan', 'context'];
   const allArtifacts: ArtifactChange[] = [];
   const rawParts: string[] = [];
 
