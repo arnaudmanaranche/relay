@@ -1670,6 +1670,14 @@ async function callLlmViaClaudeCli(
       '--tools',
       '',
       '--no-session-persistence',
+      // Agent roles use only the schema-constrained submit_changes output —
+      // no MCP tool is ever invoked. Without this, `claude -p` still tries
+      // to initialize every MCP server configured for the invoking user
+      // (Slack, Google Drive, Jira, etc.) before it can even start the
+      // turn; one slow or interactively-gated server can stall the call
+      // for tens of minutes with no error, no output, and no way to tell
+      // it apart from a genuinely long completion.
+      '--strict-mcp-config',
     ];
     if (CONFIG.llm.maxBudgetUsd) {
       args.push('--max-budget-usd', String(CONFIG.llm.maxBudgetUsd));
