@@ -145,6 +145,8 @@ For fields where nothing was detected (empty string), explain what the field is 
 
 Each role entry needs: `skill` (path to its prompt file under `skills/relay-pipeline/prompts/`, e.g. `skills/relay-pipeline/prompts/pm.md` — `memory-compact` uses `skills/relay-pipeline/prompts/memory-compact.md`), `model`, `artifact` (primary output filename), `description`, and `maxTokens`. Use a smaller/cheaper model for `memory-compact` — it does bounded text reorganization, not novel reasoning.
 
+`maxTokens` only bounds output on the `openai-compatible` backend — `claude -p` has no equivalent flag, so on the `claude-cli` backend (the default) this value is never sent and never enforced; the real ceiling is whatever the CLI itself defaults to. Don't rely on it to cap cost or output size under `claude-cli`.
+
 ### Optional: `effort`
 
 Every role entry may also set `effort` (one of `low`, `medium`, `high`, `xhigh`, `max`), passed through as `claude -p --effort` when `llm.backend` is `claude-cli`. It is a separate knob from `model`: model picks capability, effort picks how thoroughly that model works the task (files read, checks run, retries attempted) before answering. Omitted entirely on the generic OpenAI-compatible backend, which has no equivalent flag.

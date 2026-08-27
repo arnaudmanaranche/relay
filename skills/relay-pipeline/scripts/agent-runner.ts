@@ -1534,6 +1534,17 @@ function parseToolArgs(argsRaw: string, role: string, slug: string): AgentResult
 
 // --- LLM API dispatch ---
 
+// NOTE on `maxTokens` (each role's `.ai/agents.json` entry, e.g. dev: 8000):
+// it only reaches the API on the openai-compatible backend below. `claude
+// -p` has no equivalent flag (checked: `claude -p --help` has nothing for
+// max output tokens), so on the claude-cli backend this value is silently
+// never enforced — the real ceiling is whatever the CLI's own default is
+// (~64K tokens at time of writing). Found live: a real Dev batch's output
+// hit ~58K tokens against a configured maxTokens of 8000, with no warning
+// or truncation — the config value was simply never in the request. Not
+// fixable here (no CLI flag to wire it to); documented so a future reader
+// doesn't assume this config field bounds cost/output size under claude-cli
+// the way it visibly would under openai-compatible.
 async function callLlm(
   role: string,
   slug: string,
