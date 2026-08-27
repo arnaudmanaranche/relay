@@ -1992,7 +1992,13 @@ const PERMISSIONS: Record<
     // unconditional, unrecoverable block, not a cost/efficiency issue like
     // the earlier .mjs gaps in extractImpactedFiles. A real $0.62 call's
     // entire output was discarded this way before this fix.
-    allowedFiles: [/\.(ts|tsx|js|jsx|mjs|cjs|css|json)$/, /\.ai\/artifacts\/.*\.md$/],
+    //
+    // Same class of gap found again live: no .yaml/.yml meant an
+    // Architect-planned Maestro E2E flow (e2e/maestro/*.yaml) was
+    // unconditionally rejected on the very last file of a 10-batch,
+    // $6.79 real Dev run — discarding that one file's write while every
+    // other batch had already landed.
+    allowedFiles: [/\.(ts|tsx|js|jsx|mjs|cjs|css|json|yaml|yml)$/, /\.ai\/artifacts\/.*\.md$/],
   },
   review: {
     allowedArtifacts: [/\.ai\/artifacts\/.*\.md$/],

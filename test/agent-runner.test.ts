@@ -151,6 +151,20 @@ describe('checkPermissions', () => {
     }
   });
 
+  test('dev can write .yaml/.yml files (e.g. a Maestro E2E flow)', () => {
+    // Found live: a real Dev run's 10th and final batch had its only file,
+    // an Architect-planned e2e/maestro/*.yaml flow, unconditionally
+    // rejected — the same class of gap as the .mjs/.cjs case above.
+    for (const path of ['e2e/maestro/add-shoes-category-smoke.yaml', 'e2e/config.yml']) {
+      const { allowed } = checkPermissions(
+        'dev',
+        [{ path, action: 'create', content: '' }],
+        []
+      );
+      assert.equal(allowed, true, path);
+    }
+  });
+
   test('dev cannot write outside the allowed extension set (e.g. a shell script)', () => {
     const { allowed, blocked } = checkPermissions(
       'dev',
