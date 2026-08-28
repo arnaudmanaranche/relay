@@ -356,6 +356,7 @@ function parseArgs() {
     else if (arg === '--dry-run') args['dry-run'] = 'true';
     else if (arg === '--list-roles') args['list-roles'] = 'true';
     else if (arg === '--list-impacted-files') args['list-impacted-files'] = 'true';
+    else if (arg === '--list-latest-amendment-files') args['list-latest-amendment-files'] = 'true';
   }
 
   if (args['list-roles']) {
@@ -384,6 +385,26 @@ function parseArgs() {
     const techPlan = read(`.ai/artifacts/features/${args.slug}/technical-plan.md`);
     if (!techPlan.startsWith('[file not found')) {
       for (const f of extractImpactedFiles(techPlan)) {
+        console.log(f);
+      }
+    }
+    process.exit(0);
+  }
+
+  // Same idea as --list-impacted-files, but scoped to only the latest
+  // "## Amendment N" section — lets run-pipeline.sh's amend mode retry-file
+  // Dev to just the files THIS amendment named, not re-touch the whole
+  // already-shipped feature's file list too.
+  if (args['list-latest-amendment-files']) {
+    if (!args.slug) {
+      console.error(
+        'Usage: --list-latest-amendment-files --slug=<feature-slug> [--project-root=<path>]'
+      );
+      process.exit(1);
+    }
+    const techPlan = read(`.ai/artifacts/features/${args.slug}/technical-plan.md`);
+    if (!techPlan.startsWith('[file not found')) {
+      for (const f of extractLatestAmendmentFiles(techPlan)) {
         console.log(f);
       }
     }
@@ -562,6 +583,9 @@ If **blocked**, submit a \`blocker.md\` artifact with the **"What we do not know
     architectPass === 'context'
       ? `OVERRIDE for this call: \`technical-plan.md\` was already written by a separate prior call this same Architect run (shown above) — do NOT re-write or modify it. Write ONLY \`repository-context.md\` this call.`
       : '',
+    architectPass === 'amend'
+      ? `OVERRIDE for this call: this is an AMENDMENT to an already-shipped feature, not a new one. Submit \`technical-plan.md\` containing the FULL existing content plus your appended amendment section — never repository-context.md, never a blank/rewritten plan.`
+      : '',
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -653,21 +677,32 @@ function extractImpactedFiles(techPlan: string): string[] {
   // section — at an "out of scope / do not modify" sub-list, since a plan
   // legitimately lists files Dev must NOT touch right after the ones it
   // must.
-  const headingMatch = techPlan.match(/#{2,4}\s*impacted files|\*\*impacted files\*\*/i);
-  let scope = techPlan;
-  if (headingMatch && typeof headingMatch.index === 'number') {
+  // Global, not just the first match: an amendment (see `runAmend`) appends
+  // its own "## Impacted Files" heading further down the same document
+  // rather than rewriting the original section, so a plan with N approved
+  // amendments has N+1 such headings. Matching only the first one — the
+  // original behavior — silently dropped every amendment's files from
+  // Dev's retry-files scope and from the file-coverage check.
+  const headingPattern = /#{2,4}\s*impacted files|\*\*impacted files\*\*/gi;
+  let scope = '';
+  let headingMatch: RegExpExecArray | null;
+  let anyHeading = false;
+  while ((headingMatch = headingPattern.exec(techPlan)) !== null) {
+    anyHeading = true;
     const afterHeading = techPlan.slice(headingMatch.index + headingMatch[0].length);
     const nextHeadingMatch = afterHeading.match(/\n#{2,4}\s/);
-    scope = nextHeadingMatch
+    let section = nextHeadingMatch
       ? afterHeading.slice(0, nextHeadingMatch.index)
       : afterHeading;
-    const outOfScopeMatch = scope.match(
+    const outOfScopeMatch = section.match(
       /\*\*[^*\n]*(out of scope|do not modify|do not touch|avoid touching)[^*\n]*\*\*/i
     );
     if (outOfScopeMatch && typeof outOfScopeMatch.index === 'number') {
-      scope = scope.slice(0, outOfScopeMatch.index);
+      section = section.slice(0, outOfScopeMatch.index);
     }
+    scope += `\n${section}`;
   }
+  if (!anyHeading) scope = techPlan;
 
   const fileRefSet = new Set<string>();
   let m: RegExpExecArray | null;
@@ -699,6 +734,40 @@ function extractImpactedFiles(techPlan: string): string[] {
   return reconciled;
 }
 
+// Scopes to just the LATEST "## Amendment N" section's own Impacted Files,
+// not the whole plan's (extractImpactedFiles unions every section, original
+// plus every amendment — right for the file-coverage check and for
+// --list-impacted-files, wrong for scoping an amendment's own Dev pass,
+// which must touch only what THIS amendment named, not re-touch the
+// already-shipped original files too). Returns [] if the plan has no
+// "## Amendment" heading at all — the caller falls back to the full list.
+function extractLatestAmendmentFiles(techPlan: string): string[] {
+  if (!techPlan) return [];
+  const amendmentHeadingPattern = /^##\s*amendment\b.*$/gim;
+  let lastMatch: RegExpExecArray | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = amendmentHeadingPattern.exec(techPlan)) !== null) {
+    lastMatch = m;
+  }
+  if (!lastMatch) return [];
+  const latestSection = techPlan.slice(lastMatch.index + lastMatch[0].length);
+  // The amendment template (buildArchitectTask's amendTask) nests
+  // **Impacted Files** as a bold sub-heading, not a `#`-level one —
+  // extractImpactedFiles's own boundary logic looks for the next `#`
+  // heading, which never comes inside one amendment section. Bound this
+  // extraction to the next BOLD sub-heading (e.g. **Risks**) instead.
+  const boldHeadingMatch = latestSection.match(/\*\*impacted files\*\*/i);
+  if (!boldHeadingMatch || typeof boldHeadingMatch.index !== 'number') return [];
+  const afterHeading = latestSection.slice(
+    boldHeadingMatch.index + boldHeadingMatch[0].length
+  );
+  const nextBoldHeadingMatch = afterHeading.match(/\n\*\*[^*\n]+\*\*/);
+  const scoped = nextBoldHeadingMatch
+    ? afterHeading.slice(0, nextBoldHeadingMatch.index)
+    : afterHeading;
+  return extractImpactedFiles(`**Impacted Files**${scoped}`);
+}
+
 // When set, restricts a dev-role prompt to a single batch of the technical
 // plan's impacted files instead of the whole feature — see "Dev batching"
 // in main() for why (a single call covering every touched file truncates
@@ -712,7 +781,7 @@ interface DevBatch {
 
 // Which half of the Architect's two-artifact job a given call covers. See
 // "Architect splitting" near runArchitectSplit for why this exists.
-type ArchitectPass = 'plan' | 'context';
+type ArchitectPass = 'plan' | 'context' | 'amend';
 
 // Architect's combined technical-plan.md + repository-context.md task, in
 // one call, is exactly the kind of two-large-markdown-documents-in-one-
@@ -746,6 +815,8 @@ This must contain:
 - \`app/(tabs)/settings.tsx\` — add new settings row for X
 - \`services/supabase.ts\` — add new query function
 ${(CONFIG.stack.locales?.length ? CONFIG.stack.locales : ['en']).map(l => `- \`${CONFIG.stack.localeDir || 'i18n/locales'}/${l}.ts\` — add translation keys`).join('\n')}
+
+**Delivery shape** — judge whether this should ship as a single PR (the default) or be split into multiple PRs. Only propose a split when each slice is independently mergeable: reviewable and shippable on its own, landing and staying green before the next slice starts — not an arbitrary chunking of the same half-finished feature behind a flag. If you propose a split, list each slice as \`1. <name>\` with which of the Impacted Files belong to it. Base the call on the actual blast radius (file count, how many independent layers/modules are touched), not on line count alone.
 
 **Existing patterns to reuse** — reference specific components, hooks, or services the Dev should follow
 
@@ -781,6 +852,33 @@ This must contain:
 
 IMPORTANT: Do NOT write code. Do NOT leave sections empty or with "TBD". Every section must be actionable. The Dev will implement exactly what you specify. Do NOT re-emit technical-plan.md — only repository-context.md.`;
 
+  // Amend mode: a feature that already shipped a plan (and possibly a PR)
+  // needs a small, additional change — a new constraint or spec found
+  // during manual testing, not a from-scratch feature. Reusing the full
+  // pm -> architect(plan+context) -> dev -> review -> qa cycle here would
+  // re-litigate an already-approved brief for what's usually a scoped
+  // design decision. This pass appends to the EXISTING technical-plan.md
+  // instead of replacing it, which (a) keeps the original plan's history
+  // legible in one file and (b) means the existing hash-based design-gate
+  // approval in run-pipeline.sh — bound to technical-plan.md's content —
+  // naturally demands re-approval, with zero new gate logic needed.
+  const amendTask = `You are a **senior software architect**. This feature already has an approved, shipped \`technical-plan.md\` (shown above under "Existing technical plan"). A new requirement has come up after the fact (shown above under "New requirement to amend the plan with") — usually found during manual/E2E testing, not a from-scratch feature idea.
+
+Your job: APPEND an amendment section to the END of the existing \`${ctx.featureDir}/technical-plan.md\` — do not rewrite, remove, or reorder anything already in the file. Output the FULL updated file (existing content + your appended section) in the \`${ctx.featureDir}/technical-plan.md\` artifact, since the pipeline writes exactly what you submit.
+
+Count the existing \`## Amendment N\` headings already in the file (zero if this is the first) and use the next number. Append:
+
+\`## Amendment N: <short title>\`
+
+**What changed and why** — one paragraph: the new constraint/spec and why it wasn't caught the first time.
+
+**Impacted Files** — exact file paths, one per line, in the SAME format as the original Impacted Files section (\`- \\\`path/to/file.ts\\\` — description\`). Only files this amendment touches — do NOT re-list files from the original plan that aren't affected by this change.
+
+**Risks** — anything this amendment could break in the already-shipped part of the feature.
+
+IMPORTANT: Do NOT write code. Do NOT touch \`repository-context.md\`. Do NOT leave sections empty or with "TBD".`;
+
+  if (architectPass === 'amend') return amendTask;
   if (architectPass === 'context') return contextTask;
   if (architectPass === 'plan') return planTask;
   // Unbatched fallback (architectPass unset) — combined single-call
@@ -795,7 +893,8 @@ function buildUserPrompt(
   ctx: ReturnType<typeof loadContext>,
   config: RoleConfig,
   devBatch?: DevBatch,
-  architectPass?: ArchitectPass
+  architectPass?: ArchitectPass,
+  amendRequestPath?: string
 ) {
   const sections: string[] = [];
 
@@ -915,8 +1014,10 @@ function buildUserPrompt(
     }
     // Only load the template for the artifact THIS pass is actually
     // writing — halves template bulk per call when split, and is a no-op
-    // (both load, as before) when architectPass is unset.
-    if (architectPass !== 'context') {
+    // (both load, as before) when architectPass is unset. The 'amend' pass
+    // writes neither from a blank template — it appends to an already-shipped
+    // plan — so it loads neither.
+    if (architectPass !== 'context' && architectPass !== 'amend') {
       const techTmpl = read('skills/relay-pipeline/templates/technical-plan.md');
       if (techTmpl && !techTmpl.startsWith('[file not found')) {
         sections.push(
@@ -924,7 +1025,7 @@ function buildUserPrompt(
         );
       }
     }
-    if (architectPass !== 'plan') {
+    if (architectPass !== 'plan' && architectPass !== 'amend') {
       const repoCmpl = read('skills/relay-pipeline/templates/repository-context.md');
       if (repoCmpl && !repoCmpl.startsWith('[file not found')) {
         sections.push(
@@ -941,6 +1042,26 @@ function buildUserPrompt(
         sections.push(
           `## Technical plan (just written this same Architect run)\n\n\`\`\`markdown\n${techPlan}\n\`\`\``
         );
+      }
+    }
+    // The 'amend' pass reads back the plan from a PRIOR, already-shipped
+    // run (not "just written this same run") plus the human's new
+    // requirement — see buildArchitectTask's amendTask for what it's asked
+    // to do with both.
+    if (architectPass === 'amend') {
+      const techPlan = read(`${ctx.featureDir}/technical-plan.md`);
+      if (techPlan && !techPlan.startsWith('[file not found')) {
+        sections.push(
+          `## Existing technical plan (already approved and shipped)\n\n\`\`\`markdown\n${techPlan}\n\`\`\``
+        );
+      }
+      if (amendRequestPath) {
+        const amendRequest = read(amendRequestPath);
+        if (amendRequest && !amendRequest.startsWith('[file not found')) {
+          sections.push(
+            `## New requirement to amend the plan with\n\n\`\`\`markdown\n${amendRequest}\n\`\`\``
+          );
+        }
       }
     }
   }
@@ -2253,7 +2374,8 @@ function filterArchitectPassArtifacts(
   pass: ArchitectPass,
   artifacts: ArtifactChange[]
 ): { expected: ArtifactChange[]; unexpected: ArtifactChange[] } {
-  const expectedSuffix = pass === 'plan' ? 'technical-plan.md' : 'repository-context.md';
+  const expectedSuffix =
+    pass === 'plan' || pass === 'amend' ? 'technical-plan.md' : 'repository-context.md';
   return {
     expected: artifacts.filter(a => a.path.endsWith(expectedSuffix)),
     unexpected: artifacts.filter(a => !a.path.endsWith(expectedSuffix)),
@@ -2270,16 +2392,21 @@ async function runArchitectSplit(
   slug: string,
   ctx: ReturnType<typeof loadContext>,
   config: RoleConfig,
-  skillContent: string
+  skillContent: string,
+  amendRequestPath?: string
 ): Promise<AgentResult> {
   // RELAY_ARCHITECT_PASSES lets an operator re-run just one pass (e.g.
   // "context") after manually restoring the other pass's artifact to
   // disk — useful to recover a paid 'plan' call whose 'context' pass
   // failed/was interrupted, without re-paying for 'plan'. Unset in
-  // normal operation; both passes always run.
-  const passes: ArchitectPass[] = process.env.RELAY_ARCHITECT_PASSES
-    ? (process.env.RELAY_ARCHITECT_PASSES.split(',') as ArchitectPass[])
-    : ['plan', 'context'];
+  // normal operation; both passes always run. An amend request overrides
+  // this entirely: it's a single 'amend' pass, never 'plan'+'context' —
+  // amending an already-shipped feature never touches repository-context.md.
+  const passes: ArchitectPass[] = amendRequestPath
+    ? ['amend']
+    : process.env.RELAY_ARCHITECT_PASSES
+      ? (process.env.RELAY_ARCHITECT_PASSES.split(',') as ArchitectPass[])
+      : ['plan', 'context'];
   const allArtifacts: ArtifactChange[] = [];
   const rawParts: string[] = [];
 
@@ -2316,7 +2443,7 @@ async function runArchitectSplit(
       process.exit(1);
     }
 
-    const userPrompt = buildUserPrompt('architect', slug, ctx, config, undefined, pass);
+    const userPrompt = buildUserPrompt('architect', slug, ctx, config, undefined, pass, amendRequestPath);
     const passResult = await callLlm(
       'architect',
       slug,
@@ -2890,7 +3017,7 @@ async function main() {
       );
       multiCallHandled = true;
     } else if (role === 'architect') {
-      result = await runArchitectSplit(slug, ctx, config, skillContent);
+      result = await runArchitectSplit(slug, ctx, config, skillContent, args['amend-request']);
       multiCallHandled = true;
     } else {
       const userPrompt = buildUserPrompt(role, slug, ctx, config);
@@ -3047,6 +3174,7 @@ export {
   trimContextForPrompt,
   evaluateClaudeCliResult,
   extractImpactedFiles,
+  extractLatestAmendmentFiles,
   scopeToRetryFiles,
   buildArchitectTask,
   filterArchitectPassArtifacts,

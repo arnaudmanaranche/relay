@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the full agent pipeline — Relay module
-# Usage: bash scripts/run-pipeline.sh <slug> [issue-body.md] [--dry-run] [--approve-design] [--upload-build] [--project-root=<path>]
+# Usage: bash scripts/run-pipeline.sh <slug> [issue-body.md] [--dry-run] [--approve-design] [--upload-build] [--amend="<new requirement>"] [--project-root=<path>]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -20,7 +20,11 @@ ISSUE_BODY=""
 DRY_RUN=""
 APPROVE_DESIGN="false"
 UPLOAD_BUILD="false"
+AMEND_TEXT=""
 for arg in "${@:2}"; do
+  case "$arg" in
+    --amend=*) AMEND_TEXT="${arg#*=}" ;;
+  esac
   if [ "$arg" = "--dry-run" ]; then
     DRY_RUN="--dry-run"
   elif [ "$arg" = "--approve-design" ]; then
@@ -575,76 +579,118 @@ if [ -n "$ISSUE_BODY" ]; then
   fi
 fi
 
-# 1. PM writes feature brief
-run_agent pm
-commit_stage "chore(pm): $SLUG" pm
-
-# 2. Dev review + clarification loop
+# --- Amend mode ---
 #
-# ROUND_HISTORY tracks each round's verdict so a human hitting the
-# exhausted-loops guard below doesn't have to reconstruct the chronology by
-# reading pm-dev-thread.md's raw, append-only Q&A themselves — it's a
-# summary alongside the full record, not a replacement for it. Purely
-# observational: it does not change any loop/retry decision.
-loop=0
-ROUND_HISTORY=""
-while [ $loop -lt $MAX_LOOPS ]; do
-  run_agent dev-review
-  commit_stage "chore(dev-review): $SLUG" dev-review
+# --amend="<new requirement>" targets a feature that already has an
+# approved, shipped technical-plan.md — a constraint or spec discovered
+# after the fact (typically during manual/E2E testing on the open PR), not
+# a new feature. It skips PM and the dev-review loop entirely (the brief
+# is not in question) and goes straight to a scoped Architect pass that
+# APPENDS an amendment section to the existing plan rather than replacing
+# it (see buildArchitectTask's amendTask in agent-runner.ts). Because the
+# plan's content — and therefore its hash — changes, the existing
+# hash-based design-gate approval below demands re-approval automatically;
+# no separate gate logic was needed for this to be safe.
+AMEND_REQUEST_PATH=""
+AMEND_NUM=""
+if [ -n "$AMEND_TEXT" ]; then
+  if [ ! -f "$ARTIFACTS_DIR/technical-plan.md" ]; then
+    echo "==> --amend requires an existing feature with an approved technical-plan.md."
+    echo "    $ARTIFACTS_DIR/technical-plan.md not found — run the normal flow first (no --amend)."
+    exit 1
+  fi
+  AMENDMENTS_DIR="$ARTIFACTS_DIR/amendments"
+  mkdir -p "$AMENDMENTS_DIR"
+  AMEND_NUM=$(( $(ls "$AMENDMENTS_DIR" 2>/dev/null | grep -c -- '-request\.md$' || true) + 1 ))
+  AMEND_REQUEST_PATH="$AMENDMENTS_DIR/$AMEND_NUM-request.md"
+  printf '%s\n' "$AMEND_TEXT" > "$AMEND_REQUEST_PATH"
+  echo "==> Amend mode: request $AMEND_NUM recorded at $AMEND_REQUEST_PATH"
+fi
 
-  VERDICT=$(read_verdict)
-  ROUND_HISTORY="${ROUND_HISTORY}  Round $((loop + 1)): dev-review verdict = ${VERDICT:-none}
+# Whether to skip PM/dev-review can't be decided from AMEND_REQUEST_PATH
+# alone — that's only set on the SAME invocation that just wrote a fresh
+# amendment request. Resuming after the design gate re-approves via
+# --approve-design without --amend, on a separate invocation where
+# AMEND_REQUEST_PATH is empty again. Once any amendment has ever been
+# appended, the brief is permanently not in question for this feature —
+# same signal already used below to scope Dev to the latest amendment.
+IS_AMEND_CYCLE="false"
+if [ -n "$AMEND_REQUEST_PATH" ] || grep -q '^## Amendment' "$ARTIFACTS_DIR/technical-plan.md" 2>/dev/null; then
+  IS_AMEND_CYCLE="true"
+fi
+
+if [ "$IS_AMEND_CYCLE" != "true" ]; then
+  # 1. PM writes feature brief
+  run_agent pm
+  commit_stage "chore(pm): $SLUG" pm
+
+  # 2. Dev review + clarification loop
+  #
+  # ROUND_HISTORY tracks each round's verdict so a human hitting the
+  # exhausted-loops guard below doesn't have to reconstruct the chronology by
+  # reading pm-dev-thread.md's raw, append-only Q&A themselves — it's a
+  # summary alongside the full record, not a replacement for it. Purely
+  # observational: it does not change any loop/retry decision.
+  loop=0
+  ROUND_HISTORY=""
+  while [ $loop -lt $MAX_LOOPS ]; do
+    run_agent dev-review
+    commit_stage "chore(dev-review): $SLUG" dev-review
+
+    VERDICT=$(read_verdict)
+    ROUND_HISTORY="${ROUND_HISTORY}  Round $((loop + 1)): dev-review verdict = ${VERDICT:-none}
 "
 
-  if [ -f "$ARTIFACTS_DIR/blocker.md" ] || [ "$VERDICT" = "blocked" ]; then
+    if [ -f "$ARTIFACTS_DIR/blocker.md" ] || [ "$VERDICT" = "blocked" ]; then
+      echo ""
+      echo "  BLOCKER found - human intervention required."
+      echo "  See $ARTIFACTS_DIR/blocker.md"
+      echo ""
+      echo "  Clarification round history:"
+      printf '%s' "$ROUND_HISTORY"
+      echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
+      exit 1
+    fi
+
+    if [ "$VERDICT" = "questions" ]; then
+      echo ""
+      echo "  Dev has questions. Running PM respond..."
+      run_agent pm-respond
+      commit_stage "chore(pm-respond): $SLUG" pm-respond
+      ROUND_HISTORY="${ROUND_HISTORY}           pm-respond verdict = $(read_verdict pm-respond)
+"
+      loop=$((loop + 1))
+      continue
+    fi
+
     echo ""
-    echo "  BLOCKER found - human intervention required."
-    echo "  See $ARTIFACTS_DIR/blocker.md"
-    echo ""
-    echo "  Clarification round history:"
-    printf '%s' "$ROUND_HISTORY"
+    echo "  Dev review: clear. Proceeding."
+    break
+  done
+
+  # Guard: exhausted loops
+  if [ -f "$ARTIFACTS_DIR/blocker.md" ]; then
+    echo "  Unresolved blocker."
     echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
     exit 1
   fi
-
-  if [ "$VERDICT" = "questions" ]; then
+  # Read the dev-review role's own status, not the generic last-written one:
+  # by this point pm-respond ran most recently (inside the loop, right after
+  # dev-review), so the generic .agent-status.json reflects pm-respond's
+  # verdict (always something other than "questions"), not dev-review's. Found
+  # live: this guard never actually fired after exhausting MAX_LOOPS, because
+  # it was silently checking the wrong role's last verdict — the pipeline
+  # proceeded to Architect/Dev with genuinely unresolved clarification
+  # questions instead of halting for human input.
+  if [ "$(read_verdict dev-review)" = "questions" ]; then
+    echo "  Unresolved threads after max clarification loops."
     echo ""
-    echo "  Dev has questions. Running PM respond..."
-    run_agent pm-respond
-    commit_stage "chore(pm-respond): $SLUG" pm-respond
-    ROUND_HISTORY="${ROUND_HISTORY}           pm-respond verdict = $(read_verdict pm-respond)
-"
-    loop=$((loop + 1))
-    continue
+    echo "  Clarification round history:"
+    printf '%s' "$ROUND_HISTORY"
+    echo "  Full thread: $PIPELINE_ROOT/$ARTIFACTS_DIR/pm-dev-thread.md"
+    echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
+    exit 1
   fi
-
-  echo ""
-  echo "  Dev review: clear. Proceeding."
-  break
-done
-
-# Guard: exhausted loops
-if [ -f "$ARTIFACTS_DIR/blocker.md" ]; then
-  echo "  Unresolved blocker."
-  echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
-  exit 1
-fi
-# Read the dev-review role's own status, not the generic last-written one:
-# by this point pm-respond ran most recently (inside the loop, right after
-# dev-review), so the generic .agent-status.json reflects pm-respond's
-# verdict (always something other than "questions"), not dev-review's. Found
-# live: this guard never actually fired after exhausting MAX_LOOPS, because
-# it was silently checking the wrong role's last verdict — the pipeline
-# proceeded to Architect/Dev with genuinely unresolved clarification
-# questions instead of halting for human input.
-if [ "$(read_verdict dev-review)" = "questions" ]; then
-  echo "  Unresolved threads after max clarification loops."
-  echo ""
-  echo "  Clarification round history:"
-  printf '%s' "$ROUND_HISTORY"
-  echo "  Full thread: $PIPELINE_ROOT/$ARTIFACTS_DIR/pm-dev-thread.md"
-  echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
-  exit 1
 fi
 
 # 3. Rebuild context.json from source, then Architect produces technical plan.
@@ -655,7 +701,15 @@ fi
 # *different* plan than the one the human actually reviewed; --approve-design
 # would then greenlight code generation from a plan nobody saw. Reuse the
 # exact reviewed plan instead.
-if [ -f "$ARTIFACTS_DIR/technical-plan.md" ]; then
+if [ -n "$AMEND_REQUEST_PATH" ]; then
+  # Amend mode: technical-plan.md already exists (checked above) — this
+  # call appends amendment $AMEND_NUM to it rather than regenerating it.
+  # No Mermaid-diagram gate here: the original plan already has one, and
+  # a small amendment isn't required to add its own.
+  echo "==> Amend mode: running Architect to append amendment $AMEND_NUM..."
+  run_agent architect "--amend-request=$AMEND_REQUEST_PATH"
+  commit_stage "chore(architect): $SLUG (amendment $AMEND_NUM)" architect
+elif [ -f "$ARTIFACTS_DIR/technical-plan.md" ]; then
   echo "==> Reusing existing technical plan (resumed run) — not regenerating it."
 else
   echo "==> Rebuilding context.json..."
@@ -705,6 +759,18 @@ if [ -f "$APPROVAL_FLAG" ]; then
   fi
 fi
 
+# Surface the Architect's delivery-shape call at the point a human can
+# still act on it — after the gate, this is a git-history footnote nobody
+# rereads. Advisory only: the pipeline never blocks or splits anything
+# itself, it just makes sure "should this be several PRs?" gets asked out
+# loud before Dev writes a single line.
+DELIVERY_SHAPE=$(awk '/^## Delivery Shape/{flag=1; next} /^## /{flag=0} flag' "$ARTIFACTS_DIR/technical-plan.md" 2>/dev/null | sed '/^\s*$/d')
+if [ -n "$DELIVERY_SHAPE" ]; then
+  echo ""
+  echo "==> Architect's delivery-shape call:"
+  echo "$DELIVERY_SHAPE" | sed 's/^/  /'
+fi
+
 if [ "$DESIGN_APPROVED" != "true" ]; then
   if [ "$APPROVE_DESIGN" = "true" ]; then
     echo "==> Design approved via --approve-design (plan $PLAN_HASH)."
@@ -728,48 +794,71 @@ if [ "$DESIGN_APPROVED" != "true" ]; then
 fi
 
 # 4. Dev implements with quality gates (typecheck, lint, project tests)
-run_agent dev
-
-# Quality gate: check before committing (one retry allowed)
-TC_ATTEMPT=1
-while true; do
-  if run_quality_gates; then
-    echo "  Typecheck/lint/tests passed (attempt $TC_ATTEMPT). Committing..."
-    commit_stage "chore(dev): $SLUG" dev
-    break
-  fi
-
-  if [ "$TC_ATTEMPT" -ge 2 ]; then
-    echo "  Quality gates still FAIL after retry. Aborting."
-    echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
-    exit 1
-  fi
-
-  echo "  Quality gates FAILED (attempt $TC_ATTEMPT). Feeding errors back to Dev..."
-
-  # Scope the retry to just the file(s) actually implicated by the
-  # failure when we can confidently tell which ones those are — a large
-  # batched feature previously always paid for every batch's full
-  # regeneration on any single failing file. Falls back to reverting and
-  # regenerating everything when attribution is ambiguous (e.g. a
-  # generic error with no recognizable path): quality gates re-run after
-  # every retry regardless, so a missed attribution costs an unhelpful
-  # retry, never a silently-shipped broken file.
-  RETRY_FILES=$(extract_retry_files "$ARTIFACTS_DIR/.agent-typecheck-feedback.md")
-  if [ -n "$RETRY_FILES" ]; then
-    echo "  Scoping retry to implicated file(s): $RETRY_FILES"
-    IFS=',' read -ra RETRY_FILES_ARR <<< "$RETRY_FILES"
-    for f in "${RETRY_FILES_ARR[@]}"; do
-      git checkout HEAD -- "$f" 2>/dev/null || rm -f "$f"
-    done
-    run_agent dev "--retry-files=$RETRY_FILES"
+#
+# RELAY_SKIP_DEV=true skips this entire stage (Dev call + quality-gate
+# retry loop + commit) — an escape hatch for a human who already committed
+# Dev's output by hand (e.g. recovering from a bad Dev batch or a gate
+# rejection that only needed a manual fix, not a full re-run) and wants to
+# resume the pipeline at Review without paying for Dev again. Mirrors the
+# existing RELAY_ARCHITECT_PASSES escape hatch's reasoning. Unset (false)
+# in normal operation.
+if [ "${RELAY_SKIP_DEV:-false}" = "true" ]; then
+  echo "==> RELAY_SKIP_DEV=true — skipping Dev stage, assuming its output is already committed."
+elif [ "$IS_AMEND_CYCLE" = "true" ]; then
+  AMENDMENT_FILES=$(${RUN_SCRIPT} "$SCRIPT_DIR/agent-runner.ts" --list-latest-amendment-files --slug="$SLUG" --project-root="$PIPELINE_ROOT" 2>/dev/null | paste -sd, -)
+  if [ -n "$AMENDMENT_FILES" ]; then
+    echo "==> Scoping Dev to the latest amendment's own file(s): $AMENDMENT_FILES"
+    run_agent dev "--retry-files=$AMENDMENT_FILES"
   else
-    echo "  Could not confidently attribute the failure to specific planned files — reverting and regenerating the full feature."
-    git checkout HEAD -- . 2>/dev/null || true
+    echo "==> Amendment heading found but no files could be extracted from it — running Dev against the full plan."
     run_agent dev
   fi
-  TC_ATTEMPT=$((TC_ATTEMPT + 1))
-done
+else
+  run_agent dev
+fi
+
+if [ "${RELAY_SKIP_DEV:-false}" != "true" ]; then
+  # Quality gate: check before committing (one retry allowed)
+  TC_ATTEMPT=1
+  while true; do
+    if run_quality_gates; then
+      echo "  Typecheck/lint/tests passed (attempt $TC_ATTEMPT). Committing..."
+      commit_stage "chore(dev): $SLUG" dev
+      break
+    fi
+
+    if [ "$TC_ATTEMPT" -ge 2 ]; then
+      echo "  Quality gates still FAIL after retry. Aborting."
+      echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
+      exit 1
+    fi
+
+    echo "  Quality gates FAILED (attempt $TC_ATTEMPT). Feeding errors back to Dev..."
+
+    # Scope the retry to just the file(s) actually implicated by the
+    # failure when we can confidently tell which ones those are — a large
+    # batched feature previously always paid for every batch's full
+    # regeneration on any single failing file. Falls back to reverting and
+    # regenerating everything when attribution is ambiguous (e.g. a
+    # generic error with no recognizable path): quality gates re-run after
+    # every retry regardless, so a missed attribution costs an unhelpful
+    # retry, never a silently-shipped broken file.
+    RETRY_FILES=$(extract_retry_files "$ARTIFACTS_DIR/.agent-typecheck-feedback.md")
+    if [ -n "$RETRY_FILES" ]; then
+      echo "  Scoping retry to implicated file(s): $RETRY_FILES"
+      IFS=',' read -ra RETRY_FILES_ARR <<< "$RETRY_FILES"
+      for f in "${RETRY_FILES_ARR[@]}"; do
+        git checkout HEAD -- "$f" 2>/dev/null || rm -f "$f"
+      done
+      run_agent dev "--retry-files=$RETRY_FILES"
+    else
+      echo "  Could not confidently attribute the failure to specific planned files — reverting and regenerating the full feature."
+      git checkout HEAD -- . 2>/dev/null || true
+      run_agent dev
+    fi
+    TC_ATTEMPT=$((TC_ATTEMPT + 1))
+  done
+fi
 
 # Verify Dev manifest against tech plan
 echo "==> Verifying Dev manifest against tech plan..."

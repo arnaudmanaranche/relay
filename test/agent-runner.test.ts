@@ -32,6 +32,7 @@ import {
   trimContextForPrompt,
   evaluateClaudeCliResult,
   extractImpactedFiles,
+  extractLatestAmendmentFiles,
   scopeToRetryFiles,
   buildArchitectTask,
   filterArchitectPassArtifacts,
@@ -867,6 +868,83 @@ This mirrors the existing \`existing-a.ts\` ↔ \`existing-b.ts\` pattern.
       'test/detectors/project.test.mjs',
     ]);
   });
+
+  test('unions files across the original plan AND every appended "## Amendment N" section, not just the first heading', () => {
+    // A feature that went through amend mode (see buildArchitectTask's
+    // amendTask) has its original "## Impacted Files" heading, plus one
+    // more per approved amendment — each amendment appends its own such
+    // heading further down the same technical-plan.md.
+    const plan = `
+## Impacted Files
+
+- \`src/original.ts\` — the original feature
+
+## Amendment 1: rework the size filter
+
+**Impacted Files**
+
+- \`components/wardrobe-header.tsx\` — scope size filter to expanded category
+`;
+    assert.deepEqual(extractImpactedFiles(plan), [
+      'src/original.ts',
+      'components/wardrobe-header.tsx',
+    ]);
+  });
+});
+
+describe('extractLatestAmendmentFiles — scoping an amendment Dev pass to only its own files', () => {
+  test('returns [] when the plan has no "## Amendment" section at all', () => {
+    const plan = `
+## Impacted Files
+
+- \`src/original.ts\` — the original feature
+`;
+    assert.deepEqual(extractLatestAmendmentFiles(plan), []);
+  });
+
+  test('returns only the latest amendment\'s files, not the original plan\'s', () => {
+    const plan = `
+## Impacted Files
+
+- \`src/original.ts\` — the original feature
+
+## Amendment 1: rework the size filter
+
+**Impacted Files**
+
+- \`components/wardrobe-header.tsx\` — scope size filter to expanded category
+
+**Risks**
+
+- Could regress the "All" tab's size filter for clothing
+`;
+    assert.deepEqual(extractLatestAmendmentFiles(plan), [
+      'components/wardrobe-header.tsx',
+    ]);
+  });
+
+  test('with two amendments, returns only the SECOND (latest) one\'s files, not the first\'s', () => {
+    const plan = `
+## Impacted Files
+
+- \`src/original.ts\` — the original feature
+
+## Amendment 1: rework the size filter
+
+**Impacted Files**
+
+- \`components/wardrobe-header.tsx\` — first amendment
+
+## Amendment 2: fix a follow-up bug from amendment 1
+
+**Impacted Files**
+
+- \`components/wardrobe-category-view.tsx\` — second amendment
+`;
+    assert.deepEqual(extractLatestAmendmentFiles(plan), [
+      'components/wardrobe-category-view.tsx',
+    ]);
+  });
 });
 
 describe('scopeToRetryFiles — scoping a quality-gate retry to implicated files', () => {
@@ -922,6 +1000,12 @@ describe('buildArchitectTask — per-pass task text for the Architect split', ()
     assert.match(task, /Do NOT re-emit technical-plan\.md/);
   });
 
+  test("the 'plan' pass asks the Architect to judge whether the feature should split into multiple PRs", () => {
+    const task = buildArchitectTask(ctx, 'plan');
+    assert.match(task, /Delivery shape/i);
+    assert.match(task, /independently mergeable/i);
+  });
+
   test('an undefined pass (unbatched fallback) asks for both artifacts in one call', () => {
     const task = buildArchitectTask(ctx, undefined);
     assert.match(task, /technical-plan\.md/);
@@ -935,9 +1019,29 @@ describe('buildArchitectTask — per-pass task text for the Architect split', ()
     assert.match(buildArchitectTask(otherCtx, 'plan'), /other-feature\/technical-plan\.md/);
     assert.match(buildArchitectTask(otherCtx, 'context'), /other-feature\/repository-context\.md/);
   });
+
+  test("the 'amend' pass asks to append to the existing technical-plan.md, never touch repository-context.md", () => {
+    const task = buildArchitectTask(ctx, 'amend');
+    assert.match(task, /APPEND/);
+    assert.match(task, /technical-plan\.md/);
+    assert.match(task, /Do NOT touch `repository-context\.md`/);
+    assert.match(task, /already has an approved, shipped/i);
+  });
 });
 
 describe('filterArchitectPassArtifacts — defense in depth against a pass producing the wrong artifact', () => {
+  test("the 'amend' pass keeps only technical-plan.md, like 'plan' — never repository-context.md", () => {
+    const artifacts = [
+      { path: '.ai/artifacts/features/x/technical-plan.md', action: 'create' as const, content: 'plan+amendment' },
+      { path: '.ai/artifacts/features/x/repository-context.md', action: 'create' as const, content: 'ctx' },
+    ];
+    const { expected, unexpected } = filterArchitectPassArtifacts('amend', artifacts);
+    assert.equal(expected.length, 1);
+    assert.equal(expected[0].content, 'plan+amendment');
+    assert.equal(unexpected.length, 1);
+    assert.equal(unexpected[0].content, 'ctx');
+  });
+
   test("the 'plan' pass keeps only technical-plan.md, drops anything else", () => {
     const artifacts = [
       { path: '.ai/artifacts/features/x/technical-plan.md', action: 'create' as const, content: 'plan' },
