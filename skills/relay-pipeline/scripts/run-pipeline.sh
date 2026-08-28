@@ -170,11 +170,21 @@ run_agent() {
   local extra_flags="${2:-}"
   local extra=""
   [ "$DRY_RUN" = "--dry-run" ] && extra="--dry-run"
+  local start_ts
+  start_ts=$(date +%s)
   echo ""
   echo "========================================="
-  echo "  Running $role..."
+  echo "  ▶ Running $role..."
   echo "========================================="
-  ${RUN_SCRIPT} "$SCRIPT_DIR/agent-runner.ts" --role="$role" --slug="$SLUG" --project-root="$PIPELINE_ROOT" $extra $extra_flags
+  local status=0
+  ${RUN_SCRIPT} "$SCRIPT_DIR/agent-runner.ts" --role="$role" --slug="$SLUG" --project-root="$PIPELINE_ROOT" $extra $extra_flags || status=$?
+  local elapsed=$(( $(date +%s) - start_ts ))
+  if [ "$status" -eq 0 ]; then
+    echo "  ✓ $role finished (${elapsed}s)"
+  else
+    echo "  ✗ $role failed after ${elapsed}s (exit $status)"
+  fi
+  return "$status"
 }
 
 # Cross-references file paths mentioned in a quality-gate feedback file

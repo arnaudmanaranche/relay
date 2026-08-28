@@ -6,7 +6,8 @@
 // in .ai/config.json for a non-OpenRouter provider
 
 // dotenv is optional — load via dynamic import so the script works without it
-import { execSync, execFileSync } from 'child_process';
+import { execSync, execFile } from 'child_process';
+import { promisify } from 'util';
 import {
   readFileSync,
   writeFileSync,
@@ -346,6 +347,59 @@ function getRoles(): Record<string, RoleConfig> {
   return _roles;
 }
 
+const execFileAsync = promisify(execFile);
+
+// --- Terminal feedback (spinner) ---
+//
+// Both LLM backends can block for tens of seconds to several minutes per
+// call with zero output in between — the previous behavior was total
+// silence from "System prompt: ~N chars" until the response landed, which
+// reads identically to a hang. This renders an animated status line while
+// a call is in flight and an elapsed-time summary once it resolves.
+// Disabled outside a TTY (CI logs, piped output) since an animated line
+// there just becomes hundreds of junk log lines instead of an overwritten
+// one.
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+const SPINNER_ENABLED = Boolean(process.stdout.isTTY);
+
+function formatElapsed(ms: number): string {
+  const s = ms / 1000;
+  return s < 60 ? `${s.toFixed(1)}s` : `${Math.floor(s / 60)}m${Math.round(s % 60)}s`;
+}
+
+interface Spinner {
+  stop(finalMessage?: string): void;
+}
+
+function startSpinner(label: string): Spinner {
+  const startedAt = Date.now();
+  if (!SPINNER_ENABLED) {
+    console.log(`  ⏳ ${label}...`);
+    return {
+      stop(finalMessage?: string) {
+        console.log(`  ✓ ${finalMessage ?? label} (${formatElapsed(Date.now() - startedAt)})`);
+      },
+    };
+  }
+
+  let frame = 0;
+  const render = () => {
+    const elapsed = formatElapsed(Date.now() - startedAt);
+    const line = `  ${SPINNER_FRAMES[frame % SPINNER_FRAMES.length]} ${label}... (${elapsed})`;
+    frame++;
+    process.stdout.write(`\r\x1b[K${line}`);
+  };
+  render();
+  const interval = setInterval(render, 100);
+
+  return {
+    stop(finalMessage?: string) {
+      clearInterval(interval);
+      process.stdout.write(`\r\x1b[K  ✓ ${finalMessage ?? label} (${formatElapsed(Date.now() - startedAt)})\n`);
+    },
+  };
+}
+
 // --- Utils ---
 
 function parseArgs() {
@@ -354,6 +408,7 @@ function parseArgs() {
     const match = arg.match(/^--([\w-]+)=(.+)$/);
     if (match) args[match[1]] = match[2];
     else if (arg === '--dry-run') args['dry-run'] = 'true';
+    else if (arg === '--simulate-delay') args['simulate-delay'] = '4';
     else if (arg === '--list-roles') args['list-roles'] = 'true';
     else if (arg === '--list-impacted-files') args['list-impacted-files'] = 'true';
     else if (arg === '--list-latest-amendment-files') args['list-latest-amendment-files'] = 'true';
@@ -414,7 +469,7 @@ function parseArgs() {
   if (!args.role || !args.slug) {
     const validRoles = Object.keys(getRoles()).join('|');
     console.error(
-      `Usage: node scripts/agent-runner.ts --role=<${validRoles}> --slug=<feature-slug> [--project-root=<path>] [--dry-run] [--list-roles]`
+      `Usage: node scripts/agent-runner.ts --role=<${validRoles}> --slug=<feature-slug> [--project-root=<path>] [--dry-run] [--simulate-delay[=<seconds>]] [--list-roles]`
     );
     process.exit(1);
   }
@@ -1834,12 +1889,18 @@ async function callLlmViaClaudeCli(
     }
 
     let stdout: string;
+    const spinner = startSpinner(
+      `${role} thinking${attempt > 1 ? ` (attempt ${attempt}/${MAX_RETRIES})` : ''}`
+    );
     try {
-      stdout = execFileSync('claude', args, {
+      const { stdout: out } = await execFileAsync('claude', args, {
         encoding: 'utf-8',
         maxBuffer: 64 * 1024 * 1024,
       });
+      stdout = out;
+      spinner.stop(`${role} responded`);
     } catch (err: any) {
+      spinner.stop(`${role} call failed`);
       // A non-zero exit still writes its JSON result to stdout in most
       // failure modes (e.g. is_error:true) — only fall back to the raw
       // error message when stdout truly has nothing usable.
@@ -1947,6 +2008,9 @@ async function callLlmViaOpenAiCompatible(
   let retryingAfterTruncation = false;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     let response: Response;
+    const spinner = startSpinner(
+      `${role} thinking${attempt > 1 ? ` (attempt ${attempt}/${MAX_RETRIES})` : ''}`
+    );
     try {
       response = await fetch(baseUrl, {
         method: 'POST',
@@ -1985,7 +2049,9 @@ async function callLlmViaOpenAiCompatible(
           ...(isOpenRouter ? { usage: { include: true } } : {}),
         }),
       });
+      spinner.stop(`${role} responded`);
     } catch (err) {
+      spinner.stop(`${role} call failed`);
       // fetch() itself can throw on network-level failures (connection
       // reset, read timeout, DNS failure) — found live: a real ETIMEDOUT
       // on a retry attempt crashed the whole process uncaught, since only
@@ -2963,6 +3029,16 @@ async function main() {
   let multiCallHandled = false;
   if (isDryRun) {
     console.log('  DRY RUN — using mock response');
+    // --simulate-delay lets an operator watch the real spinner/timing
+    // behavior (startSpinner in the LLM-call paths above) without spending
+    // any tokens — dry-run otherwise returns mockResponse() instantly, so
+    // there'd be nothing to see. Seconds, not an LLM call of any kind.
+    const simulateDelaySec = Number(args['simulate-delay']);
+    if (simulateDelaySec > 0) {
+      const spinner = startSpinner(`${role} thinking (simulated)`);
+      await new Promise(r => setTimeout(r, simulateDelaySec * 1000));
+      spinner.stop(`${role} responded (simulated)`);
+    }
     result = mockResponse(role, slug);
   } else {
     let allPlannedFiles: string[] = [];
