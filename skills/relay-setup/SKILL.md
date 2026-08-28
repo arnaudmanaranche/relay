@@ -9,7 +9,7 @@ Run this skill when you first install the module in a project. It auto-detects t
 1. **Auto-detects the stack** by running `scripts/detect-stack.mjs` in the project root
 2. Presents detected values to the user for confirmation or correction
 3. Prompts only for values that could not be detected
-4. Generates `.ai/config.json` with all project settings
+4. Generates `.ai/config.json` with all project settings, including `relayVersion` set to this module's `module_version` (`assets/module.yaml`) — the marker later installs compare against to know if they're behind (see **Updating an existing install** below)
 5. Generates `.ai/agents.json` with role definitions (see **Required roles** below — `agent-runner.ts` hardcodes behavior per role name, so every one of these must have an entry or that role's pipeline stage will fail with "Unknown role")
 6. Creates `.ai/artifacts/features/` directory
 7. Copies registry files (scope-checklist, ship-checklist, analytics-events, paywall-touchpoints) into `.ai/registry/`
@@ -236,6 +236,27 @@ git commit -m "chore(relay): untrack pipeline debug files"
 .ai/scripts/prune-artifacts.sh --archive <slug>            # or
 .ai/scripts/prune-artifacts.sh --archive-older-than 90     # folders untouched for 90+ days
 ```
+
+## Updating an existing install
+
+Relay is copied into each target project (there's no registry, no `npm install`) — see **What it does** above. That means an improvement made in this module's own repo (a pipeline fix, a new check, a template change) never reaches a project that already ran setup, unless someone re-runs this skill against it. There's no push notification for this — it's pull, triggered by a human asking.
+
+Run this check whenever asked "is Relay up to date in `<project>`?", or before starting a real pipeline run on a project you haven't touched in a while:
+
+```bash
+node skills/relay-setup/scripts/check-version.mjs --project-root=<project-root>
+```
+
+This is deterministic — it reads this module's own `module_version` (`assets/module.yaml`) and the target's `.ai/config.json` → `relayVersion`, and reports `{current, latest, upToDate, behind}`. A project set up before this check existed has no `relayVersion` field at all — `current: null` also counts as `behind`.
+
+If `behind` is `true`:
+
+1. Tell the user which version the project is on vs. the latest, and ask before touching anything (this re-copies files into a project the user may have hand-edited).
+2. Re-copy `skills/relay-pipeline/` into the target wholesale (scripts, prompts, templates, registries) — the same copy this skill performs during first-time setup (steps 7-11 above), not a hand-picked subset. Do NOT touch `.ai/config.json`'s project-specific fields (stack settings, commands, `ios.*`, etc.) — only update its `relayVersion` field, to the new `module_version`.
+3. Re-run the target's own `format_write_cmd` scoped to `skills/` (same reasoning as **Excluding module content from the target's tooling** below — freshly copied files need to match the target's formatting before the next commit).
+4. Tell the user what changed — if this module's own git log has commits since the version the project was on, summarize them; otherwise just confirm the copy and new version number.
+
+If `upToDate` is `true`, say so and do nothing else.
 
 ## Notes
 
