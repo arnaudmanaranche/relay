@@ -2,9 +2,11 @@
 
 **A structured, multi-agent pipeline for AI-assisted feature development. Model-agnostic, stack-agnostic.**
 
-Each role produces artifacts, gates, and handoffs — so shipping a feature with an AI agent looks like shipping one with a team, not a single unreviewed diff.
+Each role produces artifacts, gates, and handoffs, so shipping a feature with an AI agent looks like shipping one with a team, not a single unreviewed diff.
 
-📖 **[Design principles & guarantees](https://github.com/arnaudmanaranche/relay/wiki/Design-Principles-and-Guarantees)** — what Relay actually guarantees (trust, auditability, bounded growth, measurable self-improvement).
+[Full documentation](docs/index.html): pipeline stages, role anatomy, safety model, configuration reference, backends, roadmap.
+
+[Design principles & guarantees](https://github.com/arnaudmanaranche/relay/wiki/Design-Principles-and-Guarantees): trust, auditability, bounded growth, measurable self-improvement.
 
 ```
   SCOPE           CLARIFY         DESIGN          BUILD           REVIEW          VERIFY          LEARN
@@ -16,7 +18,7 @@ Each role produces artifacts, gates, and handoffs — so shipping a feature with
 
 ---
 
-## Quick start
+## Install
 
 **Prerequisites:** Node.js 18+, an AI coding tool (Claude Code, Codex, OpenCode, Cline), and a BMad Method installation (`npx bmad-method`).
 
@@ -38,11 +40,15 @@ Or interactively: "Run the Relay setup skill."
 <details>
 <summary><b>Codex / OpenCode / Cline / other agents</b></summary>
 
-Skills are plain Markdown with accompanying scripts — any agent that can read a `SKILL.md` and run shell commands can drive the pipeline. Point your agent at `skills/relay-setup/SKILL.md` first, then `skills/relay-pipeline/SKILL.md`.
+Skills are plain Markdown with accompanying scripts. Any agent that can read a `SKILL.md` and run shell commands can drive the pipeline. Point your agent at `skills/relay-setup/SKILL.md` first, then `skills/relay-pipeline/SKILL.md`.
 
 </details>
 
-Once set up, start a feature:
+`relay-setup` auto-detects your stack and generates `.ai/config.json` and `.ai/agents.json`, plus governance files, registries, and a `.ai/.gitignore` under `.ai/`.
+
+## Quick start
+
+Start a feature:
 
 ```bash
 /start relay-pipeline new "Add dark mode toggle"
@@ -50,287 +56,38 @@ Once set up, start a feature:
 
 Or interactively: "Run the Relay pipeline to scope a new feature."
 
----
+This runs the 7-role workflow (PM → Dev Review → Architect → Dev → Review → QA → Retro) end to end inside an isolated git worktree, from brief to PR. The Architect stage pauses for a human design-gate review before code is written; resume with:
 
-## Modules
+```bash
+bash skills/relay-pipeline/scripts/run-pipeline.sh my-feature --approve-design
+```
 
-| Module | What it does | Use when |
-|--------|--------------|----------|
-| [relay-setup](skills/relay-setup/SKILL.md) | Auto-detects your stack, generates `.ai/config.json` and `.ai/agents.json`, copies governance files, registries, and a `.ai/.gitignore` into `.ai/` | First-time install in a project |
-| [relay-pipeline](skills/relay-pipeline/SKILL.md) | Runs the 7-role feature workflow end to end inside an isolated git worktree, from brief to PR | Every feature, from `new "<description>"` |
+## Launch
 
----
-
-## Pipeline stages
-
-| Stage | Role | Produces | Gate |
-|-------|------|----------|------|
-| 1 | PM | `feature-brief.md` — requirements, AC, scope | |
-| 2 | Dev Review | `pm-dev-thread.md` — clarification Q&A (loops up to 3×) | exits on `blocked` |
-| 3 | Architect | `technical-plan.md` (with a mandatory Mermaid diagram) + `repository-context.md` | **Diagram gate** — missing ` ```mermaid ` block triggers 1 automatic retry, then aborts. **Design gate** — pipeline then pauses (exit 0) until a human reviews the plan and re-runs with `--approve-design`. A resumed run reuses the reviewed plan verbatim (no regeneration) and binds the approval to the plan's content hash — a changed plan forces re-approval |
-| 4 | Dev | Code changes + `dev-log.md` | typecheck gate, 1 retry |
-| 5 | Review | `review-report.md` — verdict PASS / PASS_WITH_NOTES / FAIL, checks the diff against the Architect's diagram | FAIL feeds findings back to Dev, 1 retry; halts before QA and PR if still FAIL |
-| 6 | QA | `qa-report.md` — verdict PASS / FAIL / BLOCKED_ENV | FAIL skips PR creation |
-| 7 | Retro | `retrospective.md` + `.ai/project-memory.md`, plus a skill proposal at `.ai/artifacts/skill-proposals/<name>.md` if a pattern has recurred 3+ times | **Evidence check** — each proposal's cited slugs are counted against the `(slug)` tags in Conventions confirmed; fewer than 3 verifiable prints an advisory warning (never blocks) |
-| — | Memory Compact | rewrites `.ai/project-memory.md` | Runs every `project.memoryCompactEvery` shipped features (default 10), not per-feature |
-| — | Build Upload (opt-in) | `build-upload.md` report; an IPA on App Store Connect and, if configured, a TestFlight distribution | Only runs when `--upload-build` is passed, after PR creation. Deterministic `asc` CLI steps (build number → archive → export → upload → optional TestFlight), no LLM. Requires the `ios.*` config section and the `asc` CLI; credentials come from env/keychain, never config. Failure preserves the worktree but never affects the already-open PR |
-
-`.ai/project-memory.md` is read by **every** role, not just PM/Architect/Retro, and is organized into four fixed categories (Pitfalls, Conventions confirmed, Architecture decisions, Integration notes) instead of growing one section per feature forever. The Memory Compact role periodically deduplicates and prunes it — note that both this counter and the memory file itself live on feature branches, so they only accumulate correctly across features whose PRs get merged in between runs.
-
-Every run (including `--dry-run`) executes inside a dedicated git worktree under `../.relay-worktrees/`, isolated from your working checkout. The worktree is removed automatically once the pipeline reaches a PR (or a dry-run rehearsal completes); it's preserved for inspection whenever the pipeline halts on a blocker, a failed gate, or exhausted retries.
-
-### Run status
-
-`node skills/relay-pipeline/scripts/status.mjs` aggregates what Relay is doing right now — running/halted/crashed runs (via the worktree concurrency locks), design-gate approvals waiting on you (including plan-changed-since-approval), failed gates, cumulative cost per in-flight feature, and completed features — across one or many repos, from state files the pipeline already writes. Strictly read-only. `--json` emits a stable contract for external consumers (menu-bar extra, dashboard):
+Check what Relay is doing right now: running/halted/crashed runs, design-gate approvals waiting on you, failed gates, cost, completed features, across one or many repos.
 
 ```bash
 node skills/relay-pipeline/scripts/status.mjs                  # human-readable
-node skills/relay-pipeline/scripts/status.mjs --json           # machine-readable
-node skills/relay-pipeline/scripts/status.mjs ~/proj ~/other   # several Relay repos at once
+node skills/relay-pipeline/scripts/status.mjs --json           # machine-readable, for dashboards/menu bars
 ```
 
-A fresh worktree has no `node_modules` and none of the generated hook glue some tools regenerate on install (e.g. husky's `.husky/_/husky.sh`). The pipeline runs `commands.install` (default: `<packageManager> install`) once per worktree, before any agent, and skips it on a resumed run that already has `node_modules`. Agent commits use `chore(<role>): <slug>` rather than `agent(<role>): <slug>` specifically so they pass a standard conventional-commits `commitlint` type-enum out of the box.
-
----
-
-## How a role works
-
-Every role in `.ai/agents.json` shares the same anatomy:
-
-```
-┌───────────────────────────────────────────────────┐
-│  <role>.md prompt                                  │
-│                                                    │
-│  Governance     → .ai/GOVERNANCE.md, DENIED_ACTIONS.md (injected)
-│  Input          → prior role's artifacts + project-memory.md
-│  Output         → forced tool call `submit_changes`, │
-│                    validated against a per-role      │
-│                    JSON Schema ({files, artifacts,   │
-│                    verdict})                         │
-│  Permissions    → write access enforced in           │
-│                    agent-runner.ts, independent of    │
-│                    what the prompt says               │
-│  Gate           → typecheck / diagram / verdict check │
-│                    decides retry, halt, or handoff    │
-└───────────────────────────────────────────────────┘
-```
-
-**Key design choices:**
-
-- **Structured output, not parsed prose.** A model that phrases its response slightly differently still produces a schema-valid object — there's no silent "0 files parsed" failure from formatting drift.
-- **Per-role write permissions enforced in code, not in the prompt.** PM/Architect/Review/QA/Retro cannot write source files at all; only Dev can, and only to configured extensions.
-- **Gates decide control flow, not the model.** Retry, halt, and handoff are deterministic checks in `run-pipeline.sh`, not something the agent decides for itself.
-
-## Project structure
-
-```
-skills/
-├── relay-setup/                  # First-time project configuration
-│   ├── SKILL.md
-│   ├── assets/
-│   │   └── module.yaml         # Config variables
-│   └── scripts/
-│       └── detect-stack.mjs    # Auto-detects project stack
-│
-└── relay-pipeline/               # Main pipeline workflow
-    ├── SKILL.md                # Workflow definition
-    ├── prompts/                # Role-specific system prompts
-    │   ├── pm.md
-    │   ├── dev-review.md
-    │   ├── architect.md
-    │   ├── dev.md
-    │   ├── review.md
-    │   ├── qa.md
-    │   ├── retro.md
-    │   └── memory-compact.md
-    ├── scripts/                # Automation
-    │   ├── agent-runner.ts          # LLM-agnostic agent executor
-    │   ├── rebuild-context.mjs      # Repo memory builder (AST + incremental cache)
-    │   ├── eval-pipeline.mjs        # Output-quality eval harness (structural + optional LLM judge)
-    │   ├── status.mjs               # Read-only run-state dashboard (human table + --json for dashboards/menu bars)
-    │   └── run-pipeline.sh          # Full pipeline runner
-    ├── eval/                   # Evaluation harness data
-    │   ├── cases/                   # Golden rubric cases (*.json)
-    │   └── fixtures/                # Checked-in artifact sets the cases score against
-    ├── registries/             # Registries
-    │   ├── scope-checklist.md
-    │   ├── ship-checklist.md
-    │   ├── analytics-events.md
-    │   └── paywall-touchpoints.md
-    └── templates/              # Injected into .ai/ by relay-setup
-        ├── GOVERNANCE.md
-        ├── DENIED_ACTIONS.md
-        ├── technical-plan.md
-        ├── repository-context.md
-        ├── ai-gitignore        # Copied to .ai/.gitignore (repo hygiene)
-        └── scripts/
-            ├── new-feature.sh       # Copied to .ai/scripts/new-feature.sh
-            └── prune-artifacts.sh   # Copied to .ai/scripts/ (untrack/archive maintenance)
-```
-
----
-
-## Configuration
-
-Generated by `relay-setup` into `.ai/config.json`:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `project.name` | Project display name | `My Project` |
-| `commands.packageManager` | Package manager | `npm` |
-| `commands.typecheck` | Typecheck command — Dev quality gate, 1 retry | `tsc --noEmit` |
-| `commands.lint` | Lint command — Dev quality gate, 1 retry | `eslint .` |
-| `commands.test` | Project test suite — Dev quality gate, 1 retry. Opt-in: blank skips it entirely | `""` |
-| `commands.build` | Real build/bundle command (e.g. `next build`, `expo export`) — Dev quality gate, 1 retry. Opt-in: catches runtime-only breakage typecheck passes through | `""` |
-| `stack.router` | Router library | `react-router` |
-| `stack.analytics.provider` | Analytics provider | `""` |
-| `stack.paywall.provider` | Paywall provider | `""` |
-| `e2e.framework` | E2E framework | `""` |
-| `project.maxTokensPerFeature` | Circuit breaker on cumulative real LLM token spend per feature. `0`/unset = unlimited | `0` |
-| `project.devFileBatchSize` | Max files Dev is asked to touch in one call before splitting into sequential batches (see **Dev batching** below) | `6` |
-| `review.verifiers` | Number of independent Review passes (adversarial panel). `1` = single reviewer; `>1` runs that many passes with distinct lenses and takes a majority vote | `1` |
-
-Full list in `skills/relay-setup/assets/module.yaml`.
-
-### Models
-
-Each role in `.ai/agents.json` picks its own model, called through any OpenAI-compatible chat-completions API — OpenRouter by default, but also OpenAI, Azure OpenAI, Groq, Together, Fireworks, or a local Ollama, by pointing `llm.baseUrl` in `.ai/config.json` elsewhere. Use a cheaper/faster model for bounded tasks like `memory-compact`, stronger for `architect`/`dev`/`review`. Requires the `OPENROUTER_API_KEY` env var (or the key name configured at `llm.apiKeyEnv` in `.ai/config.json`). Override any single role's model at runtime without touching `agents.json`, e.g.:
+Babysit a PR after it's open (polls CI, reruns flaky jobs, optionally auto-approves once Review/QA/diff-size gates all pass):
 
 ```bash
-OPENROUTER_MODEL_DEV=anthropic/claude-opus-4.6 bash skills/relay-pipeline/scripts/run-pipeline.sh my-feature
+bash skills/relay-pipeline/scripts/babysit-pr.sh <branch> --max-reruns=3 --auto-stamp
 ```
 
-The env var name is `OPENROUTER_MODEL_<ROLE>` with the role's hyphens replaced by underscores (`dev-review` → `OPENROUTER_MODEL_DEV_REVIEW`). The same convention applies to `RELAY_SKILL_<ROLE>`, which points a role at an alternate prompt file for A/B experiments (see **Self-improvement loop** below) — e.g. `RELAY_SKILL_PM=.ai/experiments/pm-v2.md`.
+[relay-menubar](relay-menubar/README.md) is a macOS menu-bar app that polls `status.mjs` every 5s across your repos, flags runs needing attention (design gate, review/QA FAIL, crash, halt), and lets you reveal the worktree or copy a resume command. Read-only.
 
-### Effort — a second, independent knob from model
-
-Each role in `.ai/agents.json` may also set `effort` (`low` | `medium` | `high` | `xhigh` | `max`), passed through as `claude -p --effort` when `llm.backend` is `claude-cli` (no equivalent exists on the generic OpenAI-compatible backend — the field is simply ignored there). Model picks capability; effort picks how thoroughly that model works the task — how many files it reads, how much it double-checks, before answering. They're independent: a strong model at low effort can still skim, and a weak model at max effort still can't reason past its own ceiling. Match effort to how much a shallow answer would actually cost downstream — routine roles (`qa`, `dev-review`, `memory-compact`) tolerate low/medium; `architect` and `review` are where under-thinking is most expensive, since a shallow plan or a shallow review propagates its mistake into code someone debugs later. Override a single role for one run with `OPENROUTER_EFFORT_<ROLE>` (same naming convention as the model override), e.g. `OPENROUTER_EFFORT_ARCHITECT=xhigh`.
-
-### Running headless with only a Claude subscription (no API key)
-
-Set `llm.backend` to `"claude-cli"` in `.ai/config.json` to have `run-pipeline.sh`/`agent-runner.ts` shell out to the Claude Code CLI itself (`claude -p ... --json-schema ...`) for every model call, instead of hitting an HTTP endpoint. This keeps every safety mechanism the headless pipeline has — worktree isolation, quality gates, retries, structured-output schema validation, per-role write permissions, the concurrency lock, the token budget — but needs zero `OPENROUTER_API_KEY`/`apiKeyEnv`. Instead, authenticate once with:
-
-```bash
-claude setup-token
-```
-
-which creates a long-lived token backed by your Claude subscription. `llm.baseUrl`/`llm.apiKeyEnv` are ignored for this backend; `llm.maxBudgetUsd` (optional) caps spend per individual model call via `claude -p --max-budget-usd`.
-
-### Customizing the Dev agent per file type or language
-
-The `dev` role in `.ai/agents.json` supports `typeSkills` (inject a coding-standards file only when Dev touches a matching file path or extension — `*.ts` vs `*.tsx` vs `*.js`, or a directory like `src/services`) and `extraSkills` (inject a file on every Dev run, regardless of what's touched). No other role supports this — only Dev writes source code. See **Dev-only: `typeSkills` and `extraSkills`** in `skills/relay-setup/SKILL.md` for the exact config shape and matching rules.
-
-### Dev batching (`project.devFileBatchSize`)
-
-Asking Dev to emit the *complete* content of every touched file in a single call doesn't scale: past a certain file count, a real call hits the model/provider's output ceiling and truncates mid-JSON, with no graceful degradation (found live on a real ~13-file feature — truncated even at `maxTokens=64000`, at real cost). Below `project.devFileBatchSize` impacted files (from the Architect's technical plan), Dev runs exactly one call, unchanged from before. At or above it, `agent-runner.ts` splits the impacted-file list into sequential batches — each an ordinary call whose files are written to disk immediately, so later batches see earlier ones' changes the same way a retry sees the previous attempt's output. Each batch's prompt lists the *other* planned files by name only (no content), so Dev keeps architectural awareness of the whole feature without paying for it in prompt size. `run-pipeline.sh` is unaware of any of this — quality gates, commits, and retries still run once per `--role=dev` invocation regardless of how many internal batches it took. Token-budget accounting (`project.maxTokensPerFeature`) is checked and recorded per batch, not just once per role, so a runaway batched feature still gets cut off mid-run rather than after the fact.
-
-### Babysitting a PR after it's open (`babysit-pr.sh`)
-
-`run-pipeline.sh` stops once a PR exists — CI can take anywhere from seconds to tens of minutes to settle, which has no business blocking the run that opened the PR. `bash skills/relay-pipeline/scripts/babysit-pr.sh <branch>` polls `gh pr checks`, reruns failed jobs up to `--max-reruns` times (real infra flakiness, not a code-fix retry), and — only with `--auto-stamp` — approves the PR itself, but only when every signal comes out of gates this pipeline already ran: Review panel verdict `PASS`, QA verdict `PASS`, and the diff under `--max-diff-lines`. Anything short of that gets a `gh pr comment` explaining why, not a silent skip. Run it by hand or loop it externally (cron, `/loop`); it is not called automatically.
-
-### Optional UI standards for the Dev role (`skills/relay-pipeline/templates/skills/ui-standards.md`)
-
-A starter `typeSkills`/`extraSkills` file (see above) with design-tokens-first, motion, and component-completeness rules for UI file types — copy it into `.ai/skills/ui-standards.md` and edit it to the project's actual design system before wiring it up. Not applied automatically; it exists so a project doesn't start from a blank page.
-
-### Adversarial Review panel (`review.verifiers`)
-
-A single Review call is the pipeline's weakest gate: nothing contradicts a plausible-but-wrong PASS. Set `review.verifiers` to `N > 1` in `.ai/config.json` and stage 5 runs `N` **independent** Review passes, each given a distinct lens (correctness & acceptance-criteria coverage → diff-vs-Architect's-diagram → edge cases / error handling / security, cycling if `N > 3`), each prompted to be adversarial and actively look for a blocking defect. The panel decides by **majority**: the verdict is `FAIL` when at least `ceil(N/2)` verifiers fail — so one flaky `FAIL` can't block a good change, and one shallow `PASS` can't wave a real defect through. The aggregated `review-report.md` records every verifier's verdict, lens, and the final panel decision. `N = 1` is exactly the original single-reviewer behavior. Each pass is a real LLM call, so this trades cost for confidence — reserve it for higher-stakes projects.
-
-### Repo memory (`.ai/context.json`)
-
-Before the Architect runs, `rebuild-context.mjs` scans `sourceDirs` and rebuilds `.ai/context.json` — a symbol index, per-file exports/imports, and a dependency map the Architect (and, indirectly, Dev) uses instead of re-discovering the codebase from scratch on every feature. When the target project has `typescript` installed, extraction goes through the real TypeScript compiler API (handles `export * from`, renamed re-exports, enums — things regex parsing misses); it falls back to regex extraction for plain-JS projects. Each file is fingerprinted by mtime, so unchanged files are never reparsed — only files that actually changed since the last run cost anything. Because it's fully derived from source, `.ai/context.json` is git-ignored (see **Repo hygiene** below) — it's regenerated on demand, never versioned.
-
-### Repo hygiene & file growth
-
-The pipeline writes two kinds of file, and only one belongs in git long-term:
-
-- **Durable knowledge** (kept): feature briefs, technical plans, reviews, QA reports, retrospectives, `project-memory.md`, the memory-compact counter, and the `.architect-approved` design-approval hash. This is the paper trail and the cross-session memory.
-- **Derived / per-run debug** (ignored): `context.json` (rebuilt every run) and the per-feature `.agent-*` files — raw `submit_changes` payloads (full file contents, often hundreds of KB), status flags, manifests, token accounting, and retry feedback. These are needed only during the run that writes them.
-
-`relay-setup` installs a `.ai/.gitignore` covering the second kind, so a project that ships hundreds of features doesn't accumulate LLM dumps and a regenerable index in its history. `project-memory.md` itself stays bounded by design (four fixed categories + periodic `memory-compact` deduplication), not by growing one section per feature.
-
-Two maintenance commands (`.ai/scripts/prune-artifacts.sh`, human-run, `--dry-run` to preview):
-
-- `--untrack` — one-time migration for a repo that committed those debug files before the `.gitignore` existed; stops tracking them without touching your working copy.
-- `--archive <slug>` / `--archive-older-than <days>` — packs shipped feature folders you no longer need live into `.ai/archive/<slug>.tar.gz`. Nothing in the pipeline reads a past feature's folder (Retro reads only the current one; cross-feature knowledge flows through `project-memory.md`), so archiving is lossless for the workflow.
-
-### E2E verification (QA) is framework-agnostic by contract, not by running anything itself
-
-Which E2E tool a project uses — Maestro, Playwright, Cypress, Detox, WebdriverIO, or none — is a per-project choice (`e2e.framework` / `e2e.dir` in `.ai/config.json`, set by `relay-setup`). This module deliberately does **not** run any of them: orchestrating a simulator or browser in CI is inherently framework- and infra-specific, and hardcoding one would break the "stack-agnostic" premise for everyone not using that one framework.
-
-Instead, QA reads a single generic handoff file: `.ai/artifacts/features/<slug>/e2e-results.json`. **Your project's own CI is responsible for producing it** — run your configured E2E suite in whatever job already exists for that framework, then write the results in this shape before QA runs:
-
-```json
-{
-  "framework": "playwright",
-  "flows": [
-    { "file": "e2e/login.spec.ts", "result": "pass" },
-    { "file": "e2e/checkout.spec.ts", "result": "fail", "notes": "timeout waiting for #confirm-button" }
-  ]
-}
-```
-
-If this file is absent, QA is instructed to use `BLOCKED_ENV` rather than fabricate a result — unless the feature genuinely has no E2E requirements, in which case it may still PASS on brief review alone. If `e2e.framework` isn't configured at all, QA is told exactly that and falls back to the same brief-only judgment.
-
-### Safety model
-
-- **Governance & denied actions** — `.ai/GOVERNANCE.md` and `.ai/DENIED_ACTIONS.md` (copied from `templates/` by `relay-setup`, editable per project) are injected into every single agent's prompt. They state role boundaries (e.g. only Dev writes source code), output rules (no placeholders, complete file contents only), and hard denials (no secrets, no direct pushes to the default branch, no disabling lint/typecheck inline without justification).
-- **Structured output** — every agent's response is a single forced tool call (`submit_changes`) validated against a per-role JSON Schema, not free-form text parsed out of markdown. A model that phrases its output slightly differently still produces a schema-valid `{files, artifacts, verdict}` object — there's no silent "0 files parsed" failure mode from a formatting drift.
-- **Per-role write permissions** — enforced in `agent-runner.ts` independently of what the prompt says: PM/Architect/Review/QA/Retro cannot write source files at all (regex-checked against every path in the model's own output, before anything is written to disk); only `dev` can, and only to configured extensions; only `retro` and `memory-compact` can touch `.ai/project-memory.md`. A permission violation aborts the write entirely rather than partially applying it.
-- **Path containment** — every file/artifact path in a model's structured output is untrusted input. `join(root, path)` alone does not stop a `../`-containing path from resolving outside the project — a real containment check (resolved-path prefix comparison) runs before any read or write, independent of the per-role extension/pattern regexes (which only check the string, not the resolved location).
-- **Content gates (no placeholders, no secrets)** — `GOVERNANCE.md` forbids placeholders and committed secrets, but those were previously prompt-only rules a drifting model could ignore. After each Dev pass, deterministic scans run over Dev's own changed source files: placeholder/truncation markers (`// ...`, `// TODO`, `rest stays the same`, `TBD`, …) and secret signatures (private keys, `AKIA…`, `sk-…`, `ghp_…`, `xox…`, assigned credential literals). A hit feeds the same one-retry Dev loop as typecheck/lint, then aborts if still present — dependency-free, scoped to Dev output so it never flags pre-existing repo code.
-- **Provenance trailers** — each stage's commit carries `Relay-Model` and `Relay-Prompt-SHA` trailers recording which model and which prompt version (a content hash of the role's skill prompt) produced that output. `git log` becomes an audit trail: for any artifact or diff you can trace the exact model and prompt behind it, and a prompt edit shows up as a changed hash on subsequent runs. Trailers live in the commit body, so the conventional-commit header still passes `commitlint`.
-- **Hook-respecting commits** — the pipeline never uses `git commit --no-verify`. A real pre-commit hook rejection stops the run instead of being silently bypassed.
-- **Concurrency lock** — a best-effort `mkdir`-based lock per slug under `.relay-worktrees/.locks/` prevents two invocations (an accidental double-trigger, a misconfigured cron/CI) from racing on the same worktree/branch. A lock held by a dead PID is detected and reclaimed automatically; a lock held by a live process blocks the second run with a clear message.
-- **Token budget circuit breaker** — a retry loop stacking across several stages (typecheck, lint, Review) has no inherent ceiling on real LLM spend. `project.maxTokensPerFeature`, if set, tracks cumulative real usage per feature (`.agent-token-usage.json`) and refuses to make further calls once exceeded, rather than retrying indefinitely at your expense.
+For configuration (models, effort, backends, batching, review panel size, E2E wiring), the safety model, and everything else, see the [full documentation](docs/index.html).
 
 ---
 
 ## Why Relay?
 
-AI coding agents default to the shortest path from prompt to diff — which usually means no scoping, no design review, no QA, and no memory of what was tried before. Relay forces the same discipline a human team applies before merging: a written brief, a reviewed technical plan with a diagram, a code review against that plan, a QA verdict, and a retro that feeds back into the next feature. Every gate exists because skipping it is exactly where an unsupervised agent goes wrong.
+AI coding agents default to the shortest path from prompt to diff, which usually means no scoping, no design review, no QA, and no memory of what was tried before. Relay forces the same discipline a human team applies before merging: a written brief, a reviewed technical plan with a diagram, a code review against that plan, a QA verdict, and a retro that feeds back into the next feature. Every gate exists because skipping it is exactly where an unsupervised agent goes wrong.
 
 ---
-
-## Evaluation
-
-Unit tests prove the *scripts* are correct; they say nothing about whether the pipeline produces *good features*. The eval harness (`skills/relay-pipeline/scripts/eval-pipeline.mjs`) closes that gap by scoring produced artifacts against a rubric, so a prompt edit that quietly degrades output quality surfaces as a regression instead of reaching production.
-
-```bash
-npm run eval                              # score all golden cases (structural, offline, free)
-npm run eval -- --llm-judge               # additionally run the LLM-as-judge pass
-node .../eval-pipeline.mjs --case=settings-toggle --dir=.ai/artifacts/features/<slug>  # score a real run
-```
-
-Two layers, both dependency-free:
-
-- **Structural scoring** (default) — deterministic checks over each artifact: required sections present, mandatory Mermaid diagram present, no placeholders/`TBD`, a verdict recorded, etc. Each case (`eval/cases/*.json`) sets a `threshold`; the run exits non-zero if any case scores below it.
-- **LLM-as-judge** (`--llm-judge`, opt-in) — sends the artifacts to the model configured in `.ai/config.json` for a 1–5 rubric score. Skipped gracefully when no config/API key is present, so it never blocks the free structural pass.
-
-Golden cases point at checked-in fixture artifacts, so `npm run eval` is a self-contained regression run that also executes in CI.
-
-### Self-improvement loop (prompt A/B, provenance-keyed)
-
-The eval harness plus provenance trailers close a measurable loop for improving the pipeline's own prompts — without an autonomous agent silently rewriting itself. The deployment step stays human-gated; what's automated is the *measurement*.
-
-1. **Vary a prompt** without touching `agents.json`: point a role at an alternate prompt file via `RELAY_SKILL_<ROLE>` (hyphens → underscores). The prompt hash recorded in provenance is computed from whatever file actually ran, so the experiment is auditable.
-   ```bash
-   RELAY_SKILL_PM=.ai/experiments/pm-v2.md bash skills/relay-pipeline/scripts/run-pipeline.sh my-feature
-   ```
-2. **A/B the output** of the baseline run against the candidate run, scored by the same rubric. A candidate "regresses" if its overall score drops **or** any previously-passing check now fails (so a change that fixes one thing while quietly breaking another is still caught). Exit code is non-zero on regression, and each side reports its prompt provenance (`role@<sha>`):
-   ```bash
-   node .../eval-pipeline.mjs --case=settings-toggle \
-     --dir=.ai/artifacts/features/baseline-run \
-     --compare=.ai/artifacts/features/candidate-run
-   # candidate 88%  [architect@bbb222]  ▼ -13pt
-   #   - regressed:  technical-plan.md:contains:```mermaid
-   ```
-3. **Track score over time** per prompt version with an append-only history log:
-   ```bash
-   node .../eval-pipeline.mjs --case=settings-toggle --dir=<run> --record=eval-history.jsonl --label="pm-v2"
-   ```
-
-Keep the winning prompt (promote the variant file into `agents.json`) or discard it — the decision is yours, but it's now backed by a number and traceable to an exact prompt hash. The natural next rung — automatically *generating* candidate prompts and selecting by eval (DSPy-style) — fits the same loop, and would still land behind the same human gate before any prompt ships.
 
 ## Development
 
@@ -339,9 +96,10 @@ This repo itself has dev-only tooling (`package.json`, `test/`, not published, n
 ```bash
 npm install
 npm test
+npm run eval    # score pipeline output quality against golden rubric cases
 ```
 
-Tests cover `agent-runner.ts` (schema shape, per-role write permissions, dry-run write behavior), `rebuild-context.mjs` (AST vs regex export/import extraction, incremental cache hit/miss/deletion), and `eval-pipeline.mjs` (rubric scoring passes a good artifact set and fails a degraded one, A/B comparison flags a regression even when the net score is unchanged, plus every shipped golden case actually meets its threshold). `.github/workflows/test.yml` runs `npm test` and `npm run eval` on every push and PR to `main`, so a change that breaks a test, degrades a golden case, or introduces an untested behavior change is caught before merge rather than relying on someone remembering to run it locally.
+`.github/workflows/test.yml` runs both on every push and PR to `main`. The eval harness also powers a provenance-keyed A/B loop for improving the pipeline's own prompts; see the Eval section of the [full documentation](docs/index.html).
 
 ## Versioning
 
