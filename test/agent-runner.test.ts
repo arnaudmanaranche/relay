@@ -191,13 +191,18 @@ describe('buildToolSchema', () => {
   });
 
   test('verdict enum matches the role — no verdict field for roles without one', () => {
-    const noVerdictRoles = ['pm', 'architect', 'dev', 'retro'];
+    const noVerdictRoles = ['architect', 'dev', 'retro'];
     for (const role of noVerdictRoles) {
       const schema: any = buildToolSchema(role);
       assert.equal(schema.properties.verdict, undefined, `${role} should have no verdict field`);
     }
 
     const expected: Record<string, string[]> = {
+      // PM's clarification gate (see agent-runner.ts's pm task) needs a
+      // machine-readable signal distinct from dev-review's 'questions' —
+      // run-pipeline.sh branches on this one to halt BEFORE Architect ever
+      // runs, not mid-loop like dev-review's.
+      pm: ['clear', 'questions-for-human'],
       'dev-review': ['clear', 'questions', 'blocked'],
       'pm-respond': ['resolved', 'blocked'],
       review: ['PASS', 'PASS_WITH_NOTES', 'FAIL'],
@@ -750,7 +755,7 @@ describe('missingRequiredFields — enforcing the schema client-side', () => {
   });
 
   test('null (unparseable JSON) is treated the same as an empty object', () => {
-    assert.deepEqual(missingRequiredFields(null, 'pm'), ['artifacts']);
+    assert.deepEqual(missingRequiredFields(null, 'architect'), ['artifacts']);
   });
 
   test('a fully-populated payload is missing nothing', () => {
@@ -774,7 +779,7 @@ describe('evaluateClaudeCliResult — claude-cli backend response handling', () 
       total_cost_usd: 0.01,
       usage: { input_tokens: 10, output_tokens: 5 },
     };
-    const evaluation = evaluateClaudeCliResult(data, 'pm', 'my-feature');
+    const evaluation = evaluateClaudeCliResult(data, 'architect', 'my-feature');
     assert.equal(evaluation.status, 'success');
     if (evaluation.status === 'success') {
       assert.equal(evaluation.result.artifacts.length, 1);
@@ -785,7 +790,7 @@ describe('evaluateClaudeCliResult — claude-cli backend response handling', () 
 
   test('is_error:true with a retryable terminal_reason is retryable', () => {
     const data = { is_error: true, terminal_reason: 'error_during_execution', result: 'boom' };
-    const evaluation = evaluateClaudeCliResult(data, 'pm', 'my-feature');
+    const evaluation = evaluateClaudeCliResult(data, 'architect', 'my-feature');
     assert.equal(evaluation.status, 'retry');
   });
 
@@ -801,7 +806,7 @@ describe('evaluateClaudeCliResult — claude-cli backend response handling', () 
       subtype: 'error_max_budget_usd',
       total_cost_usd: 1.26,
     };
-    const evaluation = evaluateClaudeCliResult(data, 'pm', 'my-feature');
+    const evaluation = evaluateClaudeCliResult(data, 'architect', 'my-feature');
     assert.equal(evaluation.status, 'fatal');
     if (evaluation.status === 'fatal') {
       assert.match(evaluation.reason, /maxBudgetUsd/);
@@ -827,7 +832,7 @@ describe('evaluateClaudeCliResult — claude-cli backend response handling', () 
     // no usable structured_output — treat that as retryable, not success.
     for (const reason of ['max_turns', 'error_max_turns', 'error_during_execution']) {
       const data = { is_error: false, terminal_reason: reason, structured_output: null };
-      const evaluation = evaluateClaudeCliResult(data, 'pm', 'my-feature');
+      const evaluation = evaluateClaudeCliResult(data, 'architect', 'my-feature');
       assert.equal(evaluation.status, 'retry', `terminal_reason=${reason} should be retryable`);
     }
   });
@@ -857,7 +862,7 @@ describe('evaluateClaudeCliResult — claude-cli backend response handling', () 
     // missingRequiredFields (see the null case above) — the role's required
     // fields show up as missing rather than a distinct "absent" message.
     const data = { is_error: false, terminal_reason: 'completed', result: 'some free-form text' };
-    const evaluation = evaluateClaudeCliResult(data, 'pm', 'my-feature');
+    const evaluation = evaluateClaudeCliResult(data, 'architect', 'my-feature');
     assert.equal(evaluation.status, 'retry');
     if (evaluation.status === 'retry') {
       assert.match(evaluation.reason, /artifacts/);
@@ -893,7 +898,7 @@ describe('evaluateClaudeCliResult — claude-cli backend response handling', () 
         output_tokens: 8,
       },
     };
-    const evaluation = evaluateClaudeCliResult(data, 'pm', 'my-feature');
+    const evaluation = evaluateClaudeCliResult(data, 'architect', 'my-feature');
     assert.equal(evaluation.status, 'success');
     if (evaluation.status === 'success') {
       assert.equal(evaluation.result.usageTokens, 160);
@@ -906,7 +911,7 @@ describe('evaluateClaudeCliResult — claude-cli backend response handling', () 
       terminal_reason: 'completed',
       structured_output: { artifacts: [] },
     };
-    const evaluation = evaluateClaudeCliResult(data, 'pm', 'my-feature');
+    const evaluation = evaluateClaudeCliResult(data, 'architect', 'my-feature');
     assert.equal(evaluation.status, 'success');
     if (evaluation.status === 'success') {
       assert.equal(evaluation.result.usageTokens, undefined);

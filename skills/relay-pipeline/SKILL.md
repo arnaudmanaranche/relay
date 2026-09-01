@@ -20,6 +20,7 @@ Each stage produces an artifact in `.ai/artifacts/features/<slug>/`.
 ### 1. PM — Product Manager
 **Prompt:** `prompts/pm.md`
 **Output:** `feature-brief.md` — requirements, acceptance criteria, i18n, analytics, paywall, scope
+**Gate:** PM clarification gate — the seed issue (often a thin, informally-worded description) can leave real product/UX decisions open that no downstream agent can recover, since `dev-review`/`pm-respond` below only resolve the brief's ambiguities against *each other*, never against what the human actually meant. When PM judges the issue too thin to write a confident brief from, it writes `pm-questions.md` (a short numbered list) instead of the brief and sets verdict `questions-for-human` — the pipeline pauses here (exit 0) exactly like the design gate below. Answer the questions under a `## Your answers` heading in that file, then re-run; PM incorporates the answers and either writes the brief or, rarely, asks one more short round. A detailed issue skips this gate entirely — it's adaptive, not a forced pause on every feature.
 
 ### 2. Dev Review + PM Respond (clarification loop)
 **Prompts:** `prompts/dev-review.md`, inline pm-respond
@@ -88,7 +89,7 @@ node scripts/status.mjs --json          # machine-readable (one line per run sta
 node scripts/status.mjs ~/proj-a ~/proj-b   # several Relay repos in one call
 ```
 
-Read-only aggregation over state the pipeline already writes: live worktrees and their concurrency locks (`running` vs crashed), per-role verdict files, cumulative cost from `.agent-token-usage.json`, the design-gate approval hash (`awaiting design approval`, including the plan-changed-since-approval case), quality-gate feedback presence, and merged features under `.ai/artifacts/features/`. Never writes, never calls an LLM. The `--json` output is a stable contract intended for external consumers (menu-bar extras, dashboards): `{ generatedAt, repos: [{ root, name, budget, active: [{ slug, branch, state, lastRole, costUsd, lock, resumeHint }], completed }] }`. Run states: `running | design-gate | blocked-dev-review | failed-typecheck | failed-review | failed-qa | halted | crashed`.
+Read-only aggregation over state the pipeline already writes: live worktrees and their concurrency locks (`running` vs crashed), per-role verdict files, cumulative cost from `.agent-token-usage.json`, the design-gate approval hash (`awaiting design approval`, including the plan-changed-since-approval case), quality-gate feedback presence, and merged features under `.ai/artifacts/features/`. Never writes, never calls an LLM. The `--json` output is a stable contract intended for external consumers (menu-bar extras, dashboards): `{ generatedAt, repos: [{ root, name, budget, active: [{ slug, branch, state, lastRole, costUsd, lock, resumeHint }], completed }] }`. Run states: `running | blocked-pm-questions | design-gate | blocked-dev-review | failed-typecheck | failed-review | failed-qa | halted | crashed`.
 
 ## Workspace isolation
 

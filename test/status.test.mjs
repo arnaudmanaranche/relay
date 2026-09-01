@@ -116,6 +116,18 @@ describe('classifyRun — mirrors run-pipeline.sh control flow', () => {
     assert.notEqual(r.state, 'design-gate');
   });
 
+  test('PM questions-for-human → blocked, before Architect ever ran', () => {
+    const r = classifyRun({ hasPlan: false, verdicts: { pm: 'questions-for-human' }, lastRole: 'pm' });
+    assert.equal(r.state, 'blocked-pm-questions');
+    assert.equal(r.role, 'pm');
+    assert.ok(r.detail);
+  });
+
+  test('precedence: PM questions-for-human beats a design gate leftover from a stale worktree', () => {
+    const r = classifyRun({ hasPlan: true, verdicts: { pm: 'questions-for-human' }, lastRole: 'pm' });
+    assert.equal(r.state, 'blocked-pm-questions');
+  });
+
   test('unresolved dev-review questions → blocked', () => {
     const r = classifyRun({ hasPlan: false, verdicts: { 'dev-review': 'questions' }, lastRole: 'pm-respond' });
     assert.equal(r.state, 'blocked-dev-review');
@@ -258,6 +270,26 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
         branchPrefix: 'feat',
       });
       assert.equal(run.state, 'blocked-dev-review');
+      assert.equal(run.resumeArgs, undefined);
+      assert.equal(run.resumeHint, undefined);
+    } finally {
+      fx.cleanup();
+    }
+  });
+
+  test('blocked-pm-questions never gets a resumeArgs — needs a human answer first', () => {
+    const fx = fixture();
+    try {
+      const art = '.relay-worktrees/myrepo-newthing/.ai/artifacts/features/newthing';
+      fx.write(`${art}/.agent-status-pm.json`, JSON.stringify({ verdict: 'questions-for-human' }));
+      const run = inspectWorktree({
+        repoRoot: '/somewhere/myrepo',
+        repoDirName: 'myrepo',
+        entry: 'myrepo-newthing',
+        worktreeRoot: fx.path('.relay-worktrees'),
+        branchPrefix: 'feat',
+      });
+      assert.equal(run.state, 'blocked-pm-questions');
       assert.equal(run.resumeArgs, undefined);
       assert.equal(run.resumeHint, undefined);
     } finally {

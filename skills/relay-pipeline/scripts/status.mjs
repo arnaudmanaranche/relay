@@ -24,8 +24,9 @@
 //   node status.mjs --json                # machine-readable (feed a menu bar/dashboard with this)
 //   node status.mjs ~/proj-a ~/proj-b     # several Relay repos in one invocation
 //
-// States (run.state): running | design-gate | blocked-dev-review |
-// failed-typecheck | failed-review | failed-qa | halted | crashed
+// States (run.state): running | blocked-pm-questions | design-gate |
+// blocked-dev-review | failed-typecheck | failed-review | failed-qa |
+// halted | crashed
 
 import { readFileSync, readdirSync, existsSync, realpathSync } from 'fs';
 import { join, dirname, resolve, basename } from 'path';
@@ -87,15 +88,17 @@ export function parseArgs(argv) {
 // happens in the caller so tests can exercise every branch without fixtures.
 //
 // Order matters and mirrors run-pipeline.sh's control flow:
-//   1. plan present + no matching .architect-approved → design gate pause
+//   1. PM still on "questions-for-human" → clarification halt, the
+//      earliest possible pipeline stage (before Architect ever runs).
+//   2. plan present + no matching .architect-approved → design gate pause
 //      (exit 0). Hash mismatch means the plan changed after approval —
 //      re-approval required, surfaced as staleApproval.
-//   2. dev-review still on "questions" after MAX_LOOPS → clarification halt.
-//   3. typecheck feedback file exists → quality gates failing (it's deleted
+//   3. dev-review still on "questions" after MAX_LOOPS → clarification halt.
+//   4. typecheck feedback file exists → quality gates failing (it's deleted
 //      on success, so its presence IS the failure signal).
-//   4. review FAIL after retry → halted before QA.
-//   5. qa FAIL → branch pushed but no PR.
-//   6. anything else with a preserved worktree → generic halt (crashed,
+//   5. review FAIL after retry → halted before QA.
+//   6. qa FAIL → branch pushed but no PR.
+//   7. anything else with a preserved worktree → generic halt (crashed,
 //      killed terminal, unknown).
 export function classifyRun({
   hasPlan,
@@ -105,6 +108,9 @@ export function classifyRun({
   lastRole = null,
   hasTypecheckFeedback = false,
 }) {
+  if (verdicts.pm === 'questions-for-human') {
+    return { state: 'blocked-pm-questions', role: 'pm', detail: 'PM has clarifying questions before it can write a confident brief — answer them in pm-questions.md, then re-run.' };
+  }
   if (hasPlan && !approvedHash) {
     return { state: 'design-gate', role: lastRole || 'architect', resumeFlag: '--approve-design' };
   }
@@ -191,13 +197,14 @@ export function inspectWorktree({ repoRoot, repoDirName, entry, worktreeRoot, br
     run.detail = 'Stale lock from a dead process — the run died without cleanup (SIGKILL?). Remove the lock and re-run.';
   }
   // A resume command makes sense for any halted/failed/gated state — not
-  // just design-gate. blocked-dev-review is deliberately excluded: it needs
-  // a human to answer pm-dev-thread.md first, so a bare re-run would just
-  // fail the same way again. resumeArgs is the same command as resumeHint
+  // just design-gate. blocked-dev-review and blocked-pm-questions are
+  // deliberately excluded: both need a human to answer a file first
+  // (pm-dev-thread.md / pm-questions.md), so a bare re-run would just halt
+  // the same way again. resumeArgs is the same command as resumeHint
   // (the display string), but as argv — a programmatic consumer (e.g. the
   // menu-bar app's Retry button) must never shell out `resumeHint` as a
   // string, since slug/repoRoot ultimately come from the filesystem.
-  if (run.state !== 'running' && run.state !== 'blocked-dev-review') {
+  if (run.state !== 'running' && run.state !== 'blocked-dev-review' && run.state !== 'blocked-pm-questions') {
     const args = ['skills/relay-pipeline/scripts/run-pipeline.sh', slug];
     if (run.resumeFlag) args.push(run.resumeFlag);
     args.push(`--project-root=${repoRoot}`);
@@ -261,6 +268,7 @@ export function collectRepo(rootArg) {
 
 const STATE_GLYPHS = {
   running: '▶',
+  'blocked-pm-questions': '?',
   'design-gate': '⏸',
   'blocked-dev-review': '?',
   'failed-typecheck': '✗',
@@ -272,6 +280,7 @@ const STATE_GLYPHS = {
 
 const STATE_LABELS = {
   running: 'running',
+  'blocked-pm-questions': 'blocked on PM clarifying questions',
   'design-gate': 'awaiting design approval',
   'blocked-dev-review': 'blocked on clarifications',
   'failed-typecheck': 'quality gates failing',

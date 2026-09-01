@@ -656,9 +656,42 @@ fi
 # resumed run's chore(pm) commit got rejected by the project's own
 # pre-commit hook over unformatted files Dev, not PM, had written.
 if [ "$IS_AMEND_CYCLE" != "true" ] && [ ! -f "$ARTIFACTS_DIR/technical-plan.md" ]; then
-  # 1. PM writes feature brief
+  # 1. PM writes feature brief — or, if the seed issue leaves real product
+  # decisions open, asks the human directly first instead of guessing (see
+  # the "PM clarification gate" in agent-runner.ts's pm task instructions).
+  # This is deliberately a HUMAN checkpoint, not another agent-to-agent
+  # loop like dev-review/pm-respond below: the whole point is that nobody
+  # but the human can answer what they actually meant. Bail out before
+  # even calling PM if a previous round's questions are still unanswered —
+  # re-running PM against the same unanswered file would just ask again
+  # (or worse, guess), burning a call for nothing.
+  PM_QUESTIONS_PATH="$ARTIFACTS_DIR/pm-questions.md"
+  if [ -f "$PM_QUESTIONS_PATH" ] && ! grep -q '^## Your answers' "$PM_QUESTIONS_PATH" 2>/dev/null; then
+    echo ""
+    echo "  PM has clarifying questions before it can write a confident brief:"
+    echo "    $PIPELINE_ROOT/$PM_QUESTIONS_PATH"
+    echo ""
+    echo "  Answer them under a '## Your answers' heading in that file, then re-run:"
+    echo "    bash $0 $SLUG --project-root=$ROOT"
+    echo ""
+    echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
+    exit 0
+  fi
+
   run_agent pm
   commit_stage "chore(pm): $SLUG" pm
+
+  if [ "$(read_verdict pm)" = "questions-for-human" ]; then
+    echo ""
+    echo "  PM has clarifying questions before it can write a confident brief:"
+    echo "    $PIPELINE_ROOT/$PM_QUESTIONS_PATH"
+    echo ""
+    echo "  Answer them under a '## Your answers' heading in that file, then re-run:"
+    echo "    bash $0 $SLUG --project-root=$ROOT"
+    echo ""
+    echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
+    exit 0
+  fi
 
   # 2. Dev review + clarification loop
   #

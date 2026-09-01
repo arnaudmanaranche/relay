@@ -640,6 +640,7 @@ function loadContext(role: string, slug: string) {
 
   const threadPath = `${featureDir}/pm-dev-thread.md`;
   const issueBodyPath = `${featureDir}/issue-body.md`;
+  const pmQuestionsPath = `${featureDir}/pm-questions.md`;
   const brief = existsSync(join(getRoot(), briefPath)) ? read(briefPath) : null;
   const devLog = existsSync(join(getRoot(), devLogPath)) ? read(devLogPath) : null;
   const pmDevThread = existsSync(join(getRoot(), threadPath))
@@ -647,6 +648,9 @@ function loadContext(role: string, slug: string) {
     : null;
   const issueBody = existsSync(join(getRoot(), issueBodyPath))
     ? read(issueBodyPath)
+    : null;
+  const pmQuestions = existsSync(join(getRoot(), pmQuestionsPath))
+    ? read(pmQuestionsPath)
     : null;
   const governance = read('.ai/GOVERNANCE.md');
   const denied = read('.ai/DENIED_ACTIONS.md');
@@ -662,6 +666,7 @@ function loadContext(role: string, slug: string) {
     devLog,
     pmDevThread,
     issueBody,
+    pmQuestions,
     governance,
     denied,
     projectContext,
@@ -1078,6 +1083,18 @@ function buildUserPrompt(
     );
   }
 
+  // PM's own clarifying-questions round (see "PM clarification gate" in
+  // PM's task instructions below) — a prior PM call judged the seed issue
+  // too thin to write a confident brief from and asked the human directly,
+  // instead of a downstream agent (dev-review/pm-respond) guessing what the
+  // human meant. Only relevant to PM itself: this is a human answer, not
+  // something dev-review needs to re-litigate.
+  if (ctx.pmQuestions && role === 'pm') {
+    sections.push(
+      `## Your previous clarifying questions\n\n\`\`\`markdown\n${ctx.pmQuestions}\n\`\`\``
+    );
+  }
+
   // Retro gets all artifacts from the feature folder
   if (role === 'retro') {
     const extraArtifacts = [
@@ -1487,7 +1504,25 @@ function buildUserPrompt(
 
 Read the **Original GitHub issue** and the **Project directory tree** to understand the app. Study existing code patterns, screens, components, i18n keys, and analytics events referenced in the registries.
 
-Write or update \`${ctx.featureDir}/feature-brief.md\`. Every section must be filled — no empty placeholders, no "TBD". If the issue truly lacks details, mark them explicitly as "Missing from issue #N — needs human input" and add them to **Risks & open questions**.
+## PM clarification gate — ask the human, don't guess for them
+
+The seed issue is very often a thin, informally-worded description (e.g. copied from a Slack message) — it tells you the shape of a feature, not every product decision inside it. Your job is to write requirements a human actually meant, not the most plausible-sounding interpretation you can invent. Downstream, \`dev-review\`/\`pm-respond\` only resolve *your* brief's ambiguities against each other — they cannot recover an intent neither of you was ever told. If you don't ask now, nobody ever does.
+
+${
+  ctx.pmQuestions
+    ? `You already asked clarifying questions in a previous run (see **Your previous clarifying questions** above) and the human has answered them. Incorporate their answers directly into the brief below — do not re-ask a question that's already been answered. If their answers reveal new, genuinely unclear product decisions, you may ask another short round instead of writing the brief (see "When to ask" below) — but don't do this more than once more without a strong reason; two rounds should cover almost everything.`
+    : `**Before writing anything else**, decide: does the issue leave real product/UX decisions open, or is it detailed enough to build from as-is?
+
+**When to ask** — the issue doesn't say what should happen for a real user-facing decision, and there's no existing pattern in this codebase to copy it from (e.g. "what happens when the same item already exists", "does this apply per-child or globally", "free vs premium behavior for this specific surface", "what's the empty state"). These are choices only the human can make — guessing and writing them into the brief as fact is how a feature ships that isn't what anyone asked for.
+
+**When NOT to ask** — implementation details Dev can reasonably decide (styling specifics, which existing component to reuse, variable names), or anything the directory tree/registries already answer by convention. Don't manufacture questions to seem thorough.
+
+If you have real open questions: do NOT write \`feature-brief.md\` yet. Instead write \`${ctx.featureDir}/pm-questions.md\` — a short, numbered list (aim for the minimum that actually matters, rarely more than 5-7) of specific, answerable questions, each with enough context that a human can answer in a sentence without re-reading the issue themselves. Set verdict to **questions-for-human**. The pipeline will pause here and wait for a human to answer them before you run again — this is not a failure, it's the point.`
+}
+
+If the issue is already detailed enough (or you've now been through a clarification round), write the full brief:
+
+Write or update \`${ctx.featureDir}/feature-brief.md\`. Every section must be filled — no empty placeholders, no "TBD". If something is still genuinely missing after clarification, mark it explicitly as "Missing — needs human input" and add it to **Risks & open questions** rather than inventing an answer. Set verdict to **clear**.
 
 Preserve existing sections — only add or update the "## Scope" section. Do not rewrite sections that already have content.
 
@@ -1503,7 +1538,7 @@ Specifically:
 8. **E2E / QA** — describe step-by-step E2E flows (in whatever framework this project has configured)
 9. **Scope** — answer every question from the **Scope checklist** registry in a dedicated "## Scope" section. List what is IN/OUT, entry points, side effects, edge cases, dependencies, data storage, and screens/navigation changes.
 
-IMPORTANT: Output the COMPLETE updated \`feature-brief.md\` in the ## Artifacts section. Do not skip sections. A weak brief wastes everyone's time.`,
+IMPORTANT: Output either \`pm-questions.md\` (verdict questions-for-human) OR the COMPLETE updated \`feature-brief.md\` (verdict clear) in the ## Artifacts section — never both, never neither. Do not skip sections in the brief. A weak brief wastes everyone's time; so does asking questions nobody needed answered.`,
     architect: buildArchitectTask(ctx, architectPass),
     'dev-review': `Carefully review the feature brief and the current PM ↔ Dev thread. Check for:
 
@@ -1679,6 +1714,7 @@ const ARTIFACT_ITEM_SCHEMA = {
 
 // Roles without an entry here don't submit a verdict/status field.
 const VERDICT_ENUM_BY_ROLE: Record<string, string[]> = {
+  pm: ['clear', 'questions-for-human'],
   'dev-review': ['clear', 'questions', 'blocked'],
   'pm-respond': ['resolved', 'blocked'],
   review: ['PASS', 'PASS_WITH_NOTES', 'FAIL'],
