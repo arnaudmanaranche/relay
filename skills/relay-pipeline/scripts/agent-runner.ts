@@ -1863,6 +1863,17 @@ const CLAUDE_CLI_RETRYABLE_TERMINAL_REASONS = new Set([
   // treating it as fatal instead — the fix needed the allowlist widened,
   // not narrowed further.
   'api_error',
+  // Found live on a large `dev` batch: the CLI's own `--json-schema`
+  // validator rejected `submit_changes` 5 times in a row (subtype
+  // `error_max_structured_output_retries`) — most likely a huge file's
+  // full-content JSON getting mangled or cut off mid-string, the same
+  // failure class the openai-compatible backend already retries via
+  // TRUNCATION_RETRY_HINT. Like max_turns, this is the model failing to
+  // converge within the CLI's own internal budget, not a deterministic
+  // rejection of the prompt content — a fresh attempt has a real chance
+  // to succeed, and was previously fatal, killing the whole pipeline run
+  // over one bad batch.
+  'structured_output_retry_exhausted',
 ]);
 
 type ClaudeCliEvaluation =

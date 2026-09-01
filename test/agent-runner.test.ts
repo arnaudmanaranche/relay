@@ -832,6 +832,26 @@ describe('evaluateClaudeCliResult — claude-cli backend response handling', () 
     }
   });
 
+  test('structured_output_retry_exhausted is retryable, not fatal', () => {
+    // Found live on a large `dev` batch: the CLI's own --json-schema
+    // validator rejected submit_changes 5 times in a row and gave up. This
+    // used to fall through to the fatal branch and kill the whole pipeline
+    // run over one bad batch — treat it like max_turns instead, since it's
+    // the model failing to converge, not a deterministic rejection of the
+    // prompt content.
+    const data = {
+      is_error: true,
+      terminal_reason: 'structured_output_retry_exhausted',
+      subtype: 'error_max_structured_output_retries',
+      stop_reason: 'tool_use',
+      num_turns: 6,
+      total_cost_usd: 0.9916497,
+      errors: ['Failed to provide valid structured output after 5 attempts'],
+    };
+    const evaluation = evaluateClaudeCliResult(data, 'dev', 'my-feature');
+    assert.equal(evaluation.status, 'retry');
+  });
+
   test('a completed run with no structured_output at all is retryable', () => {
     // No structured_output field is treated the same as an empty object by
     // missingRequiredFields (see the null case above) — the role's required
