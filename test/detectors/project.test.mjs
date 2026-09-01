@@ -1,4 +1,4 @@
-// Tests for skills/relay-setup/scripts/detectors/project.mjs
+// Tests for skills/setup/scripts/detectors/project.mjs
 //
 // Covers AC 1-6 for detectAppId, plus detectProjectName, detectGithubRepo,
 // and detectDefaultBranch (baseline happy-path + no-signal-found coverage
@@ -25,7 +25,7 @@ import {
   detectAppId,
   detectGithubRepo,
   detectDefaultBranch,
-} from '../../skills/relay-setup/scripts/detectors/project.mjs';
+} from '../../skills/setup/scripts/detectors/project.mjs';
 
 const tmpDirs = [];
 

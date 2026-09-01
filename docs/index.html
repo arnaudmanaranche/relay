@@ -462,7 +462,7 @@
         <div class="section-head">
           <div class="kicker"><span class="idx">05</span><span>.ai/config.json</span></div>
           <h2>Configuration</h2>
-          <p>Generated once by <code>relay-setup</code>. Full list lives in <code>skills/relay-setup/assets/module.yaml</code>.</p>
+          <p>Generated once by <code>relay-setup</code>. Full list lives in <code>skills/setup/assets/module.yaml</code>.</p>
         </div>
         <div class="config-groups" id="configGroups"></div>
       </div>
@@ -518,19 +518,20 @@
         <div class="section-head">
           <div class="kicker"><span class="idx">08</span><span>Get running</span></div>
           <h2>Quick start</h2>
-          <p>Node.js 18 or newer, an AI coding tool, and a BMad Method install.</p>
+          <p>Node.js 18 or newer and an AI coding tool.</p>
         </div>
         <div class="term">
-          <div><span class="comment"># install the module</span></div>
-          <div><span class="prompt">$</span> <span class="cmd">npx bmad-method install --custom-source https://github.com/arnaudmanaranche/relay</span></div>
+          <div><span class="comment"># install the plugin, in Claude Code</span></div>
+          <div><span class="prompt">$</span> <span class="cmd">/plugin marketplace add arnaudmanaranche/relay</span></div>
+          <div><span class="prompt">$</span> <span class="cmd">/plugin install relay@relay</span></div>
           <div>&nbsp;</div>
-          <div><span class="comment"># in Claude Code</span></div>
-          <div><span class="prompt">$</span> <span class="cmd">/start relay-setup</span></div>
+          <div><span class="comment"># run setup</span></div>
+          <div><span class="prompt">$</span> <span class="cmd">/relay:setup</span></div>
           <div>&nbsp;</div>
           <div><span class="comment"># start a feature</span></div>
-          <div><span class="prompt">$</span> <span class="cmd">/start relay-pipeline new "Add dark mode toggle"</span></div>
+          <div><span class="prompt">$</span> <span class="cmd">/relay:pipeline new "Add dark mode toggle"</span></div>
         </div>
-        <p class="arrow-note">Each feature commits a durable artifact folder under <code>.ai/artifacts/features/</code>. <code>.ai/scripts/prune-artifacts.sh --archive-older-than 90</code> tars up stale ones losslessly — see <a href="https://github.com/arnaudmanaranche/ai-feature-pipeline/blob/main/skills/relay-setup/SKILL.md#repo-hygiene">Repo hygiene</a> in the setup skill.</p>
+        <p class="arrow-note">Each feature commits a durable artifact folder under <code>.ai/artifacts/features/</code>. <code>.ai/scripts/prune-artifacts.sh --archive-older-than 90</code> tars up stale ones losslessly — see <a href="https://github.com/arnaudmanaranche/relay/blob/main/skills/setup/SKILL.md#repo-hygiene">Repo hygiene</a> in the setup skill.</p>
       </div>
     </section>
 

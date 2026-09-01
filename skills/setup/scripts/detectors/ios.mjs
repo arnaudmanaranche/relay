@@ -1,5 +1,5 @@
 // iOS native-project signals for App Store build uploads — used by
-// relay-setup to pre-fill the ios.* config section and by the opt-in
+// setup to pre-fill the ios.* config section and by the opt-in
 // --upload-build pipeline stage. Dependency-only detectors can't see these:
 // scheme/workspace/project live in the filesystem (ios/ directory from a
 // React Native or Expo prebuild, or an Xcode project at the repo root).

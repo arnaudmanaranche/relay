@@ -28,7 +28,7 @@ signing/provisioning, and metadata/screenshot sync across locales.
 **Done (2026-08-21):** the asc skill pack (25 `asc-*` skills) is installed globally (`~/.agents/skills/`), and
 relay-setup offers the one-time install when it detects a mobile/iOS project. The build-upload half of this item
 also shipped: an opt-in `--upload-build` flag on `run-pipeline.sh` runs a deterministic post-PR stage
-(`skills/relay-pipeline/scripts/upload-build.sh` — remote-safe build number → archive → export → upload → optional
+(`skills/pipeline/scripts/upload-build.sh` — remote-safe build number → archive → export → upload → optional
 TestFlight via `asc`, configured through the new `ios.*` config section that relay-setup now detects/prompts for).
 Credentials stay in env/keychain; dry-run plans the steps without executing; failures preserve the worktree and
 never touch the already-open PR.

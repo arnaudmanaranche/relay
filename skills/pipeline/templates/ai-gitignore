@@ -1,4 +1,4 @@
-# .ai/.gitignore — installed into <project>/.ai/ by the relay-setup skill.
+# .ai/.gitignore — installed into <project>/.ai/ by the setup skill.
 #
 # Keeps the pipeline's *durable knowledge* in git (feature briefs, technical
 # plans, reviews, retrospectives, project-memory.md, the memory-compact

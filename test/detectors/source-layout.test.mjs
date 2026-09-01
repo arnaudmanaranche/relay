@@ -1,4 +1,4 @@
-// Tests for skills/relay-setup/scripts/detectors/source-layout.mjs
+// Tests for skills/setup/scripts/detectors/source-layout.mjs
 //
 // Covers AC 11-16 for detectSourceDirs, plus baseline happy-path coverage
 // for detectSkipDirs and detectSourceExtensions (AC 21).
@@ -15,7 +15,7 @@ import {
   detectSourceDirs,
   detectSkipDirs,
   detectSourceExtensions,
-} from '../../skills/relay-setup/scripts/detectors/source-layout.mjs';
+} from '../../skills/setup/scripts/detectors/source-layout.mjs';
 
 const tmpDirs = [];
 

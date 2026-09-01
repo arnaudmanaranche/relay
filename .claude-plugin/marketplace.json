@@ -4,7 +4,7 @@
   "license": "MIT",
 "homepage": "https://github.com/arnaudmanaranche/relay",
 "repository": "https://github.com/arnaudmanaranche/relay",
-  "keywords": ["bmad", "feature-pipeline", "ai-workflow", "software-engineering"],
+  "keywords": ["feature-pipeline", "ai-workflow", "software-engineering"],
   "plugins": [
     {
       "name": "relay",
@@ -13,8 +13,8 @@
       "version": "1.0.0",
       "author": { "name": "Relay" },
       "skills": [
-        "./skills/relay-setup",
-        "./skills/relay-pipeline"
+        "./skills/setup",
+        "./skills/pipeline"
       ]
     }
   ]

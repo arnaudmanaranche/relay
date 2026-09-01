@@ -1,4 +1,4 @@
-// Tests for skills/relay-pipeline/scripts/upload-build.sh
+// Tests for skills/pipeline/scripts/upload-build.sh
 //
 // The stage shells out to the asc CLI, so every test runs against a stubbed
 // `asc` binary placed first on PATH. The stub records each invocation's argv
@@ -17,7 +17,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const SCRIPT = join(import.meta.dirname, '..', 'skills', 'relay-pipeline', 'scripts', 'upload-build.sh');
+const SCRIPT = join(import.meta.dirname, '..', 'skills', 'pipeline', 'scripts', 'upload-build.sh');
 
 const tmpDirs = [];
 function makeTmpDir(prefix) {

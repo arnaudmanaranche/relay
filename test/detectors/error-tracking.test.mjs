@@ -1,4 +1,4 @@
-// Tests for skills/relay-setup/scripts/detectors/error-tracking.mjs
+// Tests for skills/setup/scripts/detectors/error-tracking.mjs
 //
 // Characterization tests against real source (confirmed by reading
 // error-tracking.mjs directly) — happy-path assertions check the exact
@@ -7,7 +7,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { detectErrorTracking } from '../../skills/relay-setup/scripts/detectors/error-tracking.mjs'
+import { detectErrorTracking } from '../../skills/setup/scripts/detectors/error-tracking.mjs'
 
 test('detectErrorTracking returns "sentry" when @sentry/node is a dependency', () => {
   const pkg = { dependencies: { '@sentry/node': '^7.0.0' }, devDependencies: {} }

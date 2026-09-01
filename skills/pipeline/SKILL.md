@@ -106,7 +106,7 @@ Reference these registries when scoping or reviewing features:
 
 ## Configuration
 
-The module reads project configuration from `.ai/config.json`. Run the `relay-setup` skill to generate it.
+The module reads project configuration from `.ai/config.json`. Run the `setup` skill to generate it.
 
 Key config fields: `sourceDirs`, `skipDirs`, `sourceExtensions`, `commands`, `stack`, `e2e`, `sandbox`.
 

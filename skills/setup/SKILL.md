@@ -13,20 +13,20 @@ Run this skill when you first install the module in a project. It auto-detects t
 5. Generates `.ai/agents.json` with role definitions (see **Required roles** below — `agent-runner.ts` hardcodes behavior per role name, so every one of these must have an entry or that role's pipeline stage will fail with "Unknown role")
 6. Creates `.ai/artifacts/features/` directory
 7. Copies registry files (scope-checklist, ship-checklist, analytics-events, paywall-touchpoints) into `.ai/registry/`
-8. Copies governance files (GOVERNANCE.md, DENIED_ACTIONS.md) from `skills/relay-pipeline/templates/` into `.ai/`
-9. Copies `skills/relay-pipeline/templates/scripts/new-feature.sh` into `.ai/scripts/new-feature.sh` and makes it executable (`chmod +x`) — `run-pipeline.sh` depends on this script to scaffold new feature folders
-10. Copies `skills/relay-pipeline/templates/ai-gitignore` into `.ai/.gitignore` — keeps derived (`context.json`) and per-run debug files (`.agent-*` dumps) out of git history so the repo doesn't grow unbounded, while keeping durable knowledge (briefs, plans, reviews, retros, `project-memory.md`, the memory-compact counter, the `.architect-approved` hash) tracked. **Do not overwrite an existing `.ai/.gitignore` that has project-specific additions — merge instead.**
-11. Copies `skills/relay-pipeline/templates/scripts/prune-artifacts.sh` into `.ai/scripts/prune-artifacts.sh` and makes it executable (`chmod +x`) — a human-run maintenance tool for repo hygiene (see **Repo hygiene** below)
+8. Copies governance files (GOVERNANCE.md, DENIED_ACTIONS.md) from `skills/pipeline/templates/` into `.ai/`
+9. Copies `skills/pipeline/templates/scripts/new-feature.sh` into `.ai/scripts/new-feature.sh` and makes it executable (`chmod +x`) — `run-pipeline.sh` depends on this script to scaffold new feature folders
+10. Copies `skills/pipeline/templates/ai-gitignore` into `.ai/.gitignore` — keeps derived (`context.json`) and per-run debug files (`.agent-*` dumps) out of git history so the repo doesn't grow unbounded, while keeping durable knowledge (briefs, plans, reviews, retros, `project-memory.md`, the memory-compact counter, the `.architect-approved` hash) tracked. **Do not overwrite an existing `.ai/.gitignore` that has project-specific additions — merge instead.**
+11. Copies `skills/pipeline/templates/scripts/prune-artifacts.sh` into `.ai/scripts/prune-artifacts.sh` and makes it executable (`chmod +x`) — a human-run maintenance tool for repo hygiene (see **Repo hygiene** below)
 12. Runs the target project's own `format_write_cmd` scoped to `skills/` and `.ai/`, and appends `skills/`/`.ai/` to every lint/format/typecheck exclude mechanism the target project has (see **Excluding module content from the target's tooling** below) — otherwise the module's own copied-in files can fail the target's pre-commit hooks or typecheck gate on the very first commit, for reasons that have nothing to do with the target project itself
 
-The pipeline's own helper scripts (`run-pipeline.sh`, `agent-runner.ts`, `status.mjs`, `babysit-pr.sh`, …) are part of the module copy and need no per-project configuration. `status.mjs` is strictly read-only over existing state files (worktrees, locks, `.agent-*` JSON) and is always safe to run: `node skills/relay-pipeline/scripts/status.mjs [--json]`.
+The pipeline's own helper scripts (`run-pipeline.sh`, `agent-runner.ts`, `status.mjs`, `babysit-pr.sh`, …) are part of the module copy and need no per-project configuration. `status.mjs` is strictly read-only over existing state files (worktrees, locks, `.agent-*` JSON) and is always safe to run: `node skills/pipeline/scripts/status.mjs [--json]`.
 
 ## Auto-detection
 
 Before asking any questions, run:
 
 ```bash
-node skills/relay-setup/scripts/detect-stack.mjs --project-root=<project-root>
+node skills/setup/scripts/detect-stack.mjs --project-root=<project-root>
 ```
 
 This scans the project and returns a JSON object with pre-filled values for all config fields. Use these as the defaults for every prompt — show the detected value to the user so they can confirm or override it.
@@ -89,7 +89,7 @@ Not auto-detected — ask directly if the project has one: `commands.build` (e.g
 `app_id` and the paywall provider question are meaningless, or at least mobile-framed, for a webapp. Use `project_type` to adjust:
 
 - **`project_type: "web"`** — skip the `app_id` prompt entirely (don't ask; write `""` to config). When prompting for `paywall_provider`, don't frame the question in mobile terms — Stripe or LemonSqueezy are the expected answers, not RevenueCat/expo-iap.
-- **`project_type: "mobile"`** — prompt for `app_id` as usual; any paywall provider (including Stripe, if it's a hybrid app with a web billing portal) is fair game. Also prompt for the `ios.*` fields below (pre-filled from the detector), writing them into an `ios` config object: `scheme`, `workspace`, `project`, `configuration`, `testflightGroup`. These power the pipeline's opt-in `--upload-build` stage (`skills/relay-pipeline/scripts/upload-build.sh`: archive → export → upload → optional TestFlight via the `asc` CLI). Apple credentials are never part of config — the stage reads `ASC_KEY_ID`/`ASC_ISSUER_ID`/`ASC_PRIVATE_KEY_PATH` env vars or keychain auth at run time; say so when prompting, and note that the `asc` CLI must be installed separately.
+- **`project_type: "mobile"`** — prompt for `app_id` as usual; any paywall provider (including Stripe, if it's a hybrid app with a web billing portal) is fair game. Also prompt for the `ios.*` fields below (pre-filled from the detector), writing them into an `ios` config object: `scheme`, `workspace`, `project`, `configuration`, `testflightGroup`. These power the pipeline's opt-in `--upload-build` stage (`skills/pipeline/scripts/upload-build.sh`: archive → export → upload → optional TestFlight via the `asc` CLI). Apple credentials are never part of config — the stage reads `ASC_KEY_ID`/`ASC_ISSUER_ID`/`ASC_PRIVATE_KEY_PATH` env vars or keychain auth at run time; say so when prompting, and note that the `asc` CLI must be installed separately.
 - **`project_type: "unknown"`** — still prompt for `app_id`, but don't assume a default beyond what `detect-stack.mjs` returned; ask plainly rather than presenting a mobile-flavored example. Skip the `ios.*` prompts unless a workspace/project was detected anyway.
 
 ### Optional: App Store Connect skill pack (mobile/iOS projects)
@@ -143,7 +143,7 @@ For fields where nothing was detected (empty string), explain what the field is 
 
 `pm`, `dev-review`, `pm-respond`, `architect`, `dev`, `review`, `qa`, `retro`, `memory-compact`
 
-Each role entry needs: `skill` (path to its prompt file under `skills/relay-pipeline/prompts/`, e.g. `skills/relay-pipeline/prompts/pm.md` — `memory-compact` uses `skills/relay-pipeline/prompts/memory-compact.md`), `model`, `artifact` (primary output filename), `description`, and `maxTokens`. Use a smaller/cheaper model for `memory-compact` — it does bounded text reorganization, not novel reasoning.
+Each role entry needs: `skill` (path to its prompt file under `skills/pipeline/prompts/`, e.g. `skills/pipeline/prompts/pm.md` — `memory-compact` uses `skills/pipeline/prompts/memory-compact.md`), `model`, `artifact` (primary output filename), `description`, and `maxTokens`. Use a smaller/cheaper model for `memory-compact` — it does bounded text reorganization, not novel reasoning.
 
 `maxTokens` only bounds output on the `openai-compatible` backend — `claude -p` has no equivalent flag, so on the `claude-cli` backend (the default) this value is never sent and never enforced; the real ceiling is whatever the CLI itself defaults to. Don't rely on it to cap cost or output size under `claude-cli`.
 
@@ -166,7 +166,7 @@ The `dev` role entry additionally supports two optional fields for injecting fil
 {
   "roles": {
     "dev": {
-      "skill": "skills/relay-pipeline/prompts/dev.md",
+      "skill": "skills/pipeline/prompts/dev.md",
       "model": "anthropic/claude-sonnet-4.5",
       "artifact": "dev-log.md",
       "description": "Developer",
@@ -186,8 +186,8 @@ The `dev` role entry additionally supports two optional fields for injecting fil
 - **`typeSkills`** (`Record<pattern, skillFilePath>`) — matched per-file against the file paths the Architect's `technical-plan.md` says Dev needs to touch (`agent-runner.ts`'s `getMatchingTypeSkills`, covered by `agent-runner.test.ts`). A pattern starting with `*` matches by **suffix** (`*.ts` matches any `.ts` file, `*.test.ts` matches only test files); any other pattern matches by **path prefix or path segment** (`src/services` matches `src/services/api.ts` and `lib/src/services/x.ts`). Only skills whose pattern matches at least one impacted file get injected — this keeps the prompt from ballooning with irrelevant standards on a feature that never touches, say, `src/services`.
 - **`extraSkills`** (`string[]`) — injected into every single Dev run regardless of which files are touched. Use this for cross-cutting rules (security baseline, error-handling conventions) rather than `typeSkills`, which is deliberately conditional.
 - The skill files themselves (`.ai/skills/*.md` in the example above — the path is arbitrary, just needs to exist and be readable from the project root) are plain markdown you write yourself. There's no required structure; they're read verbatim and appended to Dev's system prompt under a `## <filename> (cross-cutting)` or matched-skill heading.
-- `typeSkills`/`extraSkills` paths are resolved from the project root, not from `skills/relay-pipeline/`, since they're project-specific standards, not part of the module.
-- For a project with a real UI surface (`project_type` `web` or `mobile`), offer to copy `skills/relay-pipeline/templates/skills/ui-standards.md` into `.ai/skills/ui-standards.md` and wire it as a `typeSkills` entry for the project's UI file extensions (`*.tsx`, `*.css`, `*.vue`, etc., whatever `source_extensions`/`styling` detected). It's a starter set of design-tokens-first and motion/state-completeness rules — meant to be edited to the project's actual design system, not used verbatim.
+- `typeSkills`/`extraSkills` paths are resolved from the project root, not from `skills/pipeline/`, since they're project-specific standards, not part of the module.
+- For a project with a real UI surface (`project_type` `web` or `mobile`), offer to copy `skills/pipeline/templates/skills/ui-standards.md` into `.ai/skills/ui-standards.md` and wire it as a `typeSkills` entry for the project's UI file extensions (`*.tsx`, `*.css`, `*.vue`, etc., whatever `source_extensions`/`styling` detected). It's a starter set of design-tokens-first and motion/state-completeness rules — meant to be edited to the project's actual design system, not used verbatim.
 
 ## Configuration variables
 
@@ -244,7 +244,7 @@ Relay is copied into each target project (there's no registry, no `npm install`)
 Run this check whenever asked "is Relay up to date in `<project>`?", or before starting a real pipeline run on a project you haven't touched in a while:
 
 ```bash
-node skills/relay-setup/scripts/check-version.mjs --project-root=<project-root>
+node skills/setup/scripts/check-version.mjs --project-root=<project-root>
 ```
 
 This is deterministic — it reads this module's own `module_version` (`assets/module.yaml`) and the target's `.ai/config.json` → `relayVersion`, and reports `{current, latest, upToDate, behind}`. A project set up before this check existed has no `relayVersion` field at all — `current: null` also counts as `behind`.
@@ -252,7 +252,7 @@ This is deterministic — it reads this module's own `module_version` (`assets/m
 If `behind` is `true`:
 
 1. Tell the user which version the project is on vs. the latest, and ask before touching anything (this re-copies files into a project the user may have hand-edited).
-2. Re-copy `skills/relay-pipeline/` into the target wholesale (scripts, prompts, templates, registries) — the same copy this skill performs during first-time setup (steps 7-11 above), not a hand-picked subset. Do NOT touch `.ai/config.json`'s project-specific fields (stack settings, commands, `ios.*`, etc.) — only update its `relayVersion` field, to the new `module_version`.
+2. Re-copy `skills/pipeline/` into the target wholesale (scripts, prompts, templates, registries) — the same copy this skill performs during first-time setup (steps 7-11 above), not a hand-picked subset. Do NOT touch `.ai/config.json`'s project-specific fields (stack settings, commands, `ios.*`, etc.) — only update its `relayVersion` field, to the new `module_version`.
 3. Re-run the target's own `format_write_cmd` scoped to `skills/` (same reasoning as **Excluding module content from the target's tooling** below — freshly copied files need to match the target's formatting before the next commit).
 4. Tell the user what changed — if this module's own git log has commits since the version the project was on, summarize them; otherwise just confirm the copy and new version number.
 

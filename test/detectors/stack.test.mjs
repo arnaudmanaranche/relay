@@ -1,4 +1,4 @@
-// Tests for skills/relay-setup/scripts/detectors/stack.mjs
+// Tests for skills/setup/scripts/detectors/stack.mjs
 //
 // Characterization tests against real source (confirmed by reading
 // stack.mjs directly) — happy-path assertions check the exact literal
@@ -7,7 +7,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { detectRouter, detectStyling, detectBackend } from '../../skills/relay-setup/scripts/detectors/stack.mjs'
+import { detectRouter, detectStyling, detectBackend } from '../../skills/setup/scripts/detectors/stack.mjs'
 
 test('detectRouter returns "next" when next is a dependency', () => {
   const pkg = { dependencies: { next: '^14.0.0' }, devDependencies: {} }

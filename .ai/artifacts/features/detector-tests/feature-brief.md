@@ -1,14 +1,14 @@
 # Feature Brief: Detector Test Coverage (`detector-tests`)
 
 **Status:** Draft — ready for Architect review (see Risks & open questions before technical planning)
-**Source:** GitHub issue — "Add unit test coverage for `skills/relay-setup/scripts/detectors/*.mjs`"
+**Source:** GitHub issue — "Add unit test coverage for `skills/setup/scripts/detectors/*.mjs`"
 **Type:** Test-only / internal developer tooling change (no end-user-facing app surface)
 
 ---
 
 ## Problem & Goals
 
-`skills/relay-setup/scripts/detectors/*.mjs` implements the auto-detection logic that `detect-stack.mjs` uses to bootstrap a new project's `.ai/config.json` (app id, lint/format/test commands, source layout, stack, analytics provider, paywall provider, e2e framework, error tracking provider, locales). This module currently has **zero automated test coverage**, and that gap has already let real bugs ship silently:
+`skills/setup/scripts/detectors/*.mjs` implements the auto-detection logic that `detect-stack.mjs` uses to bootstrap a new project's `.ai/config.json` (app id, lint/format/test commands, source layout, stack, analytics provider, paywall provider, e2e framework, error tracking provider, locales). This module currently has **zero automated test coverage**, and that gap has already let real bugs ship silently:
 
 - `detectAppId` fabricated a mobile-style bundle id for projects that are not mobile projects at all.
 - `detectLintCmd` / `detectFormatCmd` / `detectFormatWriteCmd` defaulted to `eslint` / `prettier` commands even when neither tool was an actual dependency of the target project (producing a generated command that would fail to run in the target repo).
@@ -18,7 +18,7 @@
 1. Add unit tests under `test/`, in the existing `node:test` + `assert` style (mirroring `test/agent-runner.test.ts`), for every exported detector function across all 10 files: `project.mjs`, `commands.mjs`, `project-type.mjs`, `source-layout.mjs`, `stack.mjs`, `analytics.mjs`, `paywall.mjs`, `e2e.mjs`, `error-tracking.mjs`, `locales.mjs`, `fs-helpers.mjs`.
 2. At minimum, lock in the specific scenarios called out in the issue so the three known bug classes above cannot silently regress again.
 3. Use realistic fixtures: in-memory/temp `package.json`-shaped objects for dependency-based detectors, and real temp directories (via `mkdtempSync`) with marker files for filesystem-based detectors (anything going through `fs-helpers.mjs`'s `exists`/`readJson`/`readText`).
-4. Ship this as a **test-only change** — no file under `skills/relay-setup/scripts/detectors/` or `detect-stack.mjs` should need to change to satisfy these tests. If a test uncovers a real bug beyond the three already known, it must be **documented in the dev log**, not silently patched.
+4. Ship this as a **test-only change** — no file under `skills/setup/scripts/detectors/` or `detect-stack.mjs` should need to change to satisfy these tests. If a test uncovers a real bug beyond the three already known, it must be **documented in the dev log**, not silently patched.
 
 ---
 
@@ -57,14 +57,14 @@
 22. All new tests run via the project's configured test command (`commands.test` in `.ai/config.json`) and pass locally and in CI.
 23. Tests use Node's built-in `node:test` and `node:assert` (or `node:assert/strict`) exclusively — no new test framework or assertion library dependency is introduced.
 24. Filesystem-based detector tests create real temp directories via `mkdtempSync` (under `os.tmpdir()`) with marker files/directories, and clean up (`rmSync` with `{ recursive: true, force: true }`) in an `after`/`afterEach` hook, leaving no residue on disk after a run.
-25. No file under `skills/relay-setup/scripts/detectors/` or `skills/relay-setup/scripts/detect-stack.mjs` is modified as part of this change.
+25. No file under `skills/setup/scripts/detectors/` or `skills/setup/scripts/detect-stack.mjs` is modified as part of this change.
 26. If a test run reveals a detector bug not already listed in this brief's known-bugs list (Problem & Goals), it is written up in the dev log with repro details, and is **not** silently fixed as part of this test-only change.
 
 ---
 
 ## UX / Screens
 
-N/A — this feature has no UI. `skills/relay-setup/scripts/detectors/*.mjs` and `detect-stack.mjs` are Node.js CLI/skill scripts invoked during project onboarding to this pipeline; they have no screens, components, or visual surface. This change adds test files only and must not alter the CLI's observable output or behavior (see AC 25). No existing screens in the project directory tree (there are none — this repo is developer tooling, not an app) are affected.
+N/A — this feature has no UI. `skills/setup/scripts/detectors/*.mjs` and `detect-stack.mjs` are Node.js CLI/skill scripts invoked during project onboarding to this pipeline; they have no screens, components, or visual surface. This change adds test files only and must not alter the CLI's observable output or behavior (see AC 25). No existing screens in the project directory tree (there are none — this repo is developer tooling, not an app) are affected.
 
 ---
 
@@ -102,7 +102,7 @@ N/A — this is internal developer tooling with no free/premium user surfaces. T
 - `test/detectors/locales.test.mjs` — covers `locales.mjs`.
 - `test/detectors/fs-helpers.test.mjs` — covers `exists`/`readJson`/`readText` directly (missing file, malformed JSON, present-and-valid cases), since every filesystem-based detector depends on these primitives being correct.
 
-**Rationale for one test file per detector module** (rather than a single flat `test/detectors.test.mjs`): mirrors the 1:1 mapping already used for source files under `skills/relay-setup/scripts/detectors/`, keeps each file focused and reviewable, and matches how `test/agent-runner.test.ts` maps to `skills/relay-pipeline/scripts/agent-runner.ts`. Placing them under a `test/detectors/` subdirectory (new directory) rather than flat in `test/` avoids cluttering the existing three top-level test files with ten more.
+**Rationale for one test file per detector module** (rather than a single flat `test/detectors.test.mjs`): mirrors the 1:1 mapping already used for source files under `skills/setup/scripts/detectors/`, keeps each file focused and reviewable, and matches how `test/agent-runner.test.ts` maps to `skills/pipeline/scripts/agent-runner.ts`. Placing them under a `test/detectors/` subdirectory (new directory) rather than flat in `test/` avoids cluttering the existing three top-level test files with ten more.
 
 **Config/tooling check (not a production code change, but must be verified):**
 - Confirm the project's configured test command (`commands.test` in `.ai/config.json`, run via `npm test` or equivalent) actually discovers files under a new `test/detectors/` subdirectory. If the current script uses an explicit file list instead of a recursive glob (e.g. `node --test test/*.test.ts test/*.test.mjs`), the glob/list needs to be widened to include `test/detectors/**/*.test.mjs`. This is a test-runner configuration adjustment, not a change to detector logic, and stays within the spirit of "test-only change" — but must be called out explicitly in the dev log per the denied-actions rule on installing/adding things silently.
@@ -126,7 +126,7 @@ This repo has no configured end-to-end UI test framework (it is a Node.js CLI/sk
  - A Capacitor app → app id detected as before.
  - A plain web app with no lint/format tool installed → `commands.lint`/`commands.formatCheck`/`commands.formatWrite` come back empty (matches this repo's own `.ai/config.json`, per the project context setup notes).
  - A repo with no `src`/`app`/`pages` directory (this repo itself, per the setup notes) → `sourceDirs` detection returns `[]`, confirming the fix this issue is guarding against stays fixed.
-4. **Regression check:** Diff `git status` / `git diff` after running the test suite to confirm zero changes to any file under `skills/relay-setup/scripts/detectors/` or `skills/relay-setup/scripts/detect-stack.mjs` (per AC 25 and the issue's "no production code should change" requirement).
+4. **Regression check:** Diff `git status` / `git diff` after running the test suite to confirm zero changes to any file under `skills/setup/scripts/detectors/` or `skills/setup/scripts/detect-stack.mjs` (per AC 25 and the issue's "no production code should change" requirement).
 5. **Dev log check:** If any test fails against current implementation behavior in a way that reveals a new, previously-undocumented bug, confirm the dev log contains a clear write-up (symptom, minimal repro, affected function) rather than an inline code fix.
 
 ---
@@ -135,15 +135,15 @@ This repo has no configured end-to-end UI test framework (it is a Node.js CLI/sk
 
 ### 1. IN / OUT
 **IN:**
-- Adding `node:test` unit tests for all 10 files under `skills/relay-setup/scripts/detectors/*.mjs`.
+- Adding `node:test` unit tests for all 10 files under `skills/setup/scripts/detectors/*.mjs`.
 - Full coverage of the specific scenarios enumerated in the issue for `detectAppId`, `detectLintCmd`, `detectFormatCmd`, `detectFormatWriteCmd`, `detectSourceDirs`, and `detectTestCmd`.
 - Baseline ("happy path" + "no signal found") coverage for every other exported function in `project.mjs`, `project-type.mjs`, `stack.mjs`, `analytics.mjs`, `paywall.mjs`, `e2e.mjs`, `error-tracking.mjs`, `locales.mjs`, and direct coverage of `fs-helpers.mjs`'s `exists`/`readJson`/`readText`.
 - Widening the test-runner's file discovery glob/list in the test command config, if needed, so new files under `test/detectors/` are actually picked up.
 - Documenting (not fixing) any newly discovered detector bug in the dev log.
 
 **OUT:**
-- Any change to detector logic itself in `skills/relay-setup/scripts/detectors/*.mjs` or to `skills/relay-setup/scripts/detect-stack.mjs`, including fixing any newly discovered bug (explicitly deferred per the issue).
-- Any change to `skills/relay-pipeline/*` (agent prompts, registries, templates) — unrelated module.
+- Any change to detector logic itself in `skills/setup/scripts/detectors/*.mjs` or to `skills/setup/scripts/detect-stack.mjs`, including fixing any newly discovered bug (explicitly deferred per the issue).
+- Any change to `skills/pipeline/*` (agent prompts, registries, templates) — unrelated module.
 - Adding a new test framework, assertion library, or mocking library.
 - Any i18n, analytics, or paywall work — not applicable to this tooling change.
 - Any change to the `video/` Remotion project — unrelated.

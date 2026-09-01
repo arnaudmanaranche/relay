@@ -1,4 +1,4 @@
-// Tests for skills/relay-setup/scripts/detectors/fs-helpers.mjs
+// Tests for skills/setup/scripts/detectors/fs-helpers.mjs
 //
 // This is the shared primitive nearly every other filesystem-based detector
 // (project.mjs, commands.mjs, source-layout.mjs, analytics.mjs, e2e.mjs,
@@ -21,7 +21,7 @@ import {
   isDirectory,
   ls,
   findFiles,
-} from '../../skills/relay-setup/scripts/detectors/fs-helpers.mjs';
+} from '../../skills/setup/scripts/detectors/fs-helpers.mjs';
 
 const tmpDirs = [];
 

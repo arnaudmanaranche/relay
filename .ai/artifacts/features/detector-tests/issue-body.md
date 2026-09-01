@@ -1,4 +1,4 @@
-Add unit test coverage for `skills/relay-setup/scripts/detectors/*.mjs`.
+Add unit test coverage for `skills/setup/scripts/detectors/*.mjs`.
 
 Context: this module (`project.mjs`, `commands.mjs`, `project-type.mjs`,
 `source-layout.mjs`, `stack.mjs`, `analytics.mjs`, `paywall.mjs`, `e2e.mjs`,

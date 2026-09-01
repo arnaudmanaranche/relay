@@ -85,7 +85,7 @@ export interface RepoSummary {
 
 export interface AppConfig {
   // Absolute path to a status.mjs copy (any Relay checkout's
-  // skills/relay-pipeline/scripts/status.mjs). Empty when not found.
+  // skills/pipeline/scripts/status.mjs). Empty when not found.
   readonly statusScript: Uint8Array;
   readonly roots: readonly Uint8Array[];
 }

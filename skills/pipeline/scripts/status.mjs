@@ -239,7 +239,7 @@ export function inspectWorktree({ repoRoot, repoDirName, entry, worktreeRoot, br
     run.state !== 'blocked-pm-questions' &&
     run.state !== 'done'
   ) {
-    const args = ['skills/relay-pipeline/scripts/run-pipeline.sh', slug];
+    const args = ['skills/pipeline/scripts/run-pipeline.sh', slug];
     if (run.resumeFlag) args.push(run.resumeFlag);
     args.push(`--project-root=${repoRoot}`);
     run.resumeHint = `bash ${args.join(' ')}`;

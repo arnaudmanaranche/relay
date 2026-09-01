@@ -22,7 +22,7 @@ import {
   inspectWorktree,
   collectRepo,
   renderHuman,
-} from '../skills/relay-pipeline/scripts/status.mjs';
+} from '../skills/pipeline/scripts/status.mjs';
 
 // --- helpers -------------------------------------------------------------
 
@@ -202,7 +202,7 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
       assert.equal(run.state, 'design-gate');
       assert.match(run.resumeHint, /--approve-design --project-root=\/somewhere\/myrepo$/);
       assert.deepEqual(run.resumeArgs, [
-        'skills/relay-pipeline/scripts/run-pipeline.sh',
+        'skills/pipeline/scripts/run-pipeline.sh',
         'auth',
         '--approve-design',
         '--project-root=/somewhere/myrepo',
@@ -226,7 +226,7 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
       assert.equal(run.state, 'crashed');
       assert.equal(run.lock.alive, false);
       assert.deepEqual(run.resumeArgs, [
-        'skills/relay-pipeline/scripts/run-pipeline.sh',
+        'skills/pipeline/scripts/run-pipeline.sh',
         'ghost',
         '--project-root=/somewhere/myrepo',
       ]);
@@ -248,7 +248,7 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
       assert.equal(run.lock, null);
       assert.equal(run.state, 'halted');
       assert.deepEqual(run.resumeArgs, [
-        'skills/relay-pipeline/scripts/run-pipeline.sh',
+        'skills/pipeline/scripts/run-pipeline.sh',
         'quiet',
         '--project-root=/somewhere/myrepo',
       ]);
@@ -390,13 +390,13 @@ describe('renderHuman — stable, greppable summary lines', () => {
         githubRepo: null,
         budget: { maxCostUsdPerFeature: null },
         active: [
-          { slug: 'auth', state: 'design-gate', lastRole: 'architect', costUsd: null, resumeHint: 'bash skills/relay-pipeline/scripts/run-pipeline.sh auth --approve-design --project-root=/r' },
+          { slug: 'auth', state: 'design-gate', lastRole: 'architect', costUsd: null, resumeHint: 'bash skills/pipeline/scripts/run-pipeline.sh auth --approve-design --project-root=/r' },
         ],
         completed: [],
       },
     ]);
     assert.match(out, /awaiting design approval/);
-    assert.match(out, /resume: bash skills\/relay-pipeline\/scripts\/run-pipeline\.sh auth --approve-design/);
+    assert.match(out, /resume: bash skills\/pipeline\/scripts\/run-pipeline\.sh auth --approve-design/);
   });
 
   test('non-Relay repo renders its error line', () => {

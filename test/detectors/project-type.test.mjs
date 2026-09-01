@@ -1,4 +1,4 @@
-// Tests for skills/relay-setup/scripts/detectors/project-type.mjs
+// Tests for skills/setup/scripts/detectors/project-type.mjs
 //
 // detectProjectType's output ('mobile' | 'web' | 'unknown') is a required
 // input fixture for detectAppId's AC 4-6 in project.test.mjs.
@@ -10,7 +10,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectProjectType } from '../../skills/relay-setup/scripts/detectors/project-type.mjs';
+import { detectProjectType } from '../../skills/setup/scripts/detectors/project-type.mjs';
 
 test('detectProjectType returns mobile when react-native is a dependency', () => {
   const pkg = { dependencies: { 'react-native': '^0.74.0' } };

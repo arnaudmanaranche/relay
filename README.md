@@ -20,17 +20,20 @@ Each role produces artifacts, gates, and handoffs, so shipping a feature with an
 
 ## Install
 
-**Prerequisites:** Node.js 18+, an AI coding tool (Claude Code, Codex, OpenCode, Cline), and a BMad Method installation (`npx bmad-method`).
-
-```bash
-npx bmad-method install --custom-source https://github.com/arnaudmanaranche/relay
-```
+**Prerequisites:** Node.js 18+ and an AI coding tool (Claude Code, Codex, OpenCode, Cline).
 
 <details>
 <summary><b>Claude Code</b></summary>
 
 ```bash
-/start relay-setup
+/plugin marketplace add arnaudmanaranche/relay
+/plugin install relay@relay
+```
+
+Then run setup:
+
+```bash
+/relay:setup
 ```
 
 Or interactively: "Run the Relay setup skill."
@@ -40,18 +43,18 @@ Or interactively: "Run the Relay setup skill."
 <details>
 <summary><b>Codex / OpenCode / Cline / other agents</b></summary>
 
-Skills are plain Markdown with accompanying scripts. Any agent that can read a `SKILL.md` and run shell commands can drive the pipeline. Point your agent at `skills/relay-setup/SKILL.md` first, then `skills/relay-pipeline/SKILL.md`.
+Skills are plain Markdown with accompanying scripts. Any agent that can read a `SKILL.md` and run shell commands can drive the pipeline. Clone this repo (or copy `skills/`) into the target project, then point your agent at `skills/setup/SKILL.md` first, then `skills/pipeline/SKILL.md`.
 
 </details>
 
-`relay-setup` auto-detects your stack and generates `.ai/config.json` and `.ai/agents.json`, plus governance files, registries, and a `.ai/.gitignore` under `.ai/`.
+`setup` auto-detects your stack and generates `.ai/config.json` and `.ai/agents.json`, plus governance files, registries, and a `.ai/.gitignore` under `.ai/`.
 
 ## Quick start
 
 Start a feature:
 
 ```bash
-/start relay-pipeline new "Add dark mode toggle"
+/relay:pipeline new "Add dark mode toggle"
 ```
 
 Or interactively: "Run the Relay pipeline to scope a new feature."
@@ -59,7 +62,7 @@ Or interactively: "Run the Relay pipeline to scope a new feature."
 This runs the 7-role workflow (PM → Dev Review → Architect → Dev → Review → QA → Retro) end to end inside an isolated git worktree, from brief to PR. The Architect stage pauses for a human design-gate review before code is written; resume with:
 
 ```bash
-bash skills/relay-pipeline/scripts/run-pipeline.sh my-feature --approve-design
+bash skills/pipeline/scripts/run-pipeline.sh my-feature --approve-design
 ```
 
 ## Launch
@@ -67,14 +70,14 @@ bash skills/relay-pipeline/scripts/run-pipeline.sh my-feature --approve-design
 Check what Relay is doing right now: running/halted/crashed runs, design-gate approvals waiting on you, failed gates, cost, completed features, across one or many repos.
 
 ```bash
-node skills/relay-pipeline/scripts/status.mjs                  # human-readable
-node skills/relay-pipeline/scripts/status.mjs --json           # machine-readable, for dashboards/menu bars
+node skills/pipeline/scripts/status.mjs                  # human-readable
+node skills/pipeline/scripts/status.mjs --json           # machine-readable, for dashboards/menu bars
 ```
 
 Babysit a PR after it's open (polls CI, reruns flaky jobs, optionally auto-approves once Review/QA/diff-size gates all pass):
 
 ```bash
-bash skills/relay-pipeline/scripts/babysit-pr.sh <branch> --max-reruns=3 --auto-stamp
+bash skills/pipeline/scripts/babysit-pr.sh <branch> --max-reruns=3 --auto-stamp
 ```
 
 [relay-menubar](relay-menubar/README.md) is a macOS menu-bar app that polls `status.mjs` every 5s across your repos, flags runs needing attention (design gate, review/QA FAIL, crash, halt), and lets you reveal the worktree or copy a resume command. Read-only.

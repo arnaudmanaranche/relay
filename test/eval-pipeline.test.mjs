@@ -18,10 +18,10 @@ import {
   compareScores,
   extractImpactedFiles,
   fileCoverageMissing,
-} from '../skills/relay-pipeline/scripts/eval-pipeline.mjs';
+} from '../skills/pipeline/scripts/eval-pipeline.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const EVAL_ROOT = resolve(__dirname, '../skills/relay-pipeline/eval');
+const EVAL_ROOT = resolve(__dirname, '../skills/pipeline/eval');
 
 describe('runCheck — individual rubric checks', () => {
   test('contains / absent', () => {

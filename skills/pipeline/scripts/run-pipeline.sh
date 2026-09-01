@@ -4,8 +4,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# SCRIPT_DIR is .../<project-root>/skills/relay-pipeline/scripts — three
-# levels under the project root (scripts -> relay-pipeline -> skills -> root),
+# SCRIPT_DIR is .../<project-root>/skills/pipeline/scripts — three
+# levels under the project root (scripts -> pipeline -> skills -> root),
 # not two. `../..` silently landed one level short, at <root>/skills, for
 # any invocation that didn't pass --project-root explicitly.
 ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
@@ -365,7 +365,7 @@ run_quality_gates() {
 
   # LINT_CMD (and, in principle, TYPECHECK_CMD) can legitimately be empty
   # — detectLintCmd returns '' for a project with no lint tool configured
-  # at all (see relay-setup's commands.mjs). An empty ${LINT_CMD} used to
+  # at all (see setup's commands.mjs). An empty ${LINT_CMD} used to
   # rely on bash's own no-op behavior for a redirection with no command
   # (`> "$lint_out" 2>&1` alone still "succeeds") rather than an explicit
   # skip — correct today, but fragile and inconsistent with TEST_CMD/
@@ -995,7 +995,7 @@ DIFF_FILES=$(git diff --name-only "${DEFAULT_BRANCH}...HEAD" 2>/dev/null || echo
 # patch only if needed" prose that this regex can't tell apart from "add X"
 # — it does not parse the surrounding bullet's verb), so it prints a lead
 # for a human/Review to check, not a verdict. See
-# skills/relay-pipeline/scripts/eval-pipeline.mjs's 'file-coverage' check
+# skills/pipeline/scripts/eval-pipeline.mjs's 'file-coverage' check
 # for the same logic wired into the eval harness instead.
 echo "==> Checking the technical plan's file list against the actual diff..."
 DIFF_FILES=$(git diff --name-only "${DEFAULT_BRANCH}...HEAD" 2>/dev/null || echo "") \

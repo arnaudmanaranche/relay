@@ -197,7 +197,7 @@ export function loadConfig(): AppConfig {
   // location inside the first configured root that has one.
   let script = typeof table.statusScript === "string" ? table.statusScript : "";
   if (!script) {
-    const relative = join("skills", "relay-pipeline", "scripts", "status.mjs");
+    const relative = join("skills", "pipeline", "scripts", "status.mjs");
     for (const root of roots) {
       const candidate = join(root, relative);
       if (existsSync(candidate)) {
@@ -209,7 +209,7 @@ export function loadConfig(): AppConfig {
   if (!script || !existsSync(script)) {
     throw {
       kind: "no_status_script",
-      message: `No skills/relay-pipeline/scripts/status.mjs found for the repos in ${configPath()}`,
+      message: `No skills/pipeline/scripts/status.mjs found for the repos in ${configPath()}`,
     };
   }
 
@@ -425,7 +425,7 @@ export function startRun(request: StartRunRequest): StartRunResult {
   mkdirSync(scratchDir, { recursive: true });
   const issuePath = join(scratchDir, `issue-${slug}-${Date.now()}.md`);
   writeFileSync(issuePath, `${issueText}\n`);
-  const script = join(repoRoot, "skills/relay-pipeline/scripts/run-pipeline.sh");
+  const script = join(repoRoot, "skills/pipeline/scripts/run-pipeline.sh");
   const args = [script, slug, issuePath, `--project-root=${repoRoot}`];
   const { logPath, pid } = spawnDetachedLogged(repoRoot, args, `start-${slug}`);
   return { started: true, logPath, pid };
@@ -631,7 +631,7 @@ export function submitAnswer(request: SubmitAnswerRequest): SubmitAnswerResult {
   // Absolute argv[0] — same reason as resolvedResumeArgs above: this run
   // has no cwd/lock file to inherit from a live terminal session.
   const args = [
-    join(repoRoot, "skills/relay-pipeline/scripts/run-pipeline.sh"),
+    join(repoRoot, "skills/pipeline/scripts/run-pipeline.sh"),
     slug,
     `--project-root=${repoRoot}`,
   ];

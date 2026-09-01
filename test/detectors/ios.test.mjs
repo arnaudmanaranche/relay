@@ -1,4 +1,4 @@
-// Tests for skills/relay-setup/scripts/detectors/ios.mjs
+// Tests for skills/setup/scripts/detectors/ios.mjs
 //
 // Real signature (confirmed against source): detectIos(root) — a
 // filesystem-based detector. It scans the conventional ios/ directory
@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { detectIos } from '../../skills/relay-setup/scripts/detectors/ios.mjs';
+import { detectIos } from '../../skills/setup/scripts/detectors/ios.mjs';
 
 const tmpDirs = [];
 

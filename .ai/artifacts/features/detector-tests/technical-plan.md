@@ -2,7 +2,7 @@
 
 ## Architecture
 
-This is a test-only addition that extends the existing `test/` suite convention rather than introducing any new architecture layer. The repo already has three top-level `node:test` files (`test/agent-runner.test.ts`, `test/eval-pipeline.test.mjs`, `test/rebuild-context.test.mjs`), each mapping 1:1 to a script under `skills/*/scripts/`. This feature adds a new `test/detectors/` subdirectory containing one `*.test.mjs` file per module under `skills/relay-setup/scripts/detectors/` (10 detector modules plus `fs-helpers.mjs`, 11 files total), mirroring the same `agent-runner.test.ts` ↔ `agent-runner.ts` 1:1 mapping already established. Every detector module is a small, mostly-pure function set that either inspects a `package.json`-shaped object/on-disk file (via `fs-helpers.mjs`'s `exists`/`readJson`/`readText`) or inspects a directory layout on disk; tests exercise these functions directly by importing them and feeding them either in-memory fixture objects or real temp directories created with `mkdtempSync(path.join(os.tmpdir(), ...))`. No detector source file and no `detect-stack.mjs` line changes as part of this feature — the only non-test-file touchpoint is a possible widening of the test command's file-discovery glob/list in `package.json`'s `scripts.test` (the command backing `commands.test` in `.ai/config.json`) so `node --test` actually picks up files nested under `test/detectors/`, plus a dev-log entry documenting that change and any newly discovered (but not fixed) detector bug.
+This is a test-only addition that extends the existing `test/` suite convention rather than introducing any new architecture layer. The repo already has three top-level `node:test` files (`test/agent-runner.test.ts`, `test/eval-pipeline.test.mjs`, `test/rebuild-context.test.mjs`), each mapping 1:1 to a script under `skills/*/scripts/`. This feature adds a new `test/detectors/` subdirectory containing one `*.test.mjs` file per module under `skills/setup/scripts/detectors/` (10 detector modules plus `fs-helpers.mjs`, 11 files total), mirroring the same `agent-runner.test.ts` ↔ `agent-runner.ts` 1:1 mapping already established. Every detector module is a small, mostly-pure function set that either inspects a `package.json`-shaped object/on-disk file (via `fs-helpers.mjs`'s `exists`/`readJson`/`readText`) or inspects a directory layout on disk; tests exercise these functions directly by importing them and feeding them either in-memory fixture objects or real temp directories created with `mkdtempSync(path.join(os.tmpdir(), ...))`. No detector source file and no `detect-stack.mjs` line changes as part of this feature — the only non-test-file touchpoint is a possible widening of the test command's file-discovery glob/list in `package.json`'s `scripts.test` (the command backing `commands.test` in `.ai/config.json`) so `node --test` actually picks up files nested under `test/detectors/`, plus a dev-log entry documenting that change and any newly discovered (but not fixed) detector bug.
 
 ## Diagram
 
@@ -29,7 +29,7 @@ flowchart TD
         T_LOC["locales.test.mjs"]
     end
 
-    subgraph Detectors["skills/relay-setup/scripts/detectors/*.mjs (UNCHANGED)"]
+    subgraph Detectors["skills/setup/scripts/detectors/*.mjs (UNCHANGED)"]
         D_FS["fs-helpers.mjs"]
         D_PT["project-type.mjs"]
         D_PROJ["project.mjs"]
@@ -106,27 +106,27 @@ flowchart TD
 - `.ai/artifacts/features/detector-tests/dev-log.md` — NEW. Document: (a) whether/how the test command's file-discovery pattern was widened and why (per the denied-actions transparency rule on tooling changes), (b) any detector bug uncovered by these tests that is not one of the three already-known regressions described in the brief's Problem & Goals — with symptom, minimal repro, and affected function name — explicitly NOT fixed inline (AC 26).
 
 **Explicitly out of scope / do not modify (verify with a diff before finishing):**
-- `skills/relay-setup/scripts/detectors/analytics.mjs`
-- `skills/relay-setup/scripts/detectors/commands.mjs`
-- `skills/relay-setup/scripts/detectors/e2e.mjs`
-- `skills/relay-setup/scripts/detectors/error-tracking.mjs`
-- `skills/relay-setup/scripts/detectors/fs-helpers.mjs`
-- `skills/relay-setup/scripts/detectors/locales.mjs`
-- `skills/relay-setup/scripts/detectors/paywall.mjs`
-- `skills/relay-setup/scripts/detectors/project-type.mjs`
-- `skills/relay-setup/scripts/detectors/project.mjs`
-- `skills/relay-setup/scripts/detectors/source-layout.mjs`
-- `skills/relay-setup/scripts/detectors/stack.mjs`
-- `skills/relay-setup/scripts/detect-stack.mjs`
+- `skills/setup/scripts/detectors/analytics.mjs`
+- `skills/setup/scripts/detectors/commands.mjs`
+- `skills/setup/scripts/detectors/e2e.mjs`
+- `skills/setup/scripts/detectors/error-tracking.mjs`
+- `skills/setup/scripts/detectors/fs-helpers.mjs`
+- `skills/setup/scripts/detectors/locales.mjs`
+- `skills/setup/scripts/detectors/paywall.mjs`
+- `skills/setup/scripts/detectors/project-type.mjs`
+- `skills/setup/scripts/detectors/project.mjs`
+- `skills/setup/scripts/detectors/source-layout.mjs`
+- `skills/setup/scripts/detectors/stack.mjs`
+- `skills/setup/scripts/detect-stack.mjs`
 - `.ai/config.json` (read-only unless the narrow exception above applies)
-- `skills/relay-pipeline/**` (unrelated module)
+- `skills/pipeline/**` (unrelated module)
 - `video/**` (unrelated Remotion project)
 
 ## Existing Patterns To Reuse
 
 - `test/agent-runner.test.ts` — the direct structural template for every new file: `node:test`-based test blocks, assertions via `node:assert/strict`, and temp-directory lifecycle managed with `node:fs`'s `mkdtempSync`/`rmSync` plus `node:os`'s `tmpdir()` and `node:path`'s `join`. Copy its import style and its temp-dir naming convention (a stable, greppable prefix) into every new file under `test/detectors/`. Confirm on read whether it uses flat `test()` calls or `describe`/`test` nesting, and match that exact shape.
 - `test/eval-pipeline.test.mjs` and `test/rebuild-context.test.mjs` — secondary reference for how this repo already tests pure-function modules that take fixture objects directly (no disk I/O) — use this shape for detectors that accept a package.json-shaped object as a parameter rather than reading from disk.
-- `skills/relay-setup/scripts/detectors/fs-helpers.mjs`'s own exported functions (`exists`, `readJson`, `readText`) — read these first; they are the shared primitive every filesystem-based detector (`project.mjs`, `commands.mjs`, `source-layout.mjs`, `analytics.mjs`, `e2e.mjs`, `locales.mjs` per the dependency map) sits on top of, so getting `fs-helpers.test.mjs`'s fixtures and expectations right first de-risks every other file.
+- `skills/setup/scripts/detectors/fs-helpers.mjs`'s own exported functions (`exists`, `readJson`, `readText`) — read these first; they are the shared primitive every filesystem-based detector (`project.mjs`, `commands.mjs`, `source-layout.mjs`, `analytics.mjs`, `e2e.mjs`, `locales.mjs` per the dependency map) sits on top of, so getting `fs-helpers.test.mjs`'s fixtures and expectations right first de-risks every other file.
 - The brief's own fixture-pattern rules (Technical Notes → Fixture patterns to standardize across all 10 test files) — treat these as binding conventions: plain-object fixtures for functions that accept a parsed package.json object as an argument; real `mkdtempSync` temp dirs plus `writeFileSync` for functions that read from disk; cleanup via `rmSync(dir, { recursive: true, force: true })` in an `after`/`afterEach` hook (or a `finally` block per test if the module under test doesn't group scenarios).
 - Test-naming convention from the brief's E2E/QA §2 — name each test after its acceptance criterion in plain language (e.g. detectAppId returns empty string when project_type is web and no mobile config exists) so a reviewer can map AC to test 1:1 without reading assertions.
 
@@ -144,15 +144,15 @@ flowchart TD
 ## Implementation Order
 
 1. Read `test/agent-runner.test.ts` in full to confirm the exact `node:test` style, assertion helpers used, and temp-dir lifecycle pattern to mirror.
-2. Read `skills/relay-setup/scripts/detectors/fs-helpers.mjs` in full and write `test/detectors/fs-helpers.test.mjs` first — this pins down the real contract (`exists`/`readJson`/`readText` behavior on missing/malformed input) that every other filesystem-based detector test will assert against.
-3. Read `skills/relay-setup/scripts/detectors/project-type.mjs` and write `test/detectors/project-type.test.mjs` — its output is a required input fixture for `detectAppId`'s AC 4–6, so it must be understood and tested before `project.test.mjs`.
-4. Read `skills/relay-setup/scripts/detectors/project.mjs` and write `test/detectors/project.test.mjs`, resolving the exact mobile fabrication format and the `detectGithubRepo`/`detectDefaultBranch` I/O-source question by direct source inspection.
-5. Read `skills/relay-setup/scripts/detectors/commands.mjs` and write `test/detectors/commands.test.mjs`, resolving the multi-tool precedence question by direct source inspection.
-6. Read `skills/relay-setup/scripts/detectors/source-layout.mjs` and write `test/detectors/source-layout.test.mjs`, resolving the Expo-router and hybrid-ordering exact values by direct source inspection.
+2. Read `skills/setup/scripts/detectors/fs-helpers.mjs` in full and write `test/detectors/fs-helpers.test.mjs` first — this pins down the real contract (`exists`/`readJson`/`readText` behavior on missing/malformed input) that every other filesystem-based detector test will assert against.
+3. Read `skills/setup/scripts/detectors/project-type.mjs` and write `test/detectors/project-type.test.mjs` — its output is a required input fixture for `detectAppId`'s AC 4–6, so it must be understood and tested before `project.test.mjs`.
+4. Read `skills/setup/scripts/detectors/project.mjs` and write `test/detectors/project.test.mjs`, resolving the exact mobile fabrication format and the `detectGithubRepo`/`detectDefaultBranch` I/O-source question by direct source inspection.
+5. Read `skills/setup/scripts/detectors/commands.mjs` and write `test/detectors/commands.test.mjs`, resolving the multi-tool precedence question by direct source inspection.
+6. Read `skills/setup/scripts/detectors/source-layout.mjs` and write `test/detectors/source-layout.test.mjs`, resolving the Expo-router and hybrid-ordering exact values by direct source inspection.
 7. Read and write test files for the remaining six modules in any order: `stack.mjs` → `stack.test.mjs`, `analytics.mjs` → `analytics.test.mjs`, `paywall.mjs` → `paywall.test.mjs`, `e2e.mjs` → `e2e.test.mjs`, `error-tracking.mjs` → `error-tracking.test.mjs`, `locales.mjs` → `locales.test.mjs` — each with happy-path plus no-signal-found coverage per exported function.
 8. Inspect the current `package.json` `scripts.test` value; widen its file-discovery pattern only if it does not already pick up nested files under `test/detectors/`, and note the before/after command in the dev log if changed.
 9. Run the full configured test command locally; confirm all 11 new files plus the 3 existing files pass, with zero skips and zero weakened assertions.
-10. Run `git status`/`git diff` and confirm zero changes under `skills/relay-setup/scripts/detectors/` and to `skills/relay-setup/scripts/detect-stack.mjs` (AC 25).
+10. Run `git status`/`git diff` and confirm zero changes under `skills/setup/scripts/detectors/` and to `skills/setup/scripts/detect-stack.mjs` (AC 25).
 11. Write `.ai/artifacts/features/detector-tests/dev-log.md` documenting the test-glob decision and any newly discovered (undocumented) detector bug, per AC 26 — without fixing it.
 12. Do a final AC-to-test traceability pass: for each of AC 1–20, confirm there is one specifically-named test case in the corresponding file that maps to it 1:1 (per E2E/QA §2).
 
@@ -166,25 +166,25 @@ flowchart TD
 - **AC 22 (runs via configured test command):** after implementation, run the exact command in `.ai/config.json`'s `commands.test` (or `npm test` if that's what it wraps) locally and confirm exit code 0 with all 11 new plus 3 existing files reported as run.
 - **AC 23 (no new test framework/library):** manually confirm every new file's only imports are from `node:test`, `node:assert`/`node:assert/strict`, `node:fs`, `node:os`, and `node:path`, plus the detector module(s) under test — grep for any other import/require before finishing.
 - **AC 24 (real temp dirs, cleaned up):** for every filesystem-based test file, confirm a cleanup call (`rmSync(dir, { recursive: true, force: true })`) exists in an `after`/`afterEach` hook (or finally block) for every `mkdtempSync` call; run the suite twice in a row locally and confirm no leftover relay-detector-* directories accumulate under `os.tmpdir()`.
-- **AC 25 (no production file changes):** run `git status --porcelain -- skills/relay-setup/scripts/detectors skills/relay-setup/scripts/detect-stack.mjs` (or equivalent) after implementation and confirm empty output.
+- **AC 25 (no production file changes):** run `git status --porcelain -- skills/setup/scripts/detectors skills/setup/scripts/detect-stack.mjs` (or equivalent) after implementation and confirm empty output.
 - **AC 26 (dev log for new bugs):** if any written assertion, once checked against actual source behavior, reveals a behavior that contradicts the spirit of the brief's three known-bug fixes (i.e. a fourth silent-fabrication-style bug), do not adjust the detector — write it up in `.ai/artifacts/features/detector-tests/dev-log.md` with symptom, minimal repro (fixture plus expected vs. actual), and the affected exported function name.
 
 ## Task Breakdown
 
 - [ ] Read `test/agent-runner.test.ts` to confirm exact test-file conventions to mirror
-- [ ] Read `skills/relay-setup/scripts/detectors/fs-helpers.mjs`; write `test/detectors/fs-helpers.test.mjs` (missing file, malformed JSON, valid JSON/text cases for exists/readJson/readText/ls/findFiles/isDirectory)
-- [ ] Read `skills/relay-setup/scripts/detectors/project-type.mjs`; write `test/detectors/project-type.test.mjs`
-- [ ] Read `skills/relay-setup/scripts/detectors/project.mjs`; write `test/detectors/project.test.mjs` covering AC 1–6 plus detectProjectName/detectGithubRepo/detectDefaultBranch
-- [ ] Read `skills/relay-setup/scripts/detectors/commands.mjs`; write `test/detectors/commands.test.mjs` covering AC 7–20 plus detectPackageManager/detectRunScript/runScriptPrefix/detectTypecheckCmd
-- [ ] Read `skills/relay-setup/scripts/detectors/source-layout.mjs`; write `test/detectors/source-layout.test.mjs` covering AC 11–16 plus detectSkipDirs/detectSourceExtensions
-- [ ] Read `skills/relay-setup/scripts/detectors/stack.mjs`; write `test/detectors/stack.test.mjs`
-- [ ] Read `skills/relay-setup/scripts/detectors/analytics.mjs`; write `test/detectors/analytics.test.mjs`
-- [ ] Read `skills/relay-setup/scripts/detectors/paywall.mjs`; write `test/detectors/paywall.test.mjs`
-- [ ] Read `skills/relay-setup/scripts/detectors/e2e.mjs`; write `test/detectors/e2e.test.mjs`
-- [ ] Read `skills/relay-setup/scripts/detectors/error-tracking.mjs`; write `test/detectors/error-tracking.test.mjs`
-- [ ] Read `skills/relay-setup/scripts/detectors/locales.mjs`; write `test/detectors/locales.test.mjs`
+- [ ] Read `skills/setup/scripts/detectors/fs-helpers.mjs`; write `test/detectors/fs-helpers.test.mjs` (missing file, malformed JSON, valid JSON/text cases for exists/readJson/readText/ls/findFiles/isDirectory)
+- [ ] Read `skills/setup/scripts/detectors/project-type.mjs`; write `test/detectors/project-type.test.mjs`
+- [ ] Read `skills/setup/scripts/detectors/project.mjs`; write `test/detectors/project.test.mjs` covering AC 1–6 plus detectProjectName/detectGithubRepo/detectDefaultBranch
+- [ ] Read `skills/setup/scripts/detectors/commands.mjs`; write `test/detectors/commands.test.mjs` covering AC 7–20 plus detectPackageManager/detectRunScript/runScriptPrefix/detectTypecheckCmd
+- [ ] Read `skills/setup/scripts/detectors/source-layout.mjs`; write `test/detectors/source-layout.test.mjs` covering AC 11–16 plus detectSkipDirs/detectSourceExtensions
+- [ ] Read `skills/setup/scripts/detectors/stack.mjs`; write `test/detectors/stack.test.mjs`
+- [ ] Read `skills/setup/scripts/detectors/analytics.mjs`; write `test/detectors/analytics.test.mjs`
+- [ ] Read `skills/setup/scripts/detectors/paywall.mjs`; write `test/detectors/paywall.test.mjs`
+- [ ] Read `skills/setup/scripts/detectors/e2e.mjs`; write `test/detectors/e2e.test.mjs`
+- [ ] Read `skills/setup/scripts/detectors/error-tracking.mjs`; write `test/detectors/error-tracking.test.mjs`
+- [ ] Read `skills/setup/scripts/detectors/locales.mjs`; write `test/detectors/locales.test.mjs`
 - [ ] Inspect `package.json`'s scripts.test; widen the file-discovery glob/list only if `test/detectors/**/*.test.mjs` isn't already covered
 - [ ] Run the full configured test command locally; confirm all new plus existing tests pass with zero skips
-- [ ] Run `git status`/`git diff` to confirm zero changes under `skills/relay-setup/scripts/detectors/` and `detect-stack.mjs`
+- [ ] Run `git status`/`git diff` to confirm zero changes under `skills/setup/scripts/detectors/` and `detect-stack.mjs`
 - [ ] Write `.ai/artifacts/features/detector-tests/dev-log.md` documenting the test-glob decision and any newly discovered bug (not fixed)
 - [ ] Final pass: verify every AC 1–26 maps to a specifically-named test case or explicit process step

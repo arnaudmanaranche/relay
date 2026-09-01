@@ -1,5 +1,5 @@
 // Unit tests for the skill-proposal gate verifier
-// (skills/relay-pipeline/scripts/verify-skill-proposals.mjs).
+// (skills/pipeline/scripts/verify-skill-proposals.mjs).
 // Run with: npm test
 //
 // The verifier backs Retro's "pattern repeated 3+ times" LLM judgment with a
@@ -22,12 +22,12 @@ import {
   memoryCategorySlugs,
   citedSlugs,
   verifyProposal,
-} from '../skills/relay-pipeline/scripts/verify-skill-proposals.mjs';
+} from '../skills/pipeline/scripts/verify-skill-proposals.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VERIFIER = resolve(
   __dirname,
-  '../skills/relay-pipeline/scripts/verify-skill-proposals.mjs'
+  '../skills/pipeline/scripts/verify-skill-proposals.mjs'
 );
 
 describe('extractBoldSection', () => {

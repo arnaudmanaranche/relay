@@ -39,8 +39,8 @@ import {
   formatUsage,
   formatCallHeader,
   formatCallResult,
-} from '../skills/relay-pipeline/scripts/agent-runner.ts';
-import type { TokenUsage } from '../skills/relay-pipeline/scripts/agent-runner.ts';
+} from '../skills/pipeline/scripts/agent-runner.ts';
+import type { TokenUsage } from '../skills/pipeline/scripts/agent-runner.ts';
 
 describe('formatUsage', () => {
   test('renders the claude-cli usage shape as indented, labeled lines instead of a JSON blob', () => {

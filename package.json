@@ -6,8 +6,8 @@
   "scripts": {
     "test": "node --import tsx --test test/*.test.ts test/*.test.mjs test/detectors/**/*.test.mjs",
     "typecheck": "tsc --noEmit",
-    "eval": "node skills/relay-pipeline/scripts/eval-pipeline.mjs",
-    "status": "node skills/relay-pipeline/scripts/status.mjs"
+    "eval": "node skills/pipeline/scripts/eval-pipeline.mjs",
+    "status": "node skills/pipeline/scripts/status.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -1,4 +1,4 @@
-// Tests for skills/relay-setup/scripts/detectors/e2e.mjs
+// Tests for skills/setup/scripts/detectors/e2e.mjs
 //
 // Real signature (confirmed against source): detectE2E(root) — a
 // filesystem-based detector, not dependency-based. It inspects
@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { detectE2E } from '../../skills/relay-setup/scripts/detectors/e2e.mjs';
+import { detectE2E } from '../../skills/setup/scripts/detectors/e2e.mjs';
 
 const tmpDirs = [];
 

@@ -10,7 +10,7 @@
 
 ## Summary
 
-This is a test-only feature for a Node.js CLI tool (`detect-stack.mjs` and its detector modules under `skills/relay-setup/scripts/detectors/`). The project has **no configured E2E framework** and **no E2E UI requirements** (the feature brief explicitly marks "UX / Screens" and "E2E / QA" sections as N/A for this CLI/internal tooling change).
+This is a test-only feature for a Node.js CLI tool (`detect-stack.mjs` and its detector modules under `skills/setup/scripts/detectors/`). The project has **no configured E2E framework** and **no E2E UI requirements** (the feature brief explicitly marks "UX / Screens" and "E2E / QA" sections as N/A for this CLI/internal tooling change).
 
 The brief describes unit tests + manual smoke tests as the equivalent QA approach for a CLI tool without a graphical interface. The unit test suite is the actual QA deliverable for this feature.
 
@@ -22,7 +22,7 @@ The brief describes unit tests + manual smoke tests as the equivalent QA approac
 |------|--------|-------|
 | Unit test suite run (npm test) | PASS | 204/204 tests passing (confirmed in dev log, "Second correction pass" section) |
 | Coverage of acceptance criteria | PASS | All 26 acceptance criteria mapped to unit tests; test file structure reviewed and corrected against actual detector source |
-| Regression check (detector files untouched) | PASS | Dev log confirms "no file under `skills/relay-setup/scripts/detectors/` or `skills/relay-setup/scripts/detect-stack.mjs` was touched" |
+| Regression check (detector files untouched) | PASS | Dev log confirms "no file under `skills/setup/scripts/detectors/` or `skills/setup/scripts/detect-stack.mjs` was touched" |
 | Dev log audit | PASS | Dev log documents all three newly discovered detector bugs (biome package name, Sentry SDK variants, findFiles predicate) with dedicated fix commits on main; no silent fixes smuggled into this feature |
 
 ---
@@ -70,7 +70,7 @@ All 26 acceptance criteria from the feature brief are covered by unit tests:
 - ✓ All tests run via npm test (widened glob in package.json scripts.test: test/*.test.ts test/*.test.mjs test/detectors/**/*.test.mjs)
 - ✓ Tests use node:test + node:assert only (no new framework or assertion library)
 - ✓ Filesystem tests use mkdtempSync / rmSync with cleanup hooks
-- ✓ No detector files modified (git diff confirms zero changes to skills/relay-setup/scripts/detectors/ and detect-stack.mjs)
+- ✓ No detector files modified (git diff confirms zero changes to skills/setup/scripts/detectors/ and detect-stack.mjs)
 - ✓ Newly discovered bugs documented in dev log (three bugs, three separate fix commits on main before this feature was rebased, no silent patches)
 
 ---
@@ -101,7 +101,7 @@ All 26 acceptance criteria from the feature brief are covered by unit tests:
 
 ## Notes for Review
 
-1. **No E2E tests exist or are required** — This project is a Node.js CLI tool with no graphical interface. The feature brief explicitly marks "UX / Screens" and "E2E / QA" as N/A with the rationale: "this feature has no UI. `skills/relay-setup/scripts/detectors/*.mjs` and `detect-stack.mjs` are Node.js CLI/skill scripts invoked during project onboarding to this pipeline; they have no screens, components, or visual surface."
+1. **No E2E tests exist or are required** — This project is a Node.js CLI tool with no graphical interface. The feature brief explicitly marks "UX / Screens" and "E2E / QA" as N/A with the rationale: "this feature has no UI. `skills/setup/scripts/detectors/*.mjs` and `detect-stack.mjs` are Node.js CLI/skill scripts invoked during project onboarding to this pipeline; they have no screens, components, or visual surface."
 
 2. **Unit tests are the QA deliverable** — Per the brief's "E2E / QA" section, the closest equivalent QA flow for a CLI tool is running the unit test suite plus a manual smoke test. The unit test suite (204 tests) satisfies this requirement. The unit tests include:
    - Characterization tests for all exported detector functions
@@ -111,7 +111,7 @@ All 26 acceptance criteria from the feature brief are covered by unit tests:
 
 3. **Dev log documents discovered bugs** — Three genuine detector bugs were found while writing tests and are documented in the dev log with full details (incorrect biome package name, Sentry SDK variant gap, findFiles directory predicate issue). Per the feature brief's AC 26, these were not fixed as part of this test-only feature; instead, they received dedicated fix commits on main before this feature was rebased on top of them. The tests now assert the current (already-fixed) behavior.
 
-4. **Regression verified** — The dev log confirms zero changes to production detector files: "no file under `skills/relay-setup/scripts/detectors/` or `skills/relay-setup/scripts/detect-stack.mjs` was touched in this batch, consistent with this feature being test-only." This satisfies AC 25.
+4. **Regression verified** — The dev log confirms zero changes to production detector files: "no file under `skills/setup/scripts/detectors/` or `skills/setup/scripts/detect-stack.mjs` was touched in this batch, consistent with this feature being test-only." This satisfies AC 25.
 
 ---
 

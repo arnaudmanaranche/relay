@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Repo-hygiene maintenance for the Relay.
-# Installed into <project>/.ai/scripts/prune-artifacts.sh by the relay-setup skill.
+# Installed into <project>/.ai/scripts/prune-artifacts.sh by the setup skill.
 #
 # Two jobs, both human-run and safe (nothing is deleted without first being
 # archived; --dry-run previews everything):

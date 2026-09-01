@@ -1,4 +1,4 @@
-// Tests for skills/relay-setup/scripts/detectors/commands.mjs
+// Tests for skills/setup/scripts/detectors/commands.mjs
 //
 // Covers AC 7-20 (detectLintCmd / detectFormatCmd / detectFormatWriteCmd /
 // detectTestCmd) plus baseline happy-path + no-signal-found coverage for
@@ -50,7 +50,7 @@ import {
   detectTestCmd,
   detectFormatCmd,
   detectFormatWriteCmd,
-} from '../../skills/relay-setup/scripts/detectors/commands.mjs';
+} from '../../skills/setup/scripts/detectors/commands.mjs';
 
 // --- detectPackageManager ---
 

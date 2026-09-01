@@ -1,4 +1,4 @@
-// Tests for skills/relay-setup/scripts/detectors/locales.mjs
+// Tests for skills/setup/scripts/detectors/locales.mjs
 //
 // Real signature (confirmed against source): detectLocales(root) — a
 // filesystem-based detector that scans known i18n directory patterns for
@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { detectLocales } from '../../skills/relay-setup/scripts/detectors/locales.mjs';
+import { detectLocales } from '../../skills/setup/scripts/detectors/locales.mjs';
 
 const tmpDirs = [];
 

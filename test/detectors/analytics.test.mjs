@@ -1,4 +1,4 @@
-// Tests for skills/relay-setup/scripts/detectors/analytics.mjs
+// Tests for skills/setup/scripts/detectors/analytics.mjs
 //
 // Characterization tests against real source (confirmed by reading
 // analytics.mjs directly) — happy-path assertions check the exact literal
@@ -13,7 +13,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { detectAnalytics } from '../../skills/relay-setup/scripts/detectors/analytics.mjs'
+import { detectAnalytics } from '../../skills/setup/scripts/detectors/analytics.mjs'
 
 const tmpDirs = []
 function makeTmpDir() {

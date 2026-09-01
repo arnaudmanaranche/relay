@@ -1,4 +1,4 @@
-// Tests for skills/relay-setup/scripts/detectors/paywall.mjs
+// Tests for skills/setup/scripts/detectors/paywall.mjs
 //
 // Characterization tests against real source (confirmed by reading
 // paywall.mjs directly) — happy-path assertions check the exact literal
@@ -7,7 +7,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { detectPaywall } from '../../skills/relay-setup/scripts/detectors/paywall.mjs'
+import { detectPaywall } from '../../skills/setup/scripts/detectors/paywall.mjs'
 
 test('detectPaywall returns "revenuecat" when react-native-purchases is a dependency', () => {
   const pkg = { dependencies: { 'react-native-purchases': '^7.0.0' }, devDependencies: {} }

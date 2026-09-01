@@ -16,8 +16,8 @@
 //      OpenAI-compatible model configured in .ai/config.json for a 1-5
 //      rubric score. Skipped gracefully when no config/key is available.
 //
-// Golden cases live in skills/relay-pipeline/eval/cases/*.json and point at
-// checked-in fixture artifacts under skills/relay-pipeline/eval/fixtures/, so
+// Golden cases live in skills/pipeline/eval/cases/*.json and point at
+// checked-in fixture artifacts under skills/pipeline/eval/fixtures/, so
 // `npm run eval` is a self-contained regression run. Point --dir at a real
 // produced feature directory to score an actual pipeline run.
 //

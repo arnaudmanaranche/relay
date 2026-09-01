@@ -2,7 +2,7 @@
 
 macOS menu-bar extra (native SDK) that surfaces live Relay pipeline runs across
 your repos. Polls the read-only aggregator from
-`skills/relay-pipeline/scripts/status.mjs` every 5s; fully read-only — reveal
+`skills/pipeline/scripts/status.mjs` every 5s; fully read-only — reveal
 worktree in Finder, copy a resume command, nothing else.
 
 ## Configure

@@ -9,7 +9,7 @@
 
 ## 1. What was built
 
-**Summary:** A comprehensive unit test suite for 11 detector modules under `skills/relay-setup/scripts/detectors/`, plus `fs-helpers.mjs`. These modules implement auto-detection logic for project configuration (app id, lint/format/test commands, source layout, stack, analytics provider, paywall provider, e2e framework, error tracking, locales).
+**Summary:** A comprehensive unit test suite for 11 detector modules under `skills/setup/scripts/detectors/`, plus `fs-helpers.mjs`. These modules implement auto-detection logic for project configuration (app id, lint/format/test commands, source layout, stack, analytics provider, paywall provider, e2e framework, error tracking, locales).
 
 **Deliverables:**
 - **11 new test files** in `test/detectors/`:
@@ -27,7 +27,7 @@
 
 - **One tooling change:** `package.json` `scripts.test` widened from `node --import tsx --test test/*.test.ts test/*.test.mjs` to `node --import tsx --test test/*.test.ts test/*.test.mjs test/detectors/**/*.test.mjs` to pick up nested test files.
 
-- **Zero production code changes:** No file under `skills/relay-setup/scripts/detectors/` or `detect-stack.mjs` was modified (verified via git diff in dev log).
+- **Zero production code changes:** No file under `skills/setup/scripts/detectors/` or `detect-stack.mjs` was modified (verified via git diff in dev log).
 
 - **Final test count:** 204 unit tests, all passing. Breakdown: ~20–30 tests per file depending on exported function count and signal variants.
 
@@ -309,7 +309,7 @@
    - Example: this feature found three bugs; they were fixed via separate commits on main before the feature branch was rebased. Track that linkage explicitly.
 
 2. **Declare required capabilities in feature metadata:**
-   - Consider a new field in `.ai/feature.json` or similar: `"required_source_access": ["skills/relay-setup/scripts/detectors/"]`.
+   - Consider a new field in `.ai/feature.json` or similar: `"required_source_access": ["skills/setup/scripts/detectors/"]`.
    - The pipeline can then verify that Dev's context includes those files or has the tools to read them, failing early if not.
    - This would have prevented the 30% failure rate by catching the missing source-read capability upfront.
 

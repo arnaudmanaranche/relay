@@ -286,7 +286,7 @@ function validateRegistry(
       `Invalid ${registryPath}: missing required role(s): ${missingRoles.join(', ')}.`
     );
     console.error(
-      `See "Required roles" in skills/relay-setup/SKILL.md for what each role entry needs.`
+      `See "Required roles" in skills/setup/SKILL.md for what each role entry needs.`
     );
     process.exit(1);
   }
@@ -723,7 +723,7 @@ If **blocked**, submit a \`blocker.md\` artifact with the **"What we do not know
     isPmRespond
       ? `Read the open threads in \`pm-dev-thread.md\`. Answer each question, update \`feature-brief.md\` if needed, then mark threads **Resolved** in the submitted artifact. If you cannot resolve a thread, set status to **blocked** and submit a \`blocker.md\` artifact.`
       : '',
-    // The skills/relay-pipeline/prompts/architect.md skill file (folded into
+    // The skills/pipeline/prompts/architect.md skill file (folded into
     // ${skillContent} above) unconditionally says "write two artifacts" —
     // it has no notion of the plan/context split runArchitectSplit performs.
     // Found live: without an explicit override placed AFTER that file's
@@ -1186,7 +1186,7 @@ function buildUserPrompt(
     // writes neither from a blank template — it appends to an already-shipped
     // plan — so it loads neither.
     if (architectPass !== 'context' && architectPass !== 'amend') {
-      const techTmpl = read('skills/relay-pipeline/templates/technical-plan.md');
+      const techTmpl = read('skills/pipeline/templates/technical-plan.md');
       if (techTmpl && !techTmpl.startsWith('[file not found')) {
         sections.push(
           `## Technical plan template\n\n\`\`\`markdown\n${techTmpl}\n\`\`\``
@@ -1194,7 +1194,7 @@ function buildUserPrompt(
       }
     }
     if (architectPass !== 'plan' && architectPass !== 'amend') {
-      const repoCmpl = read('skills/relay-pipeline/templates/repository-context.md');
+      const repoCmpl = read('skills/pipeline/templates/repository-context.md');
       if (repoCmpl && !repoCmpl.startsWith('[file not found')) {
         sections.push(
           `## Repository context template\n\n\`\`\`markdown\n${repoCmpl}\n\`\`\``
@@ -2632,7 +2632,7 @@ async function runArchitectSplit(
   const rawParts: string[] = [];
 
   for (const pass of passes) {
-    // Built per-pass, not once for the whole role: skills/relay-pipeline/
+    // Built per-pass, not once for the whole role: skills/pipeline/
     // prompts/architect.md unconditionally says "write two artifacts" —
     // buildSystemPrompt's architectPass override has to be layered on top
     // of THIS pass's skill content each time, not a system prompt shared
