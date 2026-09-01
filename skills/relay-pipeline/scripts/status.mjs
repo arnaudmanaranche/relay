@@ -28,7 +28,7 @@
 // blocked-dev-review | failed-typecheck | failed-review | failed-qa |
 // halted | crashed
 
-import { readFileSync, readdirSync, existsSync, realpathSync } from 'fs';
+import { readFileSync, readdirSync, existsSync, realpathSync, statSync } from 'fs';
 import { join, dirname, resolve, basename } from 'path';
 import { pathToFileURL } from 'url';
 import { createHash } from 'crypto';
@@ -107,7 +107,22 @@ export function classifyRun({
   verdicts = {},
   lastRole = null,
   hasTypecheckFeedback = false,
+  hasRetrospective = false,
 }) {
+  // retrospective.md is the pipeline's last stage — its presence in THIS
+  // worktree proves every earlier gate (PM, design approval, dev-review,
+  // typecheck, review, QA) already passed, however the marker files for
+  // those gates look right now. Checked first and unconditionally so a
+  // finished run never gets relabeled by a stale/missing gate marker (e.g.
+  // an older pipeline version that didn't write .architect-approved) —
+  // that misread a fully-shipped run as still "awaiting design approval".
+  if (hasRetrospective) {
+    return {
+      state: 'done',
+      role: lastRole || 'retro',
+      detail: 'Pipeline finished — verify the PR merged, then remove this worktree.',
+    };
+  }
   if (verdicts.pm === 'questions-for-human') {
     return { state: 'blocked-pm-questions', role: 'pm', detail: 'PM has clarifying questions before it can write a confident brief — answer them in pm-questions.md, then re-run.' };
   }
@@ -166,20 +181,24 @@ export function inspectWorktree({ repoRoot, repoDirName, entry, worktreeRoot, br
     verdicts,
     lastRole: generic ? generic.role : null,
     hasTypecheckFeedback: existsSync(join(artDir, '.agent-typecheck-feedback.md')),
+    hasRetrospective: existsSync(join(artDir, 'retrospective.md')),
   });
 
-  // costUsd/lastRole are omitted (not set to null) when unknown: the
-  // relay-menubar side casts this JSON as `RunEntry` with `costUsd?: number`
-  // and `lastRole?: string`, and native-sdk's runtime cast validator
-  // rejects explicit `null` against an optional field
-  // (https://github.com/vercel-labs/native/issues/407) — so an absent key
-  // is required, not just permitted.
+  // costUsd/lastRole/livePid are omitted (not set to null) when unknown:
+  // the relay-menubar side casts this JSON as `RunEntry` with
+  // `costUsd?: number`, `lastRole?: string`, `livePid?: number`, and
+  // native-sdk's runtime cast validator rejects explicit `null` against
+  // an optional field (https://github.com/vercel-labs/native/issues/407)
+  // — so an absent key is required, not just permitted. livePid (rather
+  // than the `lock` object below) is what the menubar's Stop action
+  // targets — a live process to send SIGTERM to.
   const run = {
     slug,
     branch: `${branchPrefix}/${slug}`,
     worktree: worktreeDir,
     artifactsDir: artDir,
     lock,
+    ...(lock && lock.alive ? { livePid: lock.pid } : {}),
     ...(generic && typeof generic.role === 'string' ? { lastRole: generic.role } : {}),
     model: generic ? generic.model ?? null : null,
     ...(costUsd !== null ? { costUsd } : {}),
@@ -206,11 +225,20 @@ export function inspectWorktree({ repoRoot, repoDirName, entry, worktreeRoot, br
   // just design-gate. blocked-dev-review and blocked-pm-questions are
   // deliberately excluded: both need a human to answer a file first
   // (pm-dev-thread.md / pm-questions.md), so a bare re-run would just halt
-  // the same way again. resumeArgs is the same command as resumeHint
-  // (the display string), but as argv — a programmatic consumer (e.g. the
-  // menu-bar app's Retry button) must never shell out `resumeHint` as a
-  // string, since slug/repoRoot ultimately come from the filesystem.
-  if (run.state !== 'running' && run.state !== 'blocked-dev-review' && run.state !== 'blocked-pm-questions') {
+  // the same way again. done is excluded too: the pipeline already
+  // finished, so offering to "resume" it would read as an instruction to
+  // re-run a shipped feature rather than what it actually needs (checking
+  // the PR merged, then deleting the worktree). resumeArgs is the same
+  // command as resumeHint (the display string), but as argv — a
+  // programmatic consumer (e.g. the menu-bar app's Retry button) must
+  // never shell out `resumeHint` as a string, since slug/repoRoot
+  // ultimately come from the filesystem.
+  if (
+    run.state !== 'running' &&
+    run.state !== 'blocked-dev-review' &&
+    run.state !== 'blocked-pm-questions' &&
+    run.state !== 'done'
+  ) {
     const args = ['skills/relay-pipeline/scripts/run-pipeline.sh', slug];
     if (run.resumeFlag) args.push(run.resumeFlag);
     args.push(`--project-root=${repoRoot}`);
@@ -249,18 +277,25 @@ export function collectRepo(rootArg) {
   // Completed features live in the main checkout only after their PR merges
   // (artifacts are committed to the feature branch). Debug/status/cost files
   // are gitignored, so cost is only known for runs with a surviving worktree.
-  const completed = [];
+  let completed = [];
   const featuresDir = join(root, '.ai', 'artifacts', 'features');
   const activeSlugs = new Set(active.map(a => a.slug));
   if (existsSync(featuresDir)) {
     for (const entry of readdirSync(featuresDir, { withFileTypes: true })) {
       if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-      if (!existsSync(join(featuresDir, entry.name, 'retrospective.md'))) continue;
-      const feature = { slug: entry.name, branch: `${branchPrefix}/${entry.name}` };
+      const retroPath = join(featuresDir, entry.name, 'retrospective.md');
+      if (!existsSync(retroPath)) continue;
+      const feature = {
+        slug: entry.name,
+        branch: `${branchPrefix}/${entry.name}`,
+        mergedAtMs: statSync(retroPath).mtimeMs,
+      };
       if (activeSlugs.has(entry.name)) feature.note = 'also has a worktree — re-running a previously shipped slug?';
       completed.push(feature);
     }
   }
+  // Most recently merged first — the menu bar only surfaces the first few.
+  completed = completed.sort((a, b) => b.mergedAtMs - a.mergedAtMs);
 
   return {
     root,
@@ -282,6 +317,7 @@ const STATE_GLYPHS = {
   'failed-qa': '✗',
   halted: '! ',
   crashed: '☠',
+  done: '✓',
 };
 
 const STATE_LABELS = {
@@ -294,6 +330,7 @@ const STATE_LABELS = {
   'failed-qa': 'QA FAIL (pushed, no PR)',
   halted: 'halted',
   crashed: 'crashed',
+  done: 'done — check PR / clean up worktree',
 };
 
 function usd(n) {

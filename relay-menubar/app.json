@@ -16,8 +16,8 @@
       {
         "label": "main",
         "title": "Relay",
-        "width": 500,
-        "height": 460,
+        "width": 640,
+        "height": 560,
         "initially_hidden": true,
         "close_policy": "hide",
         "views": [

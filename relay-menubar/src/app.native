@@ -1,15 +1,38 @@
 <!-- Relay dashboard. Binds helpers exported from src/core.ts ({isBoot},
      {watching}, {runs}, {emptyQuiet}, {erroredRepos}, {hasSyncError},
      {syncError}, {hasActionError}, {actionErrorText}, {runningCount},
-     {attentionCount}, {hasAttention}, {totalCompleted}). Buttons dispatch
+     {attentionCount}, {hasAttention}, {totalCompleted}, {hasRecentlyMerged},
+     {recentlyMerged}). runs() is sorted failed -> gated -> running across
+     all repos so what needs attention is always first. Buttons dispatch
      Msg arms directly: on-press="reveal:{r.index}" /
      "reveal_artifacts:{r.index}" / "copy_resume:{r.index}" /
-     "retry:{r.index}" / "open_in_editor:{r.index}" / "refresh" /
+     "retry:{r.index}" / "open_in_editor:{r.index}" / "open_run:{r.index}" / "refresh" /
      "open_settings" / "do_quit". Style attributes take literal token names
      only, so severity tinting is chosen by flag bindings ({r.running} /
-     {r.gated} / {r.failed}). Repo grouping is flattened: the first row of
-     each repo renders the group header ({r.showHeader}). Validate with:
-     native check -->
+     {r.gated} / {r.failed} / {r.done}). Repo grouping is flattened: the first row of
+     each repo renders the group header ({r.showHeader}).
+
+     Run Detail and New Feature are <sheet> overlays over this same
+     window (not separate windows — see core.ts's windows(), which only
+     declares "settings" now). Each sheet's on-dismiss fires the same
+     close_run/close_new_run Msg its old window's onCloseCommand did.
+     Run Detail bindings: {hasOpenRun} {openRunSlug} {openRunIsDesignGate}
+     {openRunNeedsAnswer} {openRunIsAlreadyRunning} {openRunNothingToRun}
+     {openRunCanPlay} {openRunPlanContent} {openRunPlanLoaded}
+     {openRunCanApprove} {openRunQuestionsContent} {openRunQuestionsLoaded}
+     {openRunAnswerText} {openRunSubmitDisabled} {openRunSubmitting}
+     {openRunScrollback} {openRunIsRunning} {openRunIsExited}
+     {openRunExitSummary} {openRunHasActionError} {openRunActionErrorText}
+     {openRunCanStop} {openRunTimeline} {openRunTimelineLoaded}
+     {openRunTotalCostText} {openRunTotalTokens} {openRunHasBudget}
+     {openRunBudgetText}, dispatching run_pty (Approve/Play) submit_answer
+     answer_edit stop_run. New Feature bindings: {hasNewRunOpen}
+     {newRunRepoRows} {newRunHasNoRepos} {newRunRepoChosen}
+     {newRunNoRepoChosen} {newRunChosenRepoName} {newRunSlugText}
+     {newRunIssueText} {newRunSubmitDisabled} {newRunHasError}
+     {newRunErrorText}, dispatching pick_new_run_repo:{r.index}
+     reset_new_run_repo new_run_slug_edit new_run_issue_edit
+     submit_new_run. Validate with: native check -->
 <column gap="0" padding="0">
   <column gap="10" padding="16">
     <if test="{isBoot}">
@@ -37,6 +60,7 @@
           <text foreground="text_muted">merged</text>
         </column>
         <spacer grow="1"/>
+        <button size="sm" variant="ghost" icon="plus" on-press="open_new_run">New Feature</button>
         <button size="sm" variant="ghost" icon="settings" on-press="open_settings">Settings</button>
         <button size="sm" variant="ghost" icon="refresh-cw" on-press="refresh">Refresh</button>
       </row>
@@ -75,12 +99,16 @@
             <if test="{r.failed}">
               <icon name="alert" foreground="destructive" width="15" height="15"/>
             </if>
+            <if test="{r.done}">
+              <icon name="check-circle" foreground="success" width="15" height="15"/>
+            </if>
             <text grow="1">{r.slug}</text>
             <if test="{r.hasArtifacts}">
               <button size="sm" variant="ghost" icon="edit" on-press="open_in_editor:{r.index}">Open in Code</button>
               <button size="sm" variant="ghost" icon="archive" on-press="reveal_artifacts:{r.index}">Artifacts</button>
             </if>
             <button size="sm" variant="ghost" icon="folder-open" on-press="reveal:{r.index}">Reveal</button>
+            <button size="sm" icon="terminal" on-press="open_run:{r.index}">Open</button>
           </row>
           <text foreground="text_muted">{r.caption}</text>
           <if test="{r.resumable}">
@@ -113,6 +141,21 @@
         </column>
       </for>
 
+      <if test="{hasRecentlyMerged}">
+        <column gap="4">
+          <text foreground="text_muted">Recently merged</text>
+          <for each="recentlyMerged" key="seq" as="m">
+            <column gap="0">
+              <row gap="8" cross="center">
+                <icon name="check-circle" foreground="success" width="14" height="14"/>
+                <text grow="1">{m.repoName}</text>
+              </row>
+              <text foreground="text_muted" wrap="false" overflow="clip">{m.branch}</text>
+            </column>
+          </for>
+        </column>
+      </if>
+
       <if test="{emptyQuiet}">
         <card padding="28">
           <column gap="6" cross="center">
@@ -133,4 +176,194 @@
       <button size="sm" variant="ghost" on-press="do_quit">Quit Relay</button>
     </row>
   </column>
+
+  <if test="{hasOpenRun}">
+    <sheet on-dismiss="close_run" width="600" height="500">
+      <column gap="0" padding="0">
+        <column gap="6" padding="16">
+          <row gap="8" cross="center">
+            <icon name="git-branch" foreground="text_muted" width="16" height="16"/>
+            <text grow="1" size="heading" wrap="false" overflow="clip">{openRunSlug}</text>
+            <if test="{openRunCanStop}">
+              <icon name="x-circle" foreground="destructive" width="14" height="14"/>
+              <button size="sm" on-press="stop_run">Stop</button>
+            </if>
+            <button size="sm" variant="ghost" icon="x" on-press="close_run">Close</button>
+          </row>
+          <if test="{openRunHasActionError}">
+            <status-bar>{openRunActionErrorText}</status-bar>
+          </if>
+        </column>
+
+        <separator/>
+
+        <scroll grow="1">
+          <column gap="10" padding="16">
+            <if test="{openRunTimelineLoaded}">
+              <column gap="6">
+                <row gap="8" cross="center">
+                  <text size="heading">Timeline</text>
+                  <spacer grow="1"/>
+                  <text foreground="text_muted">{openRunTotalCostText}</text>
+                  <text foreground="text_muted">{openRunTotalTokens} tokens</text>
+                  <if test="{openRunHasBudget}">
+                    <text foreground="text_muted">/</text>
+                    <text foreground="text_muted">{openRunBudgetText}</text>
+                    <text foreground="text_muted">budget</text>
+                  </if>
+                </row>
+                <for each="openRunTimeline" key="seq" as="t">
+                  <column gap="2">
+                    <row gap="8" cross="center">
+                      <if test="{t.reached}">
+                        <icon name="check" foreground="success" width="13" height="13"/>
+                      </if>
+                      <if test="{t.notReached}">
+                        <icon name="circle-dot" foreground="text_muted" width="13" height="13"/>
+                      </if>
+                      <text grow="1">{t.role}</text>
+                      <text foreground="text_muted">{t.costText}</text>
+                      <text foreground="text_muted">{t.completedAgo}</text>
+                    </row>
+                    <if test="{t.reached}">
+                      <row gap="8" cross="center">
+                        <text foreground="text_muted">{t.verdict}</text>
+                        <text foreground="text_muted">{t.model}</text>
+                      </row>
+                    </if>
+                  </column>
+                </for>
+                <separator/>
+              </column>
+            </if>
+
+            <if test="{openRunIsDesignGate}">
+              <column gap="8">
+                <text foreground="text_muted">
+                  Design gate — review the plan below before approving. Nothing runs until you do.
+                </text>
+                <if test="{openRunPlanLoaded}">
+                  <markdown source="{openRunPlanContent}"/>
+                </if>
+                <if test="{openRunCanApprove}">
+                  <button on-press="run_pty">Approve design</button>
+                </if>
+              </column>
+            </if>
+
+            <if test="{openRunNeedsAnswer}">
+              <column gap="8">
+                <text foreground="text_muted">
+                  The pipeline is waiting on an answer to continue.
+                </text>
+                <if test="{openRunQuestionsLoaded}">
+                  <markdown source="{openRunQuestionsContent}"/>
+                </if>
+                <textarea
+                  text="{openRunAnswerText}"
+                  placeholder="Type your answer…"
+                  on-input="answer_edit"
+                />
+                <button disabled="{openRunSubmitDisabled}" on-press="submit_answer">
+                  Submit answer
+                </button>
+              </column>
+            </if>
+
+            <if test="{openRunIsAlreadyRunning}">
+              <text foreground="text_muted">
+                This run is already in progress outside the app — live output isn't available here,
+                but Stop above will still reach it.
+              </text>
+            </if>
+
+            <if test="{openRunCanPlay}">
+              <row gap="8" cross="center">
+                <text grow="1" foreground="text_muted">
+                  Not running — opening a run never starts it on its own.
+                </text>
+                <button on-press="run_pty" icon="play">Play</button>
+              </row>
+            </if>
+
+            <if test="{openRunNothingToRun}">
+              <text foreground="text_muted">Nothing to run here.</text>
+            </if>
+
+            <if test="{openRunIsRunning}">
+              <row gap="8" cross="center">
+                <spinner/>
+                <text foreground="text_muted">Running…</text>
+              </row>
+            </if>
+
+            <if test="{openRunIsExited}">
+              <text foreground="text_muted">{openRunExitSummary}</text>
+            </if>
+
+            <code source="{openRunScrollback}" language="plain"/>
+          </column>
+        </scroll>
+      </column>
+    </sheet>
+  </if>
+
+  <if test="{hasNewRunOpen}">
+    <sheet on-dismiss="close_new_run" width="560" height="480">
+      <column gap="0" padding="0">
+        <column gap="6" padding="16">
+          <row gap="8" cross="center">
+            <icon name="plus" foreground="text_muted" width="16" height="16"/>
+            <text grow="1" size="heading">New Feature</text>
+            <button size="sm" variant="ghost" icon="x" on-press="close_new_run">Close</button>
+          </row>
+          <if test="{newRunHasError}">
+            <status-bar>{newRunErrorText}</status-bar>
+          </if>
+        </column>
+
+        <separator/>
+
+        <scroll grow="1">
+          <column gap="10" padding="16">
+            <if test="{newRunNoRepoChosen}">
+              <text foreground="text_muted">Which repo is this feature for?</text>
+              <if test="{newRunHasNoRepos}">
+                <text foreground="text_muted">
+                  No repositories configured yet — add one in Settings first.
+                </text>
+              </if>
+              <for each="newRunRepoRows" key="seq" as="r">
+                <button variant="ghost" icon="folder" on-press="pick_new_run_repo:{r.index}">
+                  {r.name}
+                </button>
+              </for>
+            </if>
+
+            <if test="{newRunRepoChosen}">
+              <row gap="8" cross="center">
+                <icon name="folder" foreground="text_muted" width="14" height="14"/>
+                <text grow="1" foreground="text_muted">{newRunChosenRepoName}</text>
+                <button size="sm" variant="ghost" on-press="reset_new_run_repo">Change</button>
+              </row>
+
+              <text-field
+                text="{newRunSlugText}"
+                placeholder="slug, e.g. dark-mode"
+                on-input="new_run_slug_edit"
+              />
+              <textarea
+                text="{newRunIssueText}"
+                placeholder="Describe the feature — this becomes issue-body.md"
+                on-input="new_run_issue_edit"
+              />
+              <button disabled="{newRunSubmitDisabled}" on-press="submit_new_run">
+                Start
+              </button>
+            </if>
+          </column>
+        </scroll>
+      </column>
+    </sheet>
+  </if>
 </column>
