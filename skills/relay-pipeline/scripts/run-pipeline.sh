@@ -53,6 +53,7 @@ TYPECHECK_CMD=$(read_config ".commands.typecheck" "tsc --noEmit")
 LINT_CMD=$(read_config ".commands.lint" "eslint .")
 TEST_CMD=$(read_config ".commands.test" "")
 BUILD_CMD=$(read_config ".commands.build" "")
+FORMAT_WRITE_CMD=$(read_config ".commands.formatWrite" "")
 # Sandboxing only applies to web/backend projects: Docker Linux images can't
 # run Xcode, so a project with ios.scheme set (the same signal upload-build.sh
 # gates on) always runs commands.test/build directly on the host.
@@ -234,6 +235,19 @@ commit_stage() {
 
 $prov"
     fi
+  fi
+  # Format before staging, not after: agent-written code/markdown routinely
+  # doesn't match the target project's exact prettier/biome config (LLMs
+  # aren't run through the project's own formatter), and every commit here
+  # is gated by whatever pre-commit hook the target project has — a format
+  # *check* hook rejects the commit outright over nits like this instead of
+  # fixing them. Every run happens inside a dedicated worktree (never the
+  # user's own working directory — see "Workspace isolation"), so
+  # reformatting whatever's dirty here is always safe. Best-effort: if the
+  # command itself is missing/misconfigured, let the actual pre-commit hook
+  # be the real gate rather than failing the stage over formatting tooling.
+  if [ -n "$FORMAT_WRITE_CMD" ]; then
+    eval "$FORMAT_WRITE_CMD" >/dev/null 2>&1 || true
   fi
   git add -A
   if git diff --cached --quiet; then
@@ -629,7 +643,19 @@ if [ -n "$AMEND_REQUEST_PATH" ] || grep -q '^## Amendment' "$ARTIFACTS_DIR/techn
   IS_AMEND_CYCLE="true"
 fi
 
-if [ "$IS_AMEND_CYCLE" != "true" ]; then
+# PM/dev-review only ever run before Architect writes technical-plan.md —
+# Architect itself refuses to start until dev-review's verdict is "clear"
+# (see the loop below). So technical-plan.md already existing is a strict
+# superset of IS_AMEND_CYCLE: it's true both on an amend cycle and on any
+# plain resume (a design-gate pause awaiting --approve-design, or a crash
+# during/after Dev). Skipping on that signal instead of IS_AMEND_CYCLE alone
+# closes a real gap: PM used to unconditionally re-run on every resume,
+# rewriting feature-brief.md and committing under a `chore(pm)` message
+# whose `git add -A` swept in whatever the interrupted run had left dirty
+# (e.g. uncommitted Dev-batch output from a crash) — found live when a
+# resumed run's chore(pm) commit got rejected by the project's own
+# pre-commit hook over unformatted files Dev, not PM, had written.
+if [ "$IS_AMEND_CYCLE" != "true" ] && [ ! -f "$ARTIFACTS_DIR/technical-plan.md" ]; then
   # 1. PM writes feature brief
   run_agent pm
   commit_stage "chore(pm): $SLUG" pm
@@ -701,6 +727,8 @@ if [ "$IS_AMEND_CYCLE" != "true" ]; then
     echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
     exit 1
   fi
+elif [ "$IS_AMEND_CYCLE" != "true" ]; then
+  echo "==> Reusing existing feature-brief.md (resumed run) — skipping PM and dev-review."
 fi
 
 # 3. Rebuild context.json from source, then Architect produces technical plan.
