@@ -400,6 +400,102 @@ function startSpinner(label: string): Spinner {
   };
 }
 
+// Renders a raw `usage` object (shape varies by backend — claude-cli's
+// `input_tokens`/`cache_creation_input_tokens`/... vs. the OpenAI-compatible
+// path's `prompt_tokens`/`completion_tokens`/`total_tokens`) as indented,
+// human-labeled lines instead of one long `JSON.stringify` blob. Zero-value
+// and "not_available"-style noise fields are dropped rather than printed,
+// since they never carry information worth a line in the terminal.
+function usageLines(usage: Record<string, unknown>): string[] {
+  const fmt = (n: unknown) => (typeof n === 'number' ? n.toLocaleString('en-US') : undefined);
+  const lines: string[] = [];
+
+  const claudeCliFields: Array<[key: string, label: string]> = [
+    ['input_tokens', 'input'],
+    ['cache_creation_input_tokens', 'cache write'],
+    ['cache_read_input_tokens', 'cache read'],
+    ['output_tokens', 'output'],
+  ];
+  for (const [key, label] of claudeCliFields) {
+    const value = fmt(usage[key]);
+    if (value !== undefined && usage[key] !== 0) lines.push(`    ${label}: ${value}`);
+  }
+  const thinking = fmt((usage.output_tokens_details as any)?.thinking_tokens);
+  if (thinking !== undefined) lines.push(`      thinking: ${thinking}`);
+
+  const openAiFields: Array<[key: string, label: string]> = [
+    ['prompt_tokens', 'prompt'],
+    ['completion_tokens', 'completion'],
+    ['total_tokens', 'total'],
+  ];
+  for (const [key, label] of openAiFields) {
+    const value = fmt(usage[key]);
+    if (value !== undefined) lines.push(`    ${label}: ${value}`);
+  }
+
+  if (typeof usage.cost === 'number' && usage.cost > 0) {
+    lines.push(`    cost: $${usage.cost.toFixed(5)}`);
+  }
+  if (typeof usage.service_tier === 'string' && usage.service_tier !== 'standard') {
+    lines.push(`    service tier: ${usage.service_tier}`);
+  }
+
+  return lines;
+}
+
+// Renders a raw `usage` object (shape varies by backend — claude-cli's
+// `input_tokens`/`cache_creation_input_tokens`/... vs. the OpenAI-compatible
+// path's `prompt_tokens`/`completion_tokens`/`total_tokens`) as indented,
+// human-labeled lines instead of one long `JSON.stringify` blob. Zero-value
+// and "not_available"-style noise fields are dropped rather than printed,
+// since they never carry information worth a line in the terminal.
+function formatUsage(usage: Record<string, unknown>): string {
+  const lines = usageLines(usage);
+  if (lines.length === 0) return `  Usage: ${JSON.stringify(usage)}`;
+  return [`  Usage:`, ...lines].join('\n');
+}
+
+// Condenses the per-call "Model: / Effort: / System prompt: / User prompt:"
+// lines logged before every LLM call into one indented block, with prompt
+// lengths comma-formatted instead of raw digit runs.
+function formatCallHeader(opts: {
+  model: string;
+  backend?: string;
+  effort?: Effort;
+  systemPromptChars: number;
+  userPromptChars: number;
+}): string {
+  const lines: string[] = [
+    `    model: ${opts.model}${opts.backend ? ` (backend: ${opts.backend})` : ''}`,
+  ];
+  if (opts.effort) lines.push(`    effort: ${opts.effort}`);
+  lines.push(`    system prompt: ~${opts.systemPromptChars.toLocaleString('en-US')} chars`);
+  lines.push(`    user prompt: ~${opts.userPromptChars.toLocaleString('en-US')} chars`);
+  return ['  Call:', ...lines].join('\n');
+}
+
+// Condenses the post-call "Cost: / Usage: / Tokens used this call:" lines
+// into one indented block, mirroring formatCallHeader. Any field left
+// undefined (backends don't all report the same set) is simply omitted
+// rather than printed as "unknown".
+function formatCallResult(opts: {
+  costUsd?: number;
+  usageTokens?: number;
+  usage?: Record<string, unknown>;
+}): string {
+  const lines: string[] = [];
+  if (typeof opts.costUsd === 'number') lines.push(`    cost: $${opts.costUsd}`);
+  if (typeof opts.usageTokens === 'number') {
+    lines.push(`    tokens: ${opts.usageTokens.toLocaleString('en-US')}`);
+  }
+  if (opts.usage) {
+    const body = usageLines(opts.usage);
+    lines.push(...(body.length > 0 ? body : [`    usage: ${JSON.stringify(opts.usage)}`]));
+  }
+  if (lines.length === 0) return '';
+  return ['  Result:', ...lines].join('\n');
+}
+
 // --- Utils ---
 
 function parseArgs() {
@@ -1851,10 +1947,15 @@ async function callLlmViaClaudeCli(
   const BASE_DELAY = 2000;
   const schema = buildToolSchema(role);
 
-  console.log(`  Model: ${model} (backend: claude-cli)`);
-  if (effort) console.log(`  Effort: ${effort}`);
-  console.log(`  System prompt: ~${systemPrompt.length} chars`);
-  console.log(`  User prompt: ~${userPrompt.length} chars`);
+  console.log(
+    formatCallHeader({
+      model,
+      backend: 'claude-cli',
+      effort,
+      systemPromptChars: systemPrompt.length,
+      userPromptChars: userPrompt.length,
+    })
+  );
 
   let lastError = '';
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -1955,13 +2056,13 @@ async function callLlmViaClaudeCli(
       process.exit(1);
     }
 
-    console.log(`  Cost: $${data.total_cost_usd ?? 'unknown'}`);
-    if (data.usage) {
-      console.log(`  Usage: ${JSON.stringify(data.usage)}`);
-    }
-    if (typeof evaluation.result.usageTokens === 'number') {
-      console.log(`  Tokens used this call: ${evaluation.result.usageTokens}`);
-    }
+    const resultBlock = formatCallResult({
+      costUsd: typeof data.total_cost_usd === 'number' ? data.total_cost_usd : undefined,
+      usageTokens: evaluation.result.usageTokens,
+      usage: data.usage,
+    });
+    if (resultBlock) console.log(resultBlock);
+    else console.log(`  Cost: $${data.total_cost_usd ?? 'unknown'}`);
     return evaluation.result;
   }
 
@@ -1993,9 +2094,13 @@ async function callLlmViaOpenAiCompatible(
   const BASE_DELAY = 2000;
   const tool = buildTool(role);
 
-  console.log(`  Model: ${model}`);
-  console.log(`  System prompt: ~${systemPrompt.length} chars`);
-  console.log(`  User prompt: ~${userPrompt.length} chars`);
+  console.log(
+    formatCallHeader({
+      model,
+      systemPromptChars: systemPrompt.length,
+      userPromptChars: userPrompt.length,
+    })
+  );
 
   // Appended to the user prompt on a retry that follows a `finish_reason:
   // "length"` truncation, so the retry isn't just an identical call hitting
@@ -2076,7 +2181,7 @@ async function callLlmViaOpenAiCompatible(
     if (response.ok) {
       const data: any = await response.json();
       if (data.usage) {
-        console.log(`  Usage: ${JSON.stringify(data.usage)}`);
+        console.log(formatUsage(data.usage));
       }
       const finishReason = data.choices?.[0]?.finish_reason;
       if (finishReason) {
@@ -2145,12 +2250,15 @@ async function callLlmViaOpenAiCompatible(
       const result = parseToolArgs(argsRaw, role, slug);
       if (typeof data.usage?.total_tokens === 'number') {
         result.usageTokens = data.usage.total_tokens;
-        console.log(`  Tokens used this call: ${result.usageTokens}`);
       }
       if (typeof data.usage?.cost === 'number') {
         result.costUsd = data.usage.cost;
-        console.log(`  Cost this call: $${result.costUsd}`);
       }
+      const resultBlock = formatCallResult({
+        costUsd: result.costUsd,
+        usageTokens: result.usageTokens,
+      });
+      if (resultBlock) console.log(resultBlock);
       return result;
     }
 
@@ -3254,5 +3362,8 @@ export {
   scopeToRetryFiles,
   buildArchitectTask,
   filterArchitectPassArtifacts,
+  formatUsage,
+  formatCallHeader,
+  formatCallResult,
 };
 export type { FileChange, ArtifactChange, AgentResult, TokenUsage };

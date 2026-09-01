@@ -36,8 +36,143 @@ import {
   scopeToRetryFiles,
   buildArchitectTask,
   filterArchitectPassArtifacts,
+  formatUsage,
+  formatCallHeader,
+  formatCallResult,
 } from '../skills/relay-pipeline/scripts/agent-runner.ts';
 import type { TokenUsage } from '../skills/relay-pipeline/scripts/agent-runner.ts';
+
+describe('formatUsage', () => {
+  test('renders the claude-cli usage shape as indented, labeled lines instead of a JSON blob', () => {
+    // Captured verbatim from a live Dev batch run's terminal output.
+    const usage = {
+      input_tokens: 2,
+      cache_creation_input_tokens: 68164,
+      cache_read_input_tokens: 0,
+      output_tokens: 60841,
+      output_tokens_details: { thinking_tokens: 26339 },
+      server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+      service_tier: 'standard',
+      cache_creation: { ephemeral_1h_input_tokens: 68164, ephemeral_5m_input_tokens: 0 },
+      inference_geo: 'not_available',
+      iterations: [{ input_tokens: 2, output_tokens: 60841 }],
+    };
+
+    const rendered = formatUsage(usage);
+
+    assert.equal(
+      rendered,
+      [
+        '  Usage:',
+        '    input: 2',
+        '    cache write: 68,164',
+        '    output: 60,841',
+        '      thinking: 26,339',
+      ].join('\n')
+    );
+    // Noise the caller never needs a line for: an all-zero cache read, the
+    // (redundant) nested cache_creation breakdown, the always-zero
+    // server_tool_use counters, an "unavailable" inference_geo, and the
+    // per-iteration array.
+    assert.ok(!rendered.includes('cache_read'));
+    assert.ok(!rendered.includes('server_tool_use'));
+    assert.ok(!rendered.includes('inference_geo'));
+    assert.ok(!rendered.includes('iterations'));
+  });
+
+  test('renders the OpenAI-compatible usage shape (prompt/completion/total tokens)', () => {
+    const usage = { prompt_tokens: 1200, completion_tokens: 340, total_tokens: 1540, cost: 0.0123 };
+
+    const rendered = formatUsage(usage);
+
+    assert.equal(
+      rendered,
+      [
+        '  Usage:',
+        '    prompt: 1,200',
+        '    completion: 340',
+        '    total: 1,540',
+        '    cost: $0.01230',
+      ].join('\n')
+    );
+  });
+
+  test('falls back to raw JSON for an unrecognized usage shape rather than printing nothing', () => {
+    const usage = { some_unknown_field: 42 };
+    assert.equal(formatUsage(usage), '  Usage: {"some_unknown_field":42}');
+  });
+});
+
+describe('formatCallHeader', () => {
+  test('condenses model/effort/prompt-length lines into one comma-formatted block', () => {
+    const header = formatCallHeader({
+      model: 'claude-sonnet-5',
+      backend: 'claude-cli',
+      effort: 'high',
+      systemPromptChars: 1467,
+      userPromptChars: 158777,
+    });
+
+    assert.equal(
+      header,
+      [
+        '  Call:',
+        '    model: claude-sonnet-5 (backend: claude-cli)',
+        '    effort: high',
+        '    system prompt: ~1,467 chars',
+        '    user prompt: ~158,777 chars',
+      ].join('\n')
+    );
+  });
+
+  test('omits the effort and backend lines when not provided', () => {
+    const header = formatCallHeader({
+      model: 'gpt-4o',
+      systemPromptChars: 100,
+      userPromptChars: 200,
+    });
+
+    assert.equal(
+      header,
+      ['  Call:', '    model: gpt-4o', '    system prompt: ~100 chars', '    user prompt: ~200 chars'].join(
+        '\n'
+      )
+    );
+  });
+});
+
+describe('formatCallResult', () => {
+  test('combines cost, total tokens, and the usage breakdown into one block', () => {
+    const result = formatCallResult({
+      costUsd: 0.88107,
+      usageTokens: 129007,
+      usage: {
+        input_tokens: 2,
+        cache_creation_input_tokens: 68164,
+        cache_read_input_tokens: 0,
+        output_tokens: 60841,
+        output_tokens_details: { thinking_tokens: 26339 },
+      },
+    });
+
+    assert.equal(
+      result,
+      [
+        '  Result:',
+        '    cost: $0.88107',
+        '    tokens: 129,007',
+        '    input: 2',
+        '    cache write: 68,164',
+        '    output: 60,841',
+        '      thinking: 26,339',
+      ].join('\n')
+    );
+  });
+
+  test('returns an empty string when nothing is known, so the caller can fall back', () => {
+    assert.equal(formatCallResult({}), '');
+  });
+});
 
 describe('buildToolSchema', () => {
   test('only the dev role accepts a files array', () => {
