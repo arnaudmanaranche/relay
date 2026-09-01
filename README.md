@@ -54,7 +54,7 @@ Skills are plain Markdown with accompanying scripts. Any agent that can read a `
 Start a feature:
 
 ```bash
-/relay:pipeline new "Add dark mode toggle"
+/relay:new "Add dark mode toggle"
 ```
 
 Or interactively: "Run the Relay pipeline to scope a new feature."
@@ -62,7 +62,7 @@ Or interactively: "Run the Relay pipeline to scope a new feature."
 This runs the 7-role workflow (PM → Dev Review → Architect → Dev → Review → QA → Retro) end to end inside an isolated git worktree, from brief to PR. The Architect stage pauses for a human design-gate review before code is written; resume with:
 
 ```bash
-bash skills/pipeline/scripts/run-pipeline.sh my-feature --approve-design
+/relay:resume --slug my-feature --approve-design
 ```
 
 ## Launch

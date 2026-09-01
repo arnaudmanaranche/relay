@@ -5,13 +5,13 @@ PM → Dev Review → Architect → Dev → Review → QA → Retro.
 
 **Model-agnostic, stack-agnostic.** Works with any AI coding tool (Claude Code, Codex, OpenCode, Cline).
 
-## Capabilities
+This skill holds the shared engine (prompts, scripts, templates, registries) behind three user-facing commands, each its own skill:
 
 | Command | Description |
 |---------|-------------|
-| `new <description>` | Start a new feature. Scopes the feature, generates feature-brief.md |
-| `run --role <role> --slug <slug>` | Run a single agent role (pm, dev-review, pm-respond, architect, dev, review, qa, retro) |
-| `pipeline --slug <slug>` | Run the full pipeline for a feature, end-to-end |
+| [`/relay:new <description>`](../new/SKILL.md) | Start a new feature end-to-end, from description to PR |
+| [`/relay:resume --slug <slug>`](../resume/SKILL.md) | Continue an existing feature (e.g. `--approve-design` past the design gate) |
+| [`/relay:run --role <role> --slug <slug>`](../run/SKILL.md) | Run a single agent role in isolation |
 
 ## Workflow stages
 
@@ -106,7 +106,7 @@ Reference these registries when scoping or reviewing features:
 
 ## Configuration
 
-The module reads project configuration from `.relay/config.json`. Run the `setup` skill to generate it.
+The module reads project configuration from `.relay/config.json`. Run `/relay:setup` to generate it.
 
 Key config fields: `sourceDirs`, `skipDirs`, `sourceExtensions`, `commands`, `stack`, `e2e`, `sandbox`.
 
