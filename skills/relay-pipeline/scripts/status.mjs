@@ -168,15 +168,21 @@ export function inspectWorktree({ repoRoot, repoDirName, entry, worktreeRoot, br
     hasTypecheckFeedback: existsSync(join(artDir, '.agent-typecheck-feedback.md')),
   });
 
+  // costUsd/lastRole are omitted (not set to null) when unknown: the
+  // relay-menubar side casts this JSON as `RunEntry` with `costUsd?: number`
+  // and `lastRole?: string`, and native-sdk's runtime cast validator
+  // rejects explicit `null` against an optional field
+  // (https://github.com/vercel-labs/native/issues/407) — so an absent key
+  // is required, not just permitted.
   const run = {
     slug,
     branch: `${branchPrefix}/${slug}`,
     worktree: worktreeDir,
     artifactsDir: artDir,
     lock,
-    lastRole: generic ? generic.role : null,
+    ...(generic && typeof generic.role === 'string' ? { lastRole: generic.role } : {}),
     model: generic ? generic.model ?? null : null,
-    costUsd,
+    ...(costUsd !== null ? { costUsd } : {}),
     tokens,
     verdicts,
     ...cls,
@@ -315,7 +321,7 @@ export function renderHuman(repos) {
         const glyph = STATE_GLYPHS[run.state] || ' ';
         const label = STATE_LABELS[run.state] || run.state;
         const stage = run.lastRole ? ` · last: ${run.lastRole}` : '';
-        const cost = run.costUsd !== null ? ` · ${usd(run.costUsd)}` : '';
+        const cost = run.costUsd != null ? ` · ${usd(run.costUsd)}` : '';
         const stale = run.staleApproval ? ' (plan changed since approval)' : '';
         lines.push(`  ${glyph} ${run.slug.padEnd(24)} ${label}${stale}${stage}${cost}`);
         if (run.detail) lines.push(`      ${run.detail}`);
