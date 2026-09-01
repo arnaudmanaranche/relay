@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Scaffold a new feature folder under .ai/artifacts/features/<slug>/
-# Installed into <project>/.ai/scripts/new-feature.sh by the setup skill.
-# Usage: .ai/scripts/new-feature.sh <slug>
+# Scaffold a new feature folder under .relay/artifacts/features/<slug>/
+# Installed into <project>/.relay/scripts/new-feature.sh by the setup skill.
+# Usage: .relay/scripts/new-feature.sh <slug>
 set -euo pipefail
 
 SLUG="${1:?Usage: $0 <slug>}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-FEATURE_DIR="$ROOT/.ai/artifacts/features/$SLUG"
+FEATURE_DIR="$ROOT/.relay/artifacts/features/$SLUG"
 
 if [ -d "$FEATURE_DIR" ]; then
   echo "  Feature folder already exists: $FEATURE_DIR"

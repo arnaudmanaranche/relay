@@ -8,7 +8,7 @@
 # and asc-build-lifecycle skills. No LLM calls — when something fails here the
 # report says exactly which step and why, and a human decides what to do.
 #
-# Required config (.ai/config.json):
+# Required config (.relay/config.json):
 #   project.appId          — App Store Connect app ID (numeric or bundle id asc accepts)
 #   ios.scheme             — Xcode scheme to archive
 #   ios.workspace OR ios.project — path to .xcworkspace/.xcodeproj (workspace wins)
@@ -31,13 +31,13 @@ for arg in "${@:2}"; do
   esac
 done
 ROOT="${PROJECT_ROOT_ARG:-$(pwd)}"
-ARTIFACTS_DIR=".ai/artifacts/features/$SLUG"
+ARTIFACTS_DIR=".relay/artifacts/features/$SLUG"
 ASC_ARTIFACTS=".asc/artifacts"
 
 cd "$ROOT"
 
 read_config() {
-  node -e "try{var c=JSON.parse(require('fs').readFileSync('$ROOT/.ai/config.json','utf-8'));var p='$1'.replace(/^\./,'').split('.');for(var k of p)c=c[k];if(c===undefined||c===null)throw new Error('undefined');console.log(c)}catch(e){console.log('$2')}"
+  node -e "try{var c=JSON.parse(require('fs').readFileSync('$ROOT/.relay/config.json','utf-8'));var p='$1'.replace(/^\./,'').split('.');for(var k of p)c=c[k];if(c===undefined||c===null)throw new Error('undefined');console.log(c)}catch(e){console.log('$2')}"
 }
 
 APP_ID=$(read_config ".project.appId" "")
@@ -52,10 +52,10 @@ fail() {
   exit 1
 }
 
-[ -n "$APP_ID" ] || fail "project.appId is empty in .ai/config.json — set it before using --upload-build."
-[ -n "$SCHEME" ] || fail "ios.scheme is empty in .ai/config.json — set the Xcode scheme to archive."
+[ -n "$APP_ID" ] || fail "project.appId is empty in .relay/config.json — set it before using --upload-build."
+[ -n "$SCHEME" ] || fail "ios.scheme is empty in .relay/config.json — set the Xcode scheme to archive."
 if [ -z "$WORKSPACE" ] && [ -z "$XCPROJECT" ]; then
-  fail "Neither ios.workspace nor ios.project is set in .ai/config.json."
+  fail "Neither ios.workspace nor ios.project is set in .relay/config.json."
 fi
 if [ -n "$WORKSPACE" ] && [ ! -e "$WORKSPACE" ]; then
   fail "ios.workspace '$WORKSPACE' does not exist (checked from project root)."

@@ -4,10 +4,10 @@
 // Retro's "pattern repeated 3+ times" skill proposal is an LLM judgment
 // call: it can cite evidence that doesn't hold up, or file one off a tally
 // only it can see. This script makes the claim checkable. For each proposal
-// in .ai/artifacts/skill-proposals/, it extracts the slugs named in the
+// in .relay/artifacts/skill-proposals/, it extracts the slugs named in the
 // **Evidence** section and counts how many of them actually appear as
 // `(slug)` tags on bullets under "Conventions confirmed" in
-// .ai/project-memory.md — the cross-feature record every role already
+// .relay/project-memory.md — the cross-feature record every role already
 // reads. Fewer than 3 verifiable slugs means the gate's own threshold is
 // not met by anything a human can audit.
 //
@@ -17,8 +17,8 @@
 //
 // Dependency-free. Usage:
 //   node verify-skill-proposals.mjs \
-//     [--memory=.ai/project-memory.md] \
-//     [--proposals-dir=.ai/artifacts/skill-proposals] \
+//     [--memory=.relay/project-memory.md] \
+//     [--proposals-dir=.relay/artifacts/skill-proposals] \
 //     [--min-slugs=3]
 
 import { readFileSync, existsSync, readdirSync } from 'fs';
@@ -113,8 +113,8 @@ function parseArgs(argv) {
 
 export function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv);
-  const memoryPath = args.memory || '.ai/project-memory.md';
-  const proposalsDir = args['proposals-dir'] || '.ai/artifacts/skill-proposals';
+  const memoryPath = args.memory || '.relay/project-memory.md';
+  const proposalsDir = args['proposals-dir'] || '.relay/artifacts/skill-proposals';
   const minSlugs = parseInt(args['min-slugs'], 10) || 3;
 
   if (!existsSync(proposalsDir)) {

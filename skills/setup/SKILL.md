@@ -9,15 +9,15 @@ Run this skill when you first install the module in a project. It auto-detects t
 1. **Auto-detects the stack** by running `scripts/detect-stack.mjs` in the project root
 2. Presents detected values to the user for confirmation or correction
 3. Prompts only for values that could not be detected
-4. Generates `.ai/config.json` with all project settings, including `relayVersion` set to this module's `module_version` (`assets/module.yaml`) — the marker later installs compare against to know if they're behind (see **Updating an existing install** below)
-5. Generates `.ai/agents.json` with role definitions (see **Required roles** below — `agent-runner.ts` hardcodes behavior per role name, so every one of these must have an entry or that role's pipeline stage will fail with "Unknown role")
-6. Creates `.ai/artifacts/features/` directory
-7. Copies registry files (scope-checklist, ship-checklist, analytics-events, paywall-touchpoints) into `.ai/registry/`
-8. Copies governance files (GOVERNANCE.md, DENIED_ACTIONS.md) from `skills/pipeline/templates/` into `.ai/`
-9. Copies `skills/pipeline/templates/scripts/new-feature.sh` into `.ai/scripts/new-feature.sh` and makes it executable (`chmod +x`) — `run-pipeline.sh` depends on this script to scaffold new feature folders
-10. Copies `skills/pipeline/templates/ai-gitignore` into `.ai/.gitignore` — keeps derived (`context.json`) and per-run debug files (`.agent-*` dumps) out of git history so the repo doesn't grow unbounded, while keeping durable knowledge (briefs, plans, reviews, retros, `project-memory.md`, the memory-compact counter, the `.architect-approved` hash) tracked. **Do not overwrite an existing `.ai/.gitignore` that has project-specific additions — merge instead.**
-11. Copies `skills/pipeline/templates/scripts/prune-artifacts.sh` into `.ai/scripts/prune-artifacts.sh` and makes it executable (`chmod +x`) — a human-run maintenance tool for repo hygiene (see **Repo hygiene** below)
-12. Runs the target project's own `format_write_cmd` scoped to `skills/` and `.ai/`, and appends `skills/`/`.ai/` to every lint/format/typecheck exclude mechanism the target project has (see **Excluding module content from the target's tooling** below) — otherwise the module's own copied-in files can fail the target's pre-commit hooks or typecheck gate on the very first commit, for reasons that have nothing to do with the target project itself
+4. Generates `.relay/config.json` with all project settings, including `relayVersion` set to this module's `module_version` (`assets/module.yaml`) — the marker later installs compare against to know if they're behind (see **Updating an existing install** below)
+5. Generates `.relay/agents.json` with role definitions (see **Required roles** below — `agent-runner.ts` hardcodes behavior per role name, so every one of these must have an entry or that role's pipeline stage will fail with "Unknown role")
+6. Creates `.relay/artifacts/features/` directory
+7. Copies registry files (scope-checklist, ship-checklist, analytics-events, paywall-touchpoints) into `.relay/registry/`
+8. Copies governance files (GOVERNANCE.md, DENIED_ACTIONS.md) from `skills/pipeline/templates/` into `.relay/`
+9. Copies `skills/pipeline/templates/scripts/new-feature.sh` into `.relay/scripts/new-feature.sh` and makes it executable (`chmod +x`) — `run-pipeline.sh` depends on this script to scaffold new feature folders
+10. Copies `skills/pipeline/templates/relay-gitignore` into `.relay/.gitignore` — keeps derived (`context.json`) and per-run debug files (`.agent-*` dumps) out of git history so the repo doesn't grow unbounded, while keeping durable knowledge (briefs, plans, reviews, retros, `project-memory.md`, the memory-compact counter, the `.architect-approved` hash) tracked. **Do not overwrite an existing `.relay/.gitignore` that has project-specific additions — merge instead.**
+11. Copies `skills/pipeline/templates/scripts/prune-artifacts.sh` into `.relay/scripts/prune-artifacts.sh` and makes it executable (`chmod +x`) — a human-run maintenance tool for repo hygiene (see **Repo hygiene** below)
+12. Runs the target project's own `format_write_cmd` scoped to `skills/` and `.relay/`, and appends `skills/`/`.relay/` to every lint/format/typecheck exclude mechanism the target project has (see **Excluding module content from the target's tooling** below) — otherwise the module's own copied-in files can fail the target's pre-commit hooks or typecheck gate on the very first commit, for reasons that have nothing to do with the target project itself
 
 The pipeline's own helper scripts (`run-pipeline.sh`, `agent-runner.ts`, `status.mjs`, `babysit-pr.sh`, …) are part of the module copy and need no per-project configuration. `status.mjs` is strictly read-only over existing state files (worktrees, locks, `.agent-*` JSON) and is always safe to run: `node skills/pipeline/scripts/status.mjs [--json]`.
 
@@ -50,7 +50,7 @@ Lint command:
 Which one? [1/2/or type your own]
 ```
 
-**When you find institutional knowledge that doesn't map to an existing config field** (e.g. "i18n is managed externally via Loco, not local locale files"): don't discard it and don't just mention it in the chat transcript — append it to `.ai/project-context.md` under a `## Setup notes` heading, creating the file if it doesn't exist yet (if it already exists, append rather than overwrite, same as the `.ai/.gitignore` merge rule above). This file is read by `agent-runner.ts` and injected into every role's system prompt, so a note recorded here is visible to pm, architect, dev, review, and every other agent for the life of the project — not just during setup.
+**When you find institutional knowledge that doesn't map to an existing config field** (e.g. "i18n is managed externally via Loco, not local locale files"): don't discard it and don't just mention it in the chat transcript — append it to `.relay/project-context.md` under a `## Setup notes` heading, creating the file if it doesn't exist yet (if it already exists, append rather than overwrite, same as the `.relay/.gitignore` merge rule above). This file is read by `agent-runner.ts` and injected into every role's system prompt, so a note recorded here is visible to pm, architect, dev, review, and every other agent for the life of the project — not just during setup.
 
 **When the repository is hosted on GitLab, not GitHub:** warn the user during setup that `run-pipeline.sh`'s final stage (`gh pr create`/`gh pr edit`) is GitHub-only and will fail harmlessly (pipeline completes, no PR/MR gets opened) until GitLab support is added. Don't change any config value for this — there's no `git_host` field yet, and wiring up an actual `glab mr create` path is tracked separately.
 
@@ -96,7 +96,7 @@ Not auto-detected — ask directly if the project has one: `commands.build` (e.g
 
 When `project_type` is `mobile`, or iOS signals exist regardless of type (`app_id` detected, an `ios/` directory, or an `.xcodeproj`/`.xcworkspace` anywhere in the repo), offer a one-time install of the App Store Connect CLI skill pack (`rorkai/app-store-connect-cli-skills` — 25 `asc-*` skills covering builds, signing, TestFlight, release flow, submission health, metadata, screenshots, pricing, analytics, and crash triage). For a `web` or Android-only project, skip silently — never mention it.
 
-This is an **agent-level** plugin, not project config: the skills install globally and activate contextually via their own "Use when..." descriptions whenever any agent works on iOS/App Store tasks. Nothing is written to `.ai/config.json` and nothing is wired into `typeSkills`/`extraSkills`.
+This is an **agent-level** plugin, not project config: the skills install globally and activate contextually via their own "Use when..." descriptions whenever any agent works on iOS/App Store tasks. Nothing is written to `.relay/config.json` and nothing is wired into `typeSkills`/`extraSkills`.
 
 Before offering, check whether it's already installed:
 
@@ -139,7 +139,7 @@ For fields where nothing was detected (empty string), explain what the field is 
 
 ## Required roles
 
-`.ai/agents.json` must contain a `roles` object with exactly these keys — `agent-runner.ts` looks up role behavior (permissions, output schema, task instructions) by these exact names:
+`.relay/agents.json` must contain a `roles` object with exactly these keys — `agent-runner.ts` looks up role behavior (permissions, output schema, task instructions) by these exact names:
 
 `pm`, `dev-review`, `pm-respond`, `architect`, `dev`, `review`, `qa`, `retro`, `memory-compact`
 
@@ -156,7 +156,7 @@ Match effort to how routine the role's work actually is, not uniformly:
 - **High** — `pm`, `dev`: real but well-scoped reasoning over a spec/plan that already exists.
 - **High/xhigh** — `architect`, `review`: the two stages where under-thinking directly causes downstream cost — a shallow technical plan or a shallow review both propagate their mistakes into code a human ends up debugging later.
 
-A single role's effort can also be bumped for one run without editing `.ai/agents.json`, via `OPENROUTER_EFFORT_<ROLE>` (e.g. `OPENROUTER_EFFORT_ARCHITECT=xhigh`) — mirrors the existing `OPENROUTER_MODEL_<ROLE>` override.
+A single role's effort can also be bumped for one run without editing `.relay/agents.json`, via `OPENROUTER_EFFORT_<ROLE>` (e.g. `OPENROUTER_EFFORT_ARCHITECT=xhigh`) — mirrors the existing `OPENROUTER_MODEL_<ROLE>` override.
 
 ### Dev-only: `typeSkills` and `extraSkills`
 
@@ -172,12 +172,12 @@ The `dev` role entry additionally supports two optional fields for injecting fil
       "description": "Developer",
       "maxTokens": 8000,
       "typeSkills": {
-        "*.ts": ".ai/skills/typescript-standards.md",
-        "*.tsx": ".ai/skills/react-standards.md",
-        "*.js": ".ai/skills/javascript-legacy-standards.md",
-        "src/services": ".ai/skills/service-conventions.md"
+        "*.ts": ".relay/skills/typescript-standards.md",
+        "*.tsx": ".relay/skills/react-standards.md",
+        "*.js": ".relay/skills/javascript-legacy-standards.md",
+        "src/services": ".relay/skills/service-conventions.md"
       },
-      "extraSkills": [".ai/skills/security-baseline.md"]
+      "extraSkills": [".relay/skills/security-baseline.md"]
     }
   }
 }
@@ -185,9 +185,9 @@ The `dev` role entry additionally supports two optional fields for injecting fil
 
 - **`typeSkills`** (`Record<pattern, skillFilePath>`) — matched per-file against the file paths the Architect's `technical-plan.md` says Dev needs to touch (`agent-runner.ts`'s `getMatchingTypeSkills`, covered by `agent-runner.test.ts`). A pattern starting with `*` matches by **suffix** (`*.ts` matches any `.ts` file, `*.test.ts` matches only test files); any other pattern matches by **path prefix or path segment** (`src/services` matches `src/services/api.ts` and `lib/src/services/x.ts`). Only skills whose pattern matches at least one impacted file get injected — this keeps the prompt from ballooning with irrelevant standards on a feature that never touches, say, `src/services`.
 - **`extraSkills`** (`string[]`) — injected into every single Dev run regardless of which files are touched. Use this for cross-cutting rules (security baseline, error-handling conventions) rather than `typeSkills`, which is deliberately conditional.
-- The skill files themselves (`.ai/skills/*.md` in the example above — the path is arbitrary, just needs to exist and be readable from the project root) are plain markdown you write yourself. There's no required structure; they're read verbatim and appended to Dev's system prompt under a `## <filename> (cross-cutting)` or matched-skill heading.
+- The skill files themselves (`.relay/skills/*.md` in the example above — the path is arbitrary, just needs to exist and be readable from the project root) are plain markdown you write yourself. There's no required structure; they're read verbatim and appended to Dev's system prompt under a `## <filename> (cross-cutting)` or matched-skill heading.
 - `typeSkills`/`extraSkills` paths are resolved from the project root, not from `skills/pipeline/`, since they're project-specific standards, not part of the module.
-- For a project with a real UI surface (`project_type` `web` or `mobile`), offer to copy `skills/pipeline/templates/skills/ui-standards.md` into `.ai/skills/ui-standards.md` and wire it as a `typeSkills` entry for the project's UI file extensions (`*.tsx`, `*.css`, `*.vue`, etc., whatever `source_extensions`/`styling` detected). It's a starter set of design-tokens-first and motion/state-completeness rules — meant to be edited to the project's actual design system, not used verbatim.
+- For a project with a real UI surface (`project_type` `web` or `mobile`), offer to copy `skills/pipeline/templates/skills/ui-standards.md` into `.relay/skills/ui-standards.md` and wire it as a `typeSkills` entry for the project's UI file extensions (`*.tsx`, `*.css`, `*.vue`, etc., whatever `source_extensions`/`styling` detected). It's a starter set of design-tokens-first and motion/state-completeness rules — meant to be edited to the project's actual design system, not used verbatim.
 
 ## Configuration variables
 
@@ -195,46 +195,46 @@ See `assets/module.yaml` for the full list of configurable values and their defa
 
 ## Excluding module content from the target's tooling
 
-The module copies its own prompt/registry/config files and TypeScript scripts (`agent-runner.ts`, `run-pipeline.sh`, `detect-stack.mjs`, etc.) into `skills/` and `.ai/` inside the target project. Left alone, this breaks two ways — found live-testing on a real Expo/React Native project whose pre-commit hook ran whole-repo checks unconditionally (not scoped to staged files):
+The module copies its own prompt/registry/config files and TypeScript scripts (`agent-runner.ts`, `run-pipeline.sh`, `detect-stack.mjs`, etc.) into `skills/` and `.relay/` inside the target project. Left alone, this breaks two ways — found live-testing on a real Expo/React Native project whose pre-commit hook ran whole-repo checks unconditionally (not scoped to staged files):
 
 - Copied files are formatted to *this* module's style, not the target's — the first commit after setup can fail a whole-repo `prettier --check .`/`oxlint`/etc. pre-commit hook immediately, even though nothing about the target project itself is broken.
 - The target's own lint/typecheck rules can flag legitimate patterns in the module's plain-Node scripts that are never bundled into the app (e.g. an Expo project's `no-dynamic-env-var` rule, meant for Metro-bundled app code, tripping on `agent-runner.ts`'s `process.env[CONFIG.llm.apiKeyEnv]` — a correct, necessary dynamic access for a script that's never bundled).
 
 ### Format the copied files once
 
-After every copy step above (steps 5-11) has run, execute the target's own `format_write_cmd` (from `.ai/config.json`) scoped to `skills/` and `.ai/`, so the module's content matches the target's formatting conventions immediately instead of failing on the first commit.
+After every copy step above (steps 5-11) has run, execute the target's own `format_write_cmd` (from `.relay/config.json`) scoped to `skills/` and `.relay/`, so the module's content matches the target's formatting conventions immediately instead of failing on the first commit.
 
 ### Append to every exclude mechanism the target project has
 
-Detect which of these config files exist in the target project root, and append `skills/` and `.ai/` (or their idiomatic per-tool equivalents) to each one that does. Merge into existing arrays/lists — don't overwrite, and don't create a new ignore file for a tool that isn't actually in use just to add these entries:
+Detect which of these config files exist in the target project root, and append `skills/` and `.relay/` (or their idiomatic per-tool equivalents) to each one that does. Merge into existing arrays/lists — don't overwrite, and don't create a new ignore file for a tool that isn't actually in use just to add these entries:
 
 | Tool | File | What to add |
 |------|------|-------------|
-| Prettier | `.prettierignore` | `skills/` and `.ai/` as new lines |
-| ESLint (legacy) | `.eslintignore` | `skills/` and `.ai/` as new lines |
-| ESLint (flat config) | `eslint.config.{js,mjs,cjs,ts}` | A leading `{ ignores: ['skills/**', '.ai/**'] }` object in the exported array — flat config treats an ignores-only object anywhere in the array as a global ignore |
-| oxlint | `.oxlintrc.json` | `skills/**` and `.ai/**` appended to `ignorePatterns` |
-| Biome | `biome.json`/`biome.jsonc` | `skills/**` and `.ai/**` appended to the version-appropriate ignore field (`files.ignore` on older Biome, `files.includes` with `!skills/**`/`!.ai/**` negation on newer Biome — check which shape the target's `biome.json` already uses) |
-| TypeScript | `tsconfig.json` | `skills/**` and `.ai/**` appended to `exclude` — the default typecheck gate (`tsc --noEmit`) scans the whole project, and the module's Node-only scripts fail under an app's stricter/Metro-flavored config (missing `@types/node`, no `allowImportingTsExtensions`, etc.) |
+| Prettier | `.prettierignore` | `skills/` and `.relay/` as new lines |
+| ESLint (legacy) | `.eslintignore` | `skills/` and `.relay/` as new lines |
+| ESLint (flat config) | `eslint.config.{js,mjs,cjs,ts}` | A leading `{ ignores: ['skills/**', '.relay/**'] }` object in the exported array — flat config treats an ignores-only object anywhere in the array as a global ignore |
+| oxlint | `.oxlintrc.json` | `skills/**` and `.relay/**` appended to `ignorePatterns` |
+| Biome | `biome.json`/`biome.jsonc` | `skills/**` and `.relay/**` appended to the version-appropriate ignore field (`files.ignore` on older Biome, `files.includes` with `!skills/**`/`!.relay/**` negation on newer Biome — check which shape the target's `biome.json` already uses) |
+| TypeScript | `tsconfig.json` | `skills/**` and `.relay/**` appended to `exclude` — the default typecheck gate (`tsc --noEmit`) scans the whole project, and the module's Node-only scripts fail under an app's stricter/Metro-flavored config (missing `@types/node`, no `allowImportingTsExtensions`, etc.) |
 
 If a config file's format can't be safely parsed and merged as-is (e.g. `tsconfig.json` with JSONC comments defeating a naive `JSON.parse`), edit it as text instead of overwriting the file, and warn the user to double-check the result if the edit looks fragile.
 
 ## Repo hygiene
 
-The pipeline writes two kinds of files: **durable knowledge** worth keeping in git (feature briefs, technical plans, reviews, retrospectives, `project-memory.md`, the memory-compact counter, the `.architect-approved` design-approval hash) and **derived/ephemeral** files that should not accumulate in history (`context.json`, rebuilt from source every run; and per-run `.agent-*` debug dumps — raw LLM `submit_changes` payloads that can be hundreds of KB each). The `.ai/.gitignore` installed in step 10 keeps the second kind out of git.
+The pipeline writes two kinds of files: **durable knowledge** worth keeping in git (feature briefs, technical plans, reviews, retrospectives, `project-memory.md`, the memory-compact counter, the `.architect-approved` design-approval hash) and **derived/ephemeral** files that should not accumulate in history (`context.json`, rebuilt from source every run; and per-run `.agent-*` debug dumps — raw LLM `submit_changes` payloads that can be hundreds of KB each). The `.relay/.gitignore` installed in step 10 keeps the second kind out of git.
 
-**Existing installs (the module was already in use before `.ai/.gitignore` existed):** those debug files are already tracked, so the new ignore rules alone won't drop them. Run the one-time migration to untrack them (your working copy is untouched):
+**Existing installs (the module was already in use before `.relay/.gitignore` existed):** those debug files are already tracked, so the new ignore rules alone won't drop them. Run the one-time migration to untrack them (your working copy is untouched):
 
 ```bash
-.ai/scripts/prune-artifacts.sh --untrack        # add --dry-run first to preview
+.relay/scripts/prune-artifacts.sh --untrack        # add --dry-run first to preview
 git commit -m "chore(relay): untrack pipeline debug files"
 ```
 
-**Ongoing:** to reclaim space from feature folders you no longer need live, archive them into `.ai/archive/<slug>.tar.gz` (nothing in the pipeline reads a past feature's folder, so this is lossless for the workflow):
+**Ongoing:** to reclaim space from feature folders you no longer need live, archive them into `.relay/archive/<slug>.tar.gz` (nothing in the pipeline reads a past feature's folder, so this is lossless for the workflow):
 
 ```bash
-.ai/scripts/prune-artifacts.sh --archive <slug>            # or
-.ai/scripts/prune-artifacts.sh --archive-older-than 90     # folders untouched for 90+ days
+.relay/scripts/prune-artifacts.sh --archive <slug>            # or
+.relay/scripts/prune-artifacts.sh --archive-older-than 90     # folders untouched for 90+ days
 ```
 
 ## Updating an existing install
@@ -247,12 +247,12 @@ Run this check whenever asked "is Relay up to date in `<project>`?", or before s
 node skills/setup/scripts/check-version.mjs --project-root=<project-root>
 ```
 
-This is deterministic — it reads this module's own `module_version` (`assets/module.yaml`) and the target's `.ai/config.json` → `relayVersion`, and reports `{current, latest, upToDate, behind}`. A project set up before this check existed has no `relayVersion` field at all — `current: null` also counts as `behind`.
+This is deterministic — it reads this module's own `module_version` (`assets/module.yaml`) and the target's `.relay/config.json` → `relayVersion`, and reports `{current, latest, upToDate, behind}`. A project set up before this check existed has no `relayVersion` field at all — `current: null` also counts as `behind`.
 
 If `behind` is `true`:
 
 1. Tell the user which version the project is on vs. the latest, and ask before touching anything (this re-copies files into a project the user may have hand-edited).
-2. Re-copy `skills/pipeline/` into the target wholesale (scripts, prompts, templates, registries) — the same copy this skill performs during first-time setup (steps 7-11 above), not a hand-picked subset. Do NOT touch `.ai/config.json`'s project-specific fields (stack settings, commands, `ios.*`, etc.) — only update its `relayVersion` field, to the new `module_version`.
+2. Re-copy `skills/pipeline/` into the target wholesale (scripts, prompts, templates, registries) — the same copy this skill performs during first-time setup (steps 7-11 above), not a hand-picked subset. Do NOT touch `.relay/config.json`'s project-specific fields (stack settings, commands, `ios.*`, etc.) — only update its `relayVersion` field, to the new `module_version`.
 3. Re-run the target's own `format_write_cmd` scoped to `skills/` (same reasoning as **Excluding module content from the target's tooling** below — freshly copied files need to match the target's formatting before the next commit).
 4. Tell the user what changed — if this module's own git log has commits since the version the project was on, summarize them; otherwise just confirm the copy and new version number.
 
@@ -260,7 +260,7 @@ If `upToDate` is `true`, say so and do nothing else.
 
 ## Notes
 
-- `.ai/GOVERNANCE.md` and `.ai/DENIED_ACTIONS.md` are injected into every agent's context. Edit them to add project-specific rules.
-- `.ai/project-context.md` is also injected into every agent's context (see **Second pass** above) — anything appended there under `## Setup notes` persists across the whole project lifetime, not just setup.
-- Re-running this skill will overwrite `.ai/config.json` — back it up first if you have customisations.
-- The detection script only reads files — it never modifies the project. The CI-config second pass (done by the skill, not the script) also only reads files, except for the append-only write to `.ai/project-context.md` described above.
+- `.relay/GOVERNANCE.md` and `.relay/DENIED_ACTIONS.md` are injected into every agent's context. Edit them to add project-specific rules.
+- `.relay/project-context.md` is also injected into every agent's context (see **Second pass** above) — anything appended there under `## Setup notes` persists across the whole project lifetime, not just setup.
+- Re-running this skill will overwrite `.relay/config.json` — back it up first if you have customisations.
+- The detection script only reads files — it never modifies the project. The CI-config second pass (done by the skill, not the script) also only reads files, except for the append-only write to `.relay/project-context.md` described above.

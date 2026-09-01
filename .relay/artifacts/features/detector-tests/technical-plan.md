@@ -2,7 +2,7 @@
 
 ## Architecture
 
-This is a test-only addition that extends the existing `test/` suite convention rather than introducing any new architecture layer. The repo already has three top-level `node:test` files (`test/agent-runner.test.ts`, `test/eval-pipeline.test.mjs`, `test/rebuild-context.test.mjs`), each mapping 1:1 to a script under `skills/*/scripts/`. This feature adds a new `test/detectors/` subdirectory containing one `*.test.mjs` file per module under `skills/setup/scripts/detectors/` (10 detector modules plus `fs-helpers.mjs`, 11 files total), mirroring the same `agent-runner.test.ts` ↔ `agent-runner.ts` 1:1 mapping already established. Every detector module is a small, mostly-pure function set that either inspects a `package.json`-shaped object/on-disk file (via `fs-helpers.mjs`'s `exists`/`readJson`/`readText`) or inspects a directory layout on disk; tests exercise these functions directly by importing them and feeding them either in-memory fixture objects or real temp directories created with `mkdtempSync(path.join(os.tmpdir(), ...))`. No detector source file and no `detect-stack.mjs` line changes as part of this feature — the only non-test-file touchpoint is a possible widening of the test command's file-discovery glob/list in `package.json`'s `scripts.test` (the command backing `commands.test` in `.ai/config.json`) so `node --test` actually picks up files nested under `test/detectors/`, plus a dev-log entry documenting that change and any newly discovered (but not fixed) detector bug.
+This is a test-only addition that extends the existing `test/` suite convention rather than introducing any new architecture layer. The repo already has three top-level `node:test` files (`test/agent-runner.test.ts`, `test/eval-pipeline.test.mjs`, `test/rebuild-context.test.mjs`), each mapping 1:1 to a script under `skills/*/scripts/`. This feature adds a new `test/detectors/` subdirectory containing one `*.test.mjs` file per module under `skills/setup/scripts/detectors/` (10 detector modules plus `fs-helpers.mjs`, 11 files total), mirroring the same `agent-runner.test.ts` ↔ `agent-runner.ts` 1:1 mapping already established. Every detector module is a small, mostly-pure function set that either inspects a `package.json`-shaped object/on-disk file (via `fs-helpers.mjs`'s `exists`/`readJson`/`readText`) or inspects a directory layout on disk; tests exercise these functions directly by importing them and feeding them either in-memory fixture objects or real temp directories created with `mkdtempSync(path.join(os.tmpdir(), ...))`. No detector source file and no `detect-stack.mjs` line changes as part of this feature — the only non-test-file touchpoint is a possible widening of the test command's file-discovery glob/list in `package.json`'s `scripts.test` (the command backing `commands.test` in `.relay/config.json`) so `node --test` actually picks up files nested under `test/detectors/`, plus a dev-log entry documenting that change and any newly discovered (but not fixed) detector bug.
 
 ## Diagram
 
@@ -102,8 +102,8 @@ flowchart TD
 - `test/detectors/e2e.test.mjs` — NEW. Tests `detectE2E`: happy-path (recognized e2e framework dependency/config present) and no-signal-found case.
 - `test/detectors/error-tracking.test.mjs` — NEW. Tests `detectErrorTracking`: happy-path (recognized error-tracking dependency present) and no-signal-found case.
 - `test/detectors/locales.test.mjs` — NEW. Tests `detectLocales`: happy-path (locale files/config present) and no-signal-found case.
-- `package.json` — VERIFY, widen only if needed. Inspect `scripts.test` (the command backing `commands.test` in `.ai/config.json`). If it enumerates explicit files/globs (e.g. `node --test test/*.test.ts test/*.test.mjs`) rather than a recursive pattern that already covers subdirectories, widen it to also include `test/detectors/**/*.test.mjs` (or switch to a recursive `node --test test/` invocation if that safely still runs the three existing top-level files). Do not touch `.ai/config.json` unless the literal command string stored there is itself the thing being changed, and only after confirming the actual runnable command in `package.json` first.
-- `.ai/artifacts/features/detector-tests/dev-log.md` — NEW. Document: (a) whether/how the test command's file-discovery pattern was widened and why (per the denied-actions transparency rule on tooling changes), (b) any detector bug uncovered by these tests that is not one of the three already-known regressions described in the brief's Problem & Goals — with symptom, minimal repro, and affected function name — explicitly NOT fixed inline (AC 26).
+- `package.json` — VERIFY, widen only if needed. Inspect `scripts.test` (the command backing `commands.test` in `.relay/config.json`). If it enumerates explicit files/globs (e.g. `node --test test/*.test.ts test/*.test.mjs`) rather than a recursive pattern that already covers subdirectories, widen it to also include `test/detectors/**/*.test.mjs` (or switch to a recursive `node --test test/` invocation if that safely still runs the three existing top-level files). Do not touch `.relay/config.json` unless the literal command string stored there is itself the thing being changed, and only after confirming the actual runnable command in `package.json` first.
+- `.relay/artifacts/features/detector-tests/dev-log.md` — NEW. Document: (a) whether/how the test command's file-discovery pattern was widened and why (per the denied-actions transparency rule on tooling changes), (b) any detector bug uncovered by these tests that is not one of the three already-known regressions described in the brief's Problem & Goals — with symptom, minimal repro, and affected function name — explicitly NOT fixed inline (AC 26).
 
 **Explicitly out of scope / do not modify (verify with a diff before finishing):**
 - `skills/setup/scripts/detectors/analytics.mjs`
@@ -118,7 +118,7 @@ flowchart TD
 - `skills/setup/scripts/detectors/source-layout.mjs`
 - `skills/setup/scripts/detectors/stack.mjs`
 - `skills/setup/scripts/detect-stack.mjs`
-- `.ai/config.json` (read-only unless the narrow exception above applies)
+- `.relay/config.json` (read-only unless the narrow exception above applies)
 - `skills/pipeline/**` (unrelated module)
 - `video/**` (unrelated Remotion project)
 
@@ -153,7 +153,7 @@ flowchart TD
 8. Inspect the current `package.json` `scripts.test` value; widen its file-discovery pattern only if it does not already pick up nested files under `test/detectors/`, and note the before/after command in the dev log if changed.
 9. Run the full configured test command locally; confirm all 11 new files plus the 3 existing files pass, with zero skips and zero weakened assertions.
 10. Run `git status`/`git diff` and confirm zero changes under `skills/setup/scripts/detectors/` and to `skills/setup/scripts/detect-stack.mjs` (AC 25).
-11. Write `.ai/artifacts/features/detector-tests/dev-log.md` documenting the test-glob decision and any newly discovered (undocumented) detector bug, per AC 26 — without fixing it.
+11. Write `.relay/artifacts/features/detector-tests/dev-log.md` documenting the test-glob decision and any newly discovered (undocumented) detector bug, per AC 26 — without fixing it.
 12. Do a final AC-to-test traceability pass: for each of AC 1–20, confirm there is one specifically-named test case in the corresponding file that maps to it 1:1 (per E2E/QA §2).
 
 ## Testing Strategy
@@ -163,11 +163,11 @@ flowchart TD
 - **AC 11–16 (`detectSourceDirs`):** in `source-layout.test.mjs`, create a fresh temp dir per scenario with only src/, only app/, only pages/, both app/+pages/, app/_layout.tsx (Expo-router), and none of the three — assert ['src'], ['app'], ['pages'], the actual hybrid order, the actual Expo-router result, and [] respectively.
 - **AC 17–20 (`detectTestCmd`):** in `commands.test.mjs`, pass objects with a real test script, a placeholder test script (the npm init default containing the phrase 'no test specified'), a test:unit plus test:ci combination (assert test:unit preferred), and no test-related script at all (assert an empty string).
 - **AC 21 (baseline coverage for every other export):** for `project.mjs` (`detectProjectName`, `detectGithubRepo`, `detectDefaultBranch`), `project-type.mjs` (`detectProjectType`), `stack.mjs` (`detectRouter`, `detectStyling`, `detectBackend`), `analytics.mjs`, `paywall.mjs`, `e2e.mjs`, `error-tracking.mjs`, `locales.mjs` (`detectLocales`), and `source-layout.mjs`'s `detectSkipDirs`/`detectSourceExtensions`: verify each has at minimum one happy-path test and one no-signal-found test in its corresponding file, using the same package.json-object / temp-dir fixture patterns.
-- **AC 22 (runs via configured test command):** after implementation, run the exact command in `.ai/config.json`'s `commands.test` (or `npm test` if that's what it wraps) locally and confirm exit code 0 with all 11 new plus 3 existing files reported as run.
+- **AC 22 (runs via configured test command):** after implementation, run the exact command in `.relay/config.json`'s `commands.test` (or `npm test` if that's what it wraps) locally and confirm exit code 0 with all 11 new plus 3 existing files reported as run.
 - **AC 23 (no new test framework/library):** manually confirm every new file's only imports are from `node:test`, `node:assert`/`node:assert/strict`, `node:fs`, `node:os`, and `node:path`, plus the detector module(s) under test — grep for any other import/require before finishing.
 - **AC 24 (real temp dirs, cleaned up):** for every filesystem-based test file, confirm a cleanup call (`rmSync(dir, { recursive: true, force: true })`) exists in an `after`/`afterEach` hook (or finally block) for every `mkdtempSync` call; run the suite twice in a row locally and confirm no leftover relay-detector-* directories accumulate under `os.tmpdir()`.
 - **AC 25 (no production file changes):** run `git status --porcelain -- skills/setup/scripts/detectors skills/setup/scripts/detect-stack.mjs` (or equivalent) after implementation and confirm empty output.
-- **AC 26 (dev log for new bugs):** if any written assertion, once checked against actual source behavior, reveals a behavior that contradicts the spirit of the brief's three known-bug fixes (i.e. a fourth silent-fabrication-style bug), do not adjust the detector — write it up in `.ai/artifacts/features/detector-tests/dev-log.md` with symptom, minimal repro (fixture plus expected vs. actual), and the affected exported function name.
+- **AC 26 (dev log for new bugs):** if any written assertion, once checked against actual source behavior, reveals a behavior that contradicts the spirit of the brief's three known-bug fixes (i.e. a fourth silent-fabrication-style bug), do not adjust the detector — write it up in `.relay/artifacts/features/detector-tests/dev-log.md` with symptom, minimal repro (fixture plus expected vs. actual), and the affected exported function name.
 
 ## Task Breakdown
 
@@ -186,5 +186,5 @@ flowchart TD
 - [ ] Inspect `package.json`'s scripts.test; widen the file-discovery glob/list only if `test/detectors/**/*.test.mjs` isn't already covered
 - [ ] Run the full configured test command locally; confirm all new plus existing tests pass with zero skips
 - [ ] Run `git status`/`git diff` to confirm zero changes under `skills/setup/scripts/detectors/` and `detect-stack.mjs`
-- [ ] Write `.ai/artifacts/features/detector-tests/dev-log.md` documenting the test-glob decision and any newly discovered bug (not fixed)
+- [ ] Write `.relay/artifacts/features/detector-tests/dev-log.md` documenting the test-glob decision and any newly discovered bug (not fixed)
 - [ ] Final pass: verify every AC 1–26 maps to a specifically-named test case or explicit process step

@@ -22,16 +22,16 @@ jobs:
         # every file to the checkout time — without this, nothing ever looks
         # old enough to archive.
         run: |
-          for dir in .ai/artifacts/features/*/; do
+          for dir in .relay/artifacts/features/*/; do
             [ -d "$dir" ] || continue
             ts="$(git log -1 --format=%ct -- "$dir")"
             [ -n "$ts" ] && touch -d "@$ts" "$dir"
           done
       - name: Archive feature folders untouched for 90+ days
-        run: .ai/scripts/prune-artifacts.sh --archive-older-than 90
+        run: .relay/scripts/prune-artifacts.sh --archive-older-than 90
       - name: Commit archive
         run: |
-          git add -A .ai/archive .ai/artifacts/features
+          git add -A .relay/archive .relay/artifacts/features
           if git diff --cached --quiet; then
             exit 0
           fi

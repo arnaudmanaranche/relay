@@ -65,9 +65,9 @@ const ASC_STUB = [
 
 function makeProject({ config } = {}) {
   const dir = makeTmpDir('ok');
-  mkdirSync(join(dir, '.ai', 'artifacts', 'features', 'demo'), { recursive: true });
+  mkdirSync(join(dir, '.relay', 'artifacts', 'features', 'demo'), { recursive: true });
   writeFileSync(
-    join(dir, '.ai', 'config.json'),
+    join(dir, '.relay', 'config.json'),
     JSON.stringify({
       project: { appId: '123456789' },
       ios: { scheme: 'MyApp', workspace: '', project: 'ios/MyApp.xcodeproj', configuration: 'Release', ...(config || {}) },
@@ -116,7 +116,7 @@ function readCalls(file) {
 }
 
 function readReport(dir) {
-  return readFileSync(join(dir, '.ai', 'artifacts', 'features', 'demo', 'build-upload.md'), 'utf-8');
+  return readFileSync(join(dir, '.relay', 'artifacts', 'features', 'demo', 'build-upload.md'), 'utf-8');
 }
 
 function steps(calls) {
@@ -179,7 +179,7 @@ test('missing appId fails fast before any asc call', () => {
   const { dir } = makeProject({});
   // Overwrite config without appId.
   writeFileSync(
-    join(dir, '.ai', 'config.json'),
+    join(dir, '.relay', 'config.json'),
     JSON.stringify({ project: {}, ios: { scheme: 'MyApp', project: 'ios/MyApp.xcodeproj' } })
   );
   const { code, calls } = runUploadBuild(dir);

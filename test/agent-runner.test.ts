@@ -234,7 +234,7 @@ describe('parseToolArgs', () => {
   test('parses a well-formed submit_changes payload', () => {
     const raw = JSON.stringify({
       files: [{ path: 'a.ts', action: 'modify', content: 'x' }],
-      artifacts: [{ path: '.ai/artifacts/features/x/dev-log.md', action: 'create', content: 'log' }],
+      artifacts: [{ path: '.relay/artifacts/features/x/dev-log.md', action: 'create', content: 'log' }],
       verdict: 'PASS',
     });
     const result = parseToolArgs(raw, 'review', 'x');
@@ -272,7 +272,7 @@ describe('checkPermissions', () => {
     const { allowed } = checkPermissions(
       'dev',
       [{ path: 'src/feature.tsx', action: 'modify', content: '' }],
-      [{ path: '.ai/artifacts/features/x/dev-log.md', action: 'create', content: '' }]
+      [{ path: '.relay/artifacts/features/x/dev-log.md', action: 'create', content: '' }]
     );
     assert.equal(allowed, true);
   });
@@ -320,7 +320,7 @@ describe('checkPermissions', () => {
     const { allowed } = checkPermissions(
       'review',
       [],
-      [{ path: '.ai/artifacts/features/x/review-report.md', action: 'create', content: '' }]
+      [{ path: '.relay/artifacts/features/x/review-report.md', action: 'create', content: '' }]
     );
     assert.equal(allowed, true);
   });
@@ -330,14 +330,14 @@ describe('checkPermissions', () => {
       const { allowed } = checkPermissions(
         role,
         [],
-        [{ path: '.ai/project-memory.md', action: 'update', content: '' }]
+        [{ path: '.relay/project-memory.md', action: 'update', content: '' }]
       );
       assert.equal(allowed, false, role);
     }
     const { allowed } = checkPermissions(
       'retro',
       [],
-      [{ path: '.ai/project-memory.md', action: 'update', content: '' }]
+      [{ path: '.relay/project-memory.md', action: 'update', content: '' }]
     );
     assert.equal(allowed, true);
   });
@@ -357,13 +357,13 @@ describe('checkPermissions', () => {
   });
 
   test('path traversal in an artifact path is blocked the same way', () => {
-    // The artifact regex only checks that ".ai/artifacts/...md" appears
+    // The artifact regex only checks that ".relay/artifacts/...md" appears
     // somewhere in the string — .test() is unanchored, so a leading `../`
     // sequence in front of a legitimate-looking suffix still matches it.
     const { allowed, blocked } = checkPermissions(
       'pm',
       [],
-      [{ path: '../../.ai/artifacts/features/x/evil.md', action: 'create', content: '' }]
+      [{ path: '../../.relay/artifacts/features/x/evil.md', action: 'create', content: '' }]
     );
     assert.equal(allowed, false);
     assert.match(blocked[0], /escapes project root/);
@@ -383,7 +383,7 @@ describe('checkPermissions', () => {
 describe('isWithinRoot', () => {
   test('a normal relative path resolves inside root', () => {
     assert.equal(isWithinRoot('src/feature.ts'), true);
-    assert.equal(isWithinRoot('.ai/artifacts/features/x/dev-log.md'), true);
+    assert.equal(isWithinRoot('.relay/artifacts/features/x/dev-log.md'), true);
   });
 
   test('a traversal path that escapes the process root is rejected', () => {
@@ -457,13 +457,13 @@ describe('applyChanges — golden write behavior', () => {
         applyChanges(
           'dev',
           [{ path: 'src/feature.ts', action: 'modify', content: 'export const x = 1;\n' }],
-          [{ path: '.ai/artifacts/features/x/dev-log.md', action: 'create', content: 'log\n' }],
+          [{ path: '.relay/artifacts/features/x/dev-log.md', action: 'create', content: 'log\n' }],
           'x',
           true
         );
         assert.throws(() => readFileSync(join(root, 'src/feature.ts')));
         const artifact = readFileSync(
-          join(root, '.ai/artifacts/features/x/dev-log.md'),
+          join(root, '.relay/artifacts/features/x/dev-log.md'),
           'utf-8'
         );
         assert.equal(artifact, 'log\n');
@@ -585,7 +585,7 @@ describe('loadTokenUsage / saveTokenUsage — disk round-trip', () => {
     const cwd = process.cwd();
     process.chdir(root);
     try {
-      const featureDir = '.ai/artifacts/features/x';
+      const featureDir = '.relay/artifacts/features/x';
       const initial = loadTokenUsage(featureDir);
       // `assert.deepEqual` is typed as an assertion function (`asserts
       // actual is T`), so it narrows `initial`'s type to match this
@@ -613,7 +613,7 @@ describe('loadTokenUsage / saveTokenUsage — disk round-trip', () => {
   });
 });
 
-describe('validateRegistry — .ai/agents.json schema validation', () => {
+describe('validateRegistry — .relay/agents.json schema validation', () => {
   function validRoles() {
     const role = () => ({ skill: 's.md', model: 'm', artifact: 'a.md', description: 'd', maxTokens: 1000 });
     const roles: Record<string, unknown> = {};
@@ -646,7 +646,7 @@ describe('validateRegistry — .ai/agents.json schema validation', () => {
 
   test('a complete, well-formed registry passes through unchanged', () => {
     const roles = validRoles();
-    const result = validateRegistry({ roles }, '.ai/agents.json');
+    const result = validateRegistry({ roles }, '.relay/agents.json');
     assert.deepEqual(Object.keys(result).sort(), REQUIRED_ROLES.slice().sort());
   });
 
@@ -654,7 +654,7 @@ describe('validateRegistry — .ai/agents.json schema validation', () => {
     const roles = validRoles();
     delete roles['memory-compact'];
     const { exitCode, errors } = runWithStubbedExit(() =>
-      validateRegistry({ roles }, '.ai/agents.json')
+      validateRegistry({ roles }, '.relay/agents.json')
     );
     assert.equal(exitCode, 1);
     assert.ok(errors.some(e => e.includes('memory-compact')), errors.join('\n'));
@@ -664,7 +664,7 @@ describe('validateRegistry — .ai/agents.json schema validation', () => {
     const roles = validRoles();
     (roles.dev as any).model = '';
     const { exitCode, errors } = runWithStubbedExit(() =>
-      validateRegistry({ roles }, '.ai/agents.json')
+      validateRegistry({ roles }, '.relay/agents.json')
     );
     assert.equal(exitCode, 1);
     assert.ok(errors.some(e => e.includes('roles.dev.model')), errors.join('\n'));
@@ -674,7 +674,7 @@ describe('validateRegistry — .ai/agents.json schema validation', () => {
     const roles = validRoles();
     (roles.pm as any).maxTokens = 0;
     const { exitCode, errors } = runWithStubbedExit(() =>
-      validateRegistry({ roles }, '.ai/agents.json')
+      validateRegistry({ roles }, '.relay/agents.json')
     );
     assert.equal(exitCode, 1);
     assert.ok(errors.some(e => e.includes('roles.pm.maxTokens')), errors.join('\n'));
@@ -682,7 +682,7 @@ describe('validateRegistry — .ai/agents.json schema validation', () => {
 
   test('a missing "roles" object entirely is rejected', () => {
     const { exitCode } = runWithStubbedExit(() =>
-      validateRegistry({}, '.ai/agents.json')
+      validateRegistry({}, '.relay/agents.json')
     );
     assert.equal(exitCode, 1);
   });
@@ -695,36 +695,36 @@ describe('normalizeArtifactPath — model-returned bare filenames', () => {
     // submitted "feature-brief.md" instead of the full path.
     assert.equal(
       normalizeArtifactPath('feature-brief.md', 'monthly-size-reminder'),
-      '.ai/artifacts/features/monthly-size-reminder/feature-brief.md'
+      '.relay/artifacts/features/monthly-size-reminder/feature-brief.md'
     );
   });
 
-  test('a path already under .ai/ is left untouched', () => {
+  test('a path already under .relay/ is left untouched', () => {
     assert.equal(
-      normalizeArtifactPath('.ai/artifacts/features/x/dev-log.md', 'x'),
-      '.ai/artifacts/features/x/dev-log.md'
+      normalizeArtifactPath('.relay/artifacts/features/x/dev-log.md', 'x'),
+      '.relay/artifacts/features/x/dev-log.md'
     );
-    assert.equal(normalizeArtifactPath('.ai/project-memory.md', 'x'), '.ai/project-memory.md');
+    assert.equal(normalizeArtifactPath('.relay/project-memory.md', 'x'), '.relay/project-memory.md');
   });
 
-  test('a "<slug>/filename" path (no .ai/artifacts/features/ prefix) is not double-nested', () => {
+  test('a "<slug>/filename" path (no .relay/artifacts/features/ prefix) is not double-nested', () => {
     // Found live, one call after the bare-filename case: the same role
     // returned a different partial form of the path on a different run —
     // "monthly-size-reminder-notification/feature-brief.md". The old
     // (bare-filename-only) fix re-prefixed the whole thing and produced
-    // .ai/artifacts/features/<slug>/<slug>/feature-brief.md — a duplicate
+    // .relay/artifacts/features/<slug>/<slug>/feature-brief.md — a duplicate
     // nested path that left the real content somewhere dev-review never
     // looked, while the placeholder stub at the expected path stayed empty.
     assert.equal(
       normalizeArtifactPath('monthly-size-reminder-notification/feature-brief.md', 'monthly-size-reminder-notification'),
-      '.ai/artifacts/features/monthly-size-reminder-notification/feature-brief.md'
+      '.relay/artifacts/features/monthly-size-reminder-notification/feature-brief.md'
     );
   });
 
-  test('a path with "artifacts/features/<slug>/" but missing the leading ".ai/" is fixed, not doubled', () => {
+  test('a path with "artifacts/features/<slug>/" but missing the leading ".relay/" is fixed, not doubled', () => {
     assert.equal(
       normalizeArtifactPath('artifacts/features/x/dev-log.md', 'x'),
-      '.ai/artifacts/features/x/dev-log.md'
+      '.relay/artifacts/features/x/dev-log.md'
     );
   });
 });
@@ -736,7 +736,7 @@ describe('parseToolArgs — end-to-end path normalization', () => {
       verdict: 'clear',
     });
     const result = parseToolArgs(raw, 'pm', 'monthly-size-reminder');
-    assert.equal(result.artifacts[0].path, '.ai/artifacts/features/monthly-size-reminder/feature-brief.md');
+    assert.equal(result.artifacts[0].path, '.relay/artifacts/features/monthly-size-reminder/feature-brief.md');
     const { allowed } = checkPermissions('pm', [], result.artifacts);
     assert.equal(allowed, true);
   });
@@ -783,7 +783,7 @@ describe('evaluateClaudeCliResult — claude-cli backend response handling', () 
     assert.equal(evaluation.status, 'success');
     if (evaluation.status === 'success') {
       assert.equal(evaluation.result.artifacts.length, 1);
-      assert.equal(evaluation.result.artifacts[0].path, '.ai/artifacts/features/my-feature/foo.md');
+      assert.equal(evaluation.result.artifacts[0].path, '.relay/artifacts/features/my-feature/foo.md');
       assert.equal(evaluation.result.usageTokens, 15);
     }
   });
@@ -939,9 +939,9 @@ describe('extractImpactedFiles — Dev batching input', () => {
     assert.deepEqual(extractImpactedFiles(plan), ['src/components/card.tsx']);
   });
 
-  test('skips .ai/ artifact paths and template placeholders with braces', () => {
+  test('skips .relay/ artifact paths and template placeholders with braces', () => {
     const plan = `
-- \`.ai/artifacts/features/x/dev-log.md\` — not a source file
+- \`.relay/artifacts/features/x/dev-log.md\` — not a source file
 - \`src/{feature}/index.ts\` — template placeholder, not a real path
 - \`src/real-file.ts\` — an actual file
 `;
@@ -1142,7 +1142,7 @@ describe('scopeToRetryFiles — scoping a quality-gate retry to implicated files
 });
 
 describe('buildArchitectTask — per-pass task text for the Architect split', () => {
-  const ctx = { featureDir: '.ai/artifacts/features/my-feature' } as Parameters<
+  const ctx = { featureDir: '.relay/artifacts/features/my-feature' } as Parameters<
     typeof buildArchitectTask
   >[0];
 
@@ -1173,7 +1173,7 @@ describe('buildArchitectTask — per-pass task text for the Architect split', ()
   });
 
   test('both passes reference this feature\'s own featureDir, not a hardcoded path', () => {
-    const otherCtx = { featureDir: '.ai/artifacts/features/other-feature' } as Parameters<
+    const otherCtx = { featureDir: '.relay/artifacts/features/other-feature' } as Parameters<
       typeof buildArchitectTask
     >[0];
     assert.match(buildArchitectTask(otherCtx, 'plan'), /other-feature\/technical-plan\.md/);
@@ -1192,8 +1192,8 @@ describe('buildArchitectTask — per-pass task text for the Architect split', ()
 describe('filterArchitectPassArtifacts — defense in depth against a pass producing the wrong artifact', () => {
   test("the 'amend' pass keeps only technical-plan.md, like 'plan' — never repository-context.md", () => {
     const artifacts = [
-      { path: '.ai/artifacts/features/x/technical-plan.md', action: 'create' as const, content: 'plan+amendment' },
-      { path: '.ai/artifacts/features/x/repository-context.md', action: 'create' as const, content: 'ctx' },
+      { path: '.relay/artifacts/features/x/technical-plan.md', action: 'create' as const, content: 'plan+amendment' },
+      { path: '.relay/artifacts/features/x/repository-context.md', action: 'create' as const, content: 'ctx' },
     ];
     const { expected, unexpected } = filterArchitectPassArtifacts('amend', artifacts);
     assert.equal(expected.length, 1);
@@ -1204,8 +1204,8 @@ describe('filterArchitectPassArtifacts — defense in depth against a pass produ
 
   test("the 'plan' pass keeps only technical-plan.md, drops anything else", () => {
     const artifacts = [
-      { path: '.ai/artifacts/features/x/technical-plan.md', action: 'create' as const, content: 'plan' },
-      { path: '.ai/artifacts/features/x/repository-context.md', action: 'create' as const, content: 'ctx' },
+      { path: '.relay/artifacts/features/x/technical-plan.md', action: 'create' as const, content: 'plan' },
+      { path: '.relay/artifacts/features/x/repository-context.md', action: 'create' as const, content: 'ctx' },
     ];
     const { expected, unexpected } = filterArchitectPassArtifacts('plan', artifacts);
     assert.equal(expected.length, 1);
@@ -1216,8 +1216,8 @@ describe('filterArchitectPassArtifacts — defense in depth against a pass produ
 
   test("the 'context' pass keeps only repository-context.md, drops anything else", () => {
     const artifacts = [
-      { path: '.ai/artifacts/features/x/technical-plan.md', action: 'create' as const, content: 'plan' },
-      { path: '.ai/artifacts/features/x/repository-context.md', action: 'create' as const, content: 'ctx' },
+      { path: '.relay/artifacts/features/x/technical-plan.md', action: 'create' as const, content: 'plan' },
+      { path: '.relay/artifacts/features/x/repository-context.md', action: 'create' as const, content: 'ctx' },
     ];
     const { expected, unexpected } = filterArchitectPassArtifacts('context', artifacts);
     assert.equal(expected.length, 1);

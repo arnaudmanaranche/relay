@@ -26,7 +26,7 @@ Write `retrospective.md` with these sections:
 
 ## Cross-session memory
 
-After writing the feature retrospective, also submit an updated `.ai/project-memory.md` (create if missing). Every role on every future feature reads this file, so it is organized into four fixed categories, not one section per feature:
+After writing the feature retrospective, also submit an updated `.relay/project-memory.md` (create if missing). Every role on every future feature reads this file, so it is organized into four fixed categories, not one section per feature:
 
 - **Pitfalls** — common mistakes in this codebase
 - **Conventions confirmed** — patterns validated across features
@@ -37,11 +37,11 @@ Merge new learnings into the matching category instead of appending a new sectio
 
 ## Skill creation — don't repeat the same workflow forever
 
-Before finishing, check the **Conventions confirmed** category in `.ai/project-memory.md` for a pattern that has now shown up, essentially unchanged, across **3 or more** different `(slug)` tags — e.g. "add a settings toggle" or "add a new analytics event + i18n keys + registry entry" recurring the same way each time.
+Before finishing, check the **Conventions confirmed** category in `.relay/project-memory.md` for a pattern that has now shown up, essentially unchanged, across **3 or more** different `(slug)` tags — e.g. "add a settings toggle" or "add a new analytics event + i18n keys + registry entry" recurring the same way each time.
 
 If you find one:
 
-- Submit a proposal artifact at `.ai/artifacts/skill-proposals/<short-pattern-name>.md` containing:
+- Submit a proposal artifact at `.relay/artifacts/skill-proposals/<short-pattern-name>.md` containing:
   - **Pattern observed** — what recurs, in one sentence
   - **Evidence** — which feature slugs exhibited it, and what varied vs. what stayed fixed
   - **Proposed skill** — what a dedicated skill for this pattern would take as input and produce as output

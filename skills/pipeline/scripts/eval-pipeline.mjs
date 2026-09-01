@@ -13,7 +13,7 @@
 //      over the artifacts: required sections present, mandatory diagram
 //      present, no placeholders/TBD, verdict recorded, etc.
 //   2. LLM-as-judge (opt-in, --llm-judge) — sends each artifact to the
-//      OpenAI-compatible model configured in .ai/config.json for a 1-5
+//      OpenAI-compatible model configured in .relay/config.json for a 1-5
 //      rubric score. Skipped gracefully when no config/key is available.
 //
 // Golden cases live in skills/pipeline/eval/cases/*.json and point at
@@ -240,13 +240,13 @@ function parseTouchedFiles(raw) {
 }
 
 // Optional LLM-as-judge. Reuses the OpenAI-compatible chat-completions
-// config from .ai/config.json (same shape agent-runner uses). Returns null
+// config from .relay/config.json (same shape agent-runner uses). Returns null
 // — never throws the run — when config or key is unavailable, so the
 // structural pass still stands on its own.
 async function llmJudge(caseDef, readArtifact) {
-  const configPath = join(process.cwd(), '.ai/config.json');
+  const configPath = join(process.cwd(), '.relay/config.json');
   if (!existsSync(configPath)) {
-    console.warn('  (--llm-judge: no .ai/config.json in cwd — skipping)');
+    console.warn('  (--llm-judge: no .relay/config.json in cwd — skipping)');
     return null;
   }
   let llm;
@@ -269,7 +269,7 @@ async function llmJudge(caseDef, readArtifact) {
   const prompt = `You are grading the output of an AI feature-development pipeline against this rubric:\n${caseDef.rubric || caseDef.description || caseDef.name}\n\nArtifacts:\n\n${artifacts}\n\nReturn ONLY a JSON object {"score": <1-5 integer>, "reason": "<one sentence>"}.`;
   try {
     const res = await fetch(
-      llm.baseUrl || 'https://openrouter.ai/api/v1/chat/completions',
+      llm.baseUrl || 'https://openrouter.relay/api/v1/chat/completions',
       {
         method: 'POST',
         headers: {

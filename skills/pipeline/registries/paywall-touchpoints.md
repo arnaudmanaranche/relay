@@ -1,6 +1,6 @@
 # Paywall & premium registry
 
-**Provider:** Configurable per project in `.ai/config.json.stack.paywall`
+**Provider:** Configurable per project in `.relay/config.json.stack.paywall`
 
 ## Entitlement model
 - Premium status from the configured paywall provider

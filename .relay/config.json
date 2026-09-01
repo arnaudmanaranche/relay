@@ -33,7 +33,7 @@
   "e2e": { "framework": "", "dir": "e2e" },
   "llm": {
     "backend": "claude-cli",
-    "baseUrl": "https://openrouter.ai/api/v1/chat/completions",
+    "baseUrl": "https://openrouter.relay/api/v1/chat/completions",
     "apiKeyEnv": "OPENROUTER_API_KEY",
     "model": "unused-claude-cli-backend",
     "refererUrl": "https://github.com/arnaudmanaranche/relay",

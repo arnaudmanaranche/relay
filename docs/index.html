@@ -401,11 +401,11 @@
         <div class="section-head">
           <div class="kicker"><span class="idx">02</span><span>Every role, same shape</span></div>
           <h2>Anatomy of a role</h2>
-          <p>PM, Architect, Dev, Review, QA: different jobs, identical machinery. This is what <code>.ai/agents.json</code> and <code>agent-runner.ts</code> assemble for every single call.</p>
+          <p>PM, Architect, Dev, Review, QA: different jobs, identical machinery. This is what <code>.relay/agents.json</code> and <code>agent-runner.ts</code> assemble for every single call.</p>
         </div>
         <div class="anatomy">
-          <div class="anatomy-row"><div class="key">Governance</div><div class="val"><code>.ai/GOVERNANCE.md</code> and <code>DENIED_ACTIONS.md</code> are injected into every prompt: role boundaries, output rules, hard denials.</div></div>
-          <div class="anatomy-row"><div class="key">Input</div><div class="val">The prior role's artifacts, plus <code>.ai/project-memory.md</code>: pitfalls, conventions, and decisions carried over from every past feature.</div></div>
+          <div class="anatomy-row"><div class="key">Governance</div><div class="val"><code>.relay/GOVERNANCE.md</code> and <code>DENIED_ACTIONS.md</code> are injected into every prompt: role boundaries, output rules, hard denials.</div></div>
+          <div class="anatomy-row"><div class="key">Input</div><div class="val">The prior role's artifacts, plus <code>.relay/project-memory.md</code>: pitfalls, conventions, and decisions carried over from every past feature.</div></div>
           <div class="anatomy-row"><div class="key">Output</div><div class="val">A single forced tool call, <code>submit_changes</code>, checked against a per-role JSON Schema (<code>{files, artifacts, verdict}</code>). Never free-form prose parsed after the fact.</div></div>
           <div class="anatomy-row"><div class="key">Permissions</div><div class="val">Write access is enforced in <code>agent-runner.ts</code>, regardless of what the prompt says. Only Dev writes source. Only Retro and Memory Compact touch project memory.</div></div>
           <div class="anatomy-row"><div class="key">Gate</div><div class="val">A deterministic check in <code>run-pipeline.sh</code>, typecheck, diagram presence, verdict value, decides retry, halt, or handoff. The model never decides its own control flow.</div></div>
@@ -460,7 +460,7 @@
     <section id="config">
       <div class="section-inner">
         <div class="section-head">
-          <div class="kicker"><span class="idx">05</span><span>.ai/config.json</span></div>
+          <div class="kicker"><span class="idx">05</span><span>.relay/config.json</span></div>
           <h2>Configuration</h2>
           <p>Generated once by <code>relay-setup</code>. Full list lives in <code>skills/setup/assets/module.yaml</code>.</p>
         </div>
@@ -473,7 +473,7 @@
         <div class="section-head">
           <div class="kicker"><span class="idx">06</span><span>llm.backend</span></div>
           <h2>Choosing a backend</h2>
-          <p>Every role calls whichever backend <code>.ai/config.json</code> points at. Same schema validation, same retries, same guardrails either way.</p>
+          <p>Every role calls whichever backend <code>.relay/config.json</code> points at. Same schema validation, same retries, same guardrails either way.</p>
         </div>
         <div class="compare">
           <div class="col">
@@ -531,7 +531,7 @@
           <div><span class="comment"># start a feature</span></div>
           <div><span class="prompt">$</span> <span class="cmd">/relay:pipeline new "Add dark mode toggle"</span></div>
         </div>
-        <p class="arrow-note">Each feature commits a durable artifact folder under <code>.ai/artifacts/features/</code>. <code>.ai/scripts/prune-artifacts.sh --archive-older-than 90</code> tars up stale ones losslessly — see <a href="https://github.com/arnaudmanaranche/relay/blob/main/skills/setup/SKILL.md#repo-hygiene">Repo hygiene</a> in the setup skill.</p>
+        <p class="arrow-note">Each feature commits a durable artifact folder under <code>.relay/artifacts/features/</code>. <code>.relay/scripts/prune-artifacts.sh --archive-older-than 90</code> tars up stale ones losslessly — see <a href="https://github.com/arnaudmanaranche/relay/blob/main/skills/setup/SKILL.md#repo-hygiene">Repo hygiene</a> in the setup skill.</p>
       </div>
     </section>
 
@@ -608,10 +608,10 @@
   var branch = {
     code: 'Periodic', key: 'memory-compact', label: 'Memory Compact', short: 'Prune',
     role: 'Runs on a schedule, not per feature: every project.memoryCompactEvery shipped features, ten by default.',
-    produces: '.ai/project-memory.md (rewritten)',
+    produces: '.relay/project-memory.md (rewritten)',
     producesDesc: 'Deduplicates and drops stale entries so project memory stays four fixed categories, never one section per feature forever.',
     gate: { type: 'none', label: 'No gate', text: 'A housekeeping pass, not a feature-blocking stage.' },
-    example: [{ file: '.ai/project-memory.md', content:
+    example: [{ file: '.relay/project-memory.md', content:
 'Before: 34 feature-specific entries under "Conventions confirmed",\nincluding (dark-mode-toggle), (push-notifications), (locale-switch).\n\nAfter: 9 deduplicated, generalized entries — the three above merge\ninto one: "Resolve platform-level preferences (theme, notifications,\nlocale) through the Appearance/OS API, never a manual override table."' }]
   };
 
@@ -779,7 +779,7 @@
     { tag: 'PROV', title: 'Provenance trailers', text: 'Relay-Model and Relay-Prompt-SHA on every commit. Trace any artifact back to the exact model and prompt that produced it.' },
     { tag: 'HOOK', title: 'Hook-respecting commits', text: 'Never git commit with --no-verify. A real pre-commit rejection stops the run instead of being quietly bypassed.' },
     { tag: 'LOCK', title: 'Concurrency lock', text: 'A per-slug mkdir lock stops two invocations racing the same worktree or branch. A dead-process lock is reclaimed automatically.' },
-    { tag: 'BUDGET', title: 'Token and cost budget breaker', text: 'project.maxTokensPerFeature and project.maxCostUsdPerFeature both track real cumulative spend and refuse further calls once exceeded — cost matters on its own since .ai/agents.json routinely mixes cheaper and pricier models across roles.' }
+    { tag: 'BUDGET', title: 'Token and cost budget breaker', text: 'project.maxTokensPerFeature and project.maxCostUsdPerFeature both track real cumulative spend and refuse further calls once exceeded — cost matters on its own since .relay/agents.json routinely mixes cheaper and pricier models across roles.' }
   ];
   var safetyGrid = document.getElementById('safetyGrid');
   guardrails.forEach(function (g) {

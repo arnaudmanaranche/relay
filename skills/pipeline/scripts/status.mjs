@@ -10,14 +10,14 @@
 // Signals consumed (all written by run-pipeline.sh / agent-runner.ts):
 //   <parent-of-root>/.relay-worktrees/<repo>-<slug>/     preserved worktree = run in flight or halted
 //   <parent-of-root>/.relay-worktrees/.locks/<slug>/pid  live pid = running; dead pid = crashed/stale
-//   <worktree>/.ai/artifacts/features/<slug>/
+//   <worktree>/.relay/artifacts/features/<slug>/
 //     .agent-status.json            last completed role (role, verdict, model)
 //     .agent-status-<role>.json     per-role verdicts (review FAIL, qa FAIL, dev-review questions…)
 //     .agent-token-usage.json       cumulative { totalTokens, totalCostUsd, calls[] }
 //     technical-plan.md             present once the Architect has finished
 //     .architect-approved           first line = sha256 of the approved plan (design gate)
 //     .agent-typecheck-feedback.md  exists only while quality gates are failing
-//   <root>/.ai/artifacts/features/<slug>/retrospective.md   merged/completed features
+//   <root>/.relay/artifacts/features/<slug>/retrospective.md   merged/completed features
 //
 // Usage:
 //   node status.mjs                       # current repo, human-readable table
@@ -151,7 +151,7 @@ export function classifyRun({
 export function inspectWorktree({ repoRoot, repoDirName, entry, worktreeRoot, branchPrefix }) {
   const slug = entry.slice(repoDirName.length + 1);
   const worktreeDir = join(worktreeRoot, entry);
-  const artDir = join(worktreeDir, '.ai', 'artifacts', 'features', slug);
+  const artDir = join(worktreeDir, '.relay', 'artifacts', 'features', slug);
 
   let lock = null;
   const rawPid = readFileSafe(join(worktreeRoot, '.locks', slug, 'pid'));
@@ -251,10 +251,10 @@ export function inspectWorktree({ repoRoot, repoDirName, entry, worktreeRoot, br
 export function collectRepo(rootArg) {
   const root = resolve(rootArg);
   const repoDirName = basename(root);
-  if (!existsSync(join(root, '.ai'))) {
-    return { root, name: repoDirName, error: 'no .ai/ directory — not a Relay repo' };
+  if (!existsSync(join(root, '.relay'))) {
+    return { root, name: repoDirName, error: 'no .relay/ directory — not a Relay repo' };
   }
-  const config = readJsonSafe(join(root, '.ai', 'config.json')) || {};
+  const config = readJsonSafe(join(root, '.relay', 'config.json')) || {};
   const project = config.project || {};
   const branchPrefix = project.branchPrefix || 'feat';
   const worktreeRoot = join(dirname(root), '.relay-worktrees');
@@ -278,7 +278,7 @@ export function collectRepo(rootArg) {
   // (artifacts are committed to the feature branch). Debug/status/cost files
   // are gitignored, so cost is only known for runs with a surviving worktree.
   let completed = [];
-  const featuresDir = join(root, '.ai', 'artifacts', 'features');
+  const featuresDir = join(root, '.relay', 'artifacts', 'features');
   const activeSlugs = new Set(active.map(a => a.slug));
   if (existsSync(featuresDir)) {
     for (const entry of readdirSync(featuresDir, { withFileTypes: true })) {

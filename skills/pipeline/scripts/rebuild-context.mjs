@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Rebuild .ai/context.json — repo memory for the Relay pipeline.
+// Rebuild .relay/context.json — repo memory for the Relay pipeline.
 // Usage: node rebuild-context.mjs [--project-root=<path>]
 //
 // Two things changed from the original hand-rolled-regex version:
@@ -39,7 +39,7 @@ function getRoot() {
 
 function loadConfig(root) {
   try {
-    return JSON.parse(readFileSync(join(root, '.ai/config.json'), 'utf-8'));
+    return JSON.parse(readFileSync(join(root, '.relay/config.json'), 'utf-8'));
   } catch {
     return {
       sourceDirs: ['src'],
@@ -52,7 +52,7 @@ function loadConfig(root) {
 
 function loadPreviousContext(root) {
   try {
-    return JSON.parse(readFileSync(join(root, '.ai/context.json'), 'utf-8'));
+    return JSON.parse(readFileSync(join(root, '.relay/context.json'), 'utf-8'));
   } catch {
     return null;
   }
@@ -333,9 +333,9 @@ async function main() {
 
   const output = buildContext({ files, previous, ts, conventions });
 
-  writeFileSync(join(root, '.ai/context.json'), JSON.stringify(output, null, 2));
+  writeFileSync(join(root, '.relay/context.json'), JSON.stringify(output, null, 2));
   console.log(
-    `Rebuilt .ai/context.json — ${output.fileCount} files ` +
+    `Rebuilt .relay/context.json — ${output.fileCount} files ` +
       `(${output.stats.filesReusedFromCache} reused, ${output.stats.filesParsed} parsed via ${output.generatedWith}), ` +
       `${Object.keys(output.dependencyMap).length} unique imports, ${Object.keys(output.symbolIndex).length} symbols`
   );

@@ -5,7 +5,7 @@ This file is read by every agent in the AI Feature Pipeline. Any action listed h
 ## Always denied
 
 - Committing secrets, API keys, tokens, passwords, or credentials
-- Deleting or overwriting `.ai/config.json`, `.ai/agents.json`, or any governance file
+- Deleting or overwriting `.relay/config.json`, `.relay/agents.json`, or any governance file
 - Merging pull requests or closing issues
 - Pushing to the default branch directly
 - Installing new dependencies without listing them in the dev log

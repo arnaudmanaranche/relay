@@ -33,7 +33,7 @@ function readModuleVersion() {
 }
 
 function readProjectVersion() {
-  const configPath = join(ROOT, '.ai', 'config.json');
+  const configPath = join(ROOT, '.relay', 'config.json');
   if (!existsSync(configPath)) return null;
   const config = JSON.parse(readFileSync(configPath, 'utf-8'));
   return config.relayVersion ?? null;

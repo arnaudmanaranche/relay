@@ -73,7 +73,7 @@ export interface RepoSummary {
   // Non-empty when the directory is not a Relay repo or could not be read.
   // (Named errorText: `error` is a keyword in the compiled facade.)
   readonly errorText: Uint8Array;
-  // The repo's configured .ai/config.json project.maxCostUsdPerFeature —
+  // The repo's configured .relay/config.json project.maxCostUsdPerFeature —
   // 0 means unset, not "zero budget" (same zero-sentinel convention as
   // ActiveRun.pid/artifactsDir's empty bytes).
   readonly maxBudgetUsd: number;

@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # Repo-hygiene maintenance for the Relay.
-# Installed into <project>/.ai/scripts/prune-artifacts.sh by the setup skill.
+# Installed into <project>/.relay/scripts/prune-artifacts.sh by the setup skill.
 #
 # Two jobs, both human-run and safe (nothing is deleted without first being
 # archived; --dry-run previews everything):
 #
 #   --untrack                 One-time migration for a repo that committed
-#                             pipeline debug files before .ai/.gitignore
+#                             pipeline debug files before .relay/.gitignore
 #                             existed. Stops tracking the now-ignored files
 #                             (context.json + per-run .agent-* dumps) without
 #                             touching your working copy. Commit the result.
 #
 #   --archive <slug>...       Archive shipped feature folders you no longer
-#   --archive-older-than <n>  need live: each becomes .ai/archive/<slug>.tar.gz
+#   --archive-older-than <n>  need live: each becomes .relay/archive/<slug>.tar.gz
 #                             and the original folder is removed. Nothing in
 #                             the pipeline reads a past feature's folder (Retro
 #                             only reads the current one; cross-feature memory
@@ -21,15 +21,15 @@
 #                             paper trail.
 #
 # Usage:
-#   .ai/scripts/prune-artifacts.sh --untrack [--dry-run]
-#   .ai/scripts/prune-artifacts.sh --archive <slug> [<slug>...] [--dry-run]
-#   .ai/scripts/prune-artifacts.sh --archive-older-than <days> [--dry-run]
+#   .relay/scripts/prune-artifacts.sh --untrack [--dry-run]
+#   .relay/scripts/prune-artifacts.sh --archive <slug> [<slug>...] [--dry-run]
+#   .relay/scripts/prune-artifacts.sh --archive-older-than <days> [--dry-run]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-FEATURES_DIR="$ROOT/.ai/artifacts/features"
-ARCHIVE_DIR="$ROOT/.ai/archive"
+FEATURES_DIR="$ROOT/.relay/artifacts/features"
+ARCHIVE_DIR="$ROOT/.relay/archive"
 
 DRY_RUN=false
 MODE=""
@@ -59,8 +59,8 @@ run() {
 if [ "$MODE" = "untrack" ]; then
   echo "==> Untracking now-ignored pipeline files (working copy is untouched)..."
   # --ignore-unmatch: don't fail if a pattern matches nothing (fresh installs).
-  run "git -C '$ROOT' rm -r --cached --quiet --ignore-unmatch .ai/context.json"
-  run "git -C '$ROOT' rm -r --cached --quiet --ignore-unmatch '.ai/artifacts/features/*/.agent-*'"
+  run "git -C '$ROOT' rm -r --cached --quiet --ignore-unmatch .relay/context.json"
+  run "git -C '$ROOT' rm -r --cached --quiet --ignore-unmatch '.relay/artifacts/features/*/.agent-*'"
   echo "==> Done. Review with 'git status' and commit (e.g. chore(relay): untrack pipeline debug files)."
   exit 0
 fi
@@ -83,7 +83,7 @@ if [ "$MODE" = "archive" ]; then
       echo "  Skipping '$slug' — no such feature folder."
       continue
     fi
-    echo "==> Archiving '$slug' -> .ai/archive/$slug.tar.gz"
+    echo "==> Archiving '$slug' -> .relay/archive/$slug.tar.gz"
     run "tar -czf '$ARCHIVE_DIR/$slug.tar.gz' -C '$FEATURES_DIR' '$slug'"
     run "rm -rf '$src'"
   done

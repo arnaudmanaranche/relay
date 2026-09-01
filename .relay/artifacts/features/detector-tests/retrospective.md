@@ -66,8 +66,8 @@
 - **Rationale:** Matches the actual detector implementations and keeps each test fast (no I/O for in-memory fixtures) or realistic (real temp dirs for file-based logic).
 - **Decision:** Implement in dependency order: fs-helpers.test.mjs first (establishes ground truth for what missing/malformed file behavior is), then project-type (since detectAppId uses its output), then the rest.
 - **Rationale:** Prevents cascading false assertions if the lower-level contract is wrong.
-- **Decision:** Do NOT modify `.ai/config.json` unless the literal `commands.test` string changes; verify package.json's test script first.
-- **Rationale:** Separates tooling-config changes (package.json) from project-config changes (.ai/config.json); reduces blast radius.
+- **Decision:** Do NOT modify `.relay/config.json` unless the literal `commands.test` string changes; verify package.json's test script first.
+- **Rationale:** Separates tooling-config changes (package.json) from project-config changes (.relay/config.json); reduces blast radius.
 
 ### Dev (Implementation)
 - **Decision:** Batch the work into 3 passes (fs-helpers + project + commands + source-layout, then stack/analytics/paywall/e2e/error-tracking/locales, then test-glob widening and corrections).
@@ -198,9 +198,9 @@
 
 ### About this project's actual configuration
 
-- **No lint/format tooling installed:** This repo has neither ESLint nor Prettier nor Biome in its dependencies. The `commands.lint`, `commands.formatCheck`, and `commands.formatWrite` fields in `.ai/config.json` are empty strings. This is intentional for a tiny project with no user-facing code to lint. The detectors correctly return `''` for this scenario (not a fabricated default), and this feature's tests lock that in.
+- **No lint/format tooling installed:** This repo has neither ESLint nor Prettier nor Biome in its dependencies. The `commands.lint`, `commands.formatCheck`, and `commands.formatWrite` fields in `.relay/config.json` are empty strings. This is intentional for a tiny project with no user-facing code to lint. The detectors correctly return `''` for this scenario (not a fabricated default), and this feature's tests lock that in.
 
-- **sourceDirs manually set despite having no src/app/pages:** The `.ai/config.json` has `sourceDirs: ["skills", "test"]`, set manually because the auto-detection fell back to the old buggy behavior (would have returned `[]` even though there IS source code, just under different directories). This repo's own setup is a documented workaround for one of the three known bugs this feature is preventing. Now that `detectSourceDirs` is tested, this manual override can be removed in future if desired (not part of this PR, but demonstrates why the tests matter).
+- **sourceDirs manually set despite having no src/app/pages:** The `.relay/config.json` has `sourceDirs: ["skills", "test"]`, set manually because the auto-detection fell back to the old buggy behavior (would have returned `[]` even though there IS source code, just under different directories). This repo's own setup is a documented workaround for one of the three known bugs this feature is preventing. Now that `detectSourceDirs` is tested, this manual override can be removed in future if desired (not part of this PR, but demonstrates why the tests matter).
 
 - **GitHub repo not renamed yet:** The `project.githubRepo` is `arnaudmanaranche/ai-feature-pipeline` (the actual GitHub repo name), even though the project has internally rebranded to "Relay." This is correct — don't invent a rename.
 
@@ -268,7 +268,7 @@
 
 2. **Clean up stale dev-log references:** Remove the comments in the four test files pointing to a non-existent "Batch 2" section, or restore the section with the proper documentation. (Review noted this as necessary for transparency.)
 
-3. **Verify `.ai/config.json`'s `commands.test`:** Confirm that the value is `"npm test"` (or equivalent delegation to package.json's script), so the widened glob in `package.json` is actually used. 10-second check; critical before merge.
+3. **Verify `.relay/config.json`'s `commands.test`:** Confirm that the value is `"npm test"` (or equivalent delegation to package.json's script), so the widened glob in `package.json` is actually used. 10-second check; critical before merge.
 
 4. **Verify AC 15 Expo-router test:** Re-read `source-layout.mjs`'s code path for Expo-router detection. Confirm the signal is the `expo-router` dependency (current test assumption) or the `app/_layout.tsx` file marker (brief's AC 15 example). If it's file-based, the test needs a `_layout.tsx` file. If it's dependency-based, the current test is correct and the brief's example was just illustrative flavor text.
 
@@ -309,7 +309,7 @@
    - Example: this feature found three bugs; they were fixed via separate commits on main before the feature branch was rebased. Track that linkage explicitly.
 
 2. **Declare required capabilities in feature metadata:**
-   - Consider a new field in `.ai/feature.json` or similar: `"required_source_access": ["skills/setup/scripts/detectors/"]`.
+   - Consider a new field in `.relay/feature.json` or similar: `"required_source_access": ["skills/setup/scripts/detectors/"]`.
    - The pipeline can then verify that Dev's context includes those files or has the tools to read them, failing early if not.
    - This would have prevented the 30% failure rate by catching the missing source-read capability upfront.
 

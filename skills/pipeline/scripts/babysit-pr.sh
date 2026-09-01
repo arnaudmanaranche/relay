@@ -121,7 +121,7 @@ if [ "$AUTO_STAMP" != "true" ]; then
 fi
 
 SLUG="${BRANCH#*/}"
-ARTIFACTS_DIR=".ai/artifacts/features/$SLUG"
+ARTIFACTS_DIR=".relay/artifacts/features/$SLUG"
 REVIEW_VERDICT=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$ARTIFACTS_DIR/.agent-status-review.json','utf-8')).verdict)}catch(e){console.log('')}" 2>/dev/null)
 QA_VERDICT=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$ARTIFACTS_DIR/.agent-status-qa.json','utf-8')).verdict)}catch(e){console.log('')}" 2>/dev/null)
 DIFF_LINES=$(gh pr diff "$PR_NUMBER" 2>/dev/null | grep -Ec '^[+-]' || echo "999999")

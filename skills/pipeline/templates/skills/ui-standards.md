@@ -1,11 +1,11 @@
 # UI standards
 
-Optional starter for the `dev` role's `typeSkills`/`extraSkills` (see "Dev-only: typeSkills and extraSkills" in `skills/setup/SKILL.md`). Copy this file into `.ai/skills/ui-standards.md` and wire it up for UI file types, e.g.:
+Optional starter for the `dev` role's `typeSkills`/`extraSkills` (see "Dev-only: typeSkills and extraSkills" in `skills/setup/SKILL.md`). Copy this file into `.relay/skills/ui-standards.md` and wire it up for UI file types, e.g.:
 
 ```json
 "typeSkills": {
-  "*.tsx": ".ai/skills/ui-standards.md",
-  "*.css": ".ai/skills/ui-standards.md"
+  "*.tsx": ".relay/skills/ui-standards.md",
+  "*.css": ".relay/skills/ui-standards.md"
 }
 ```
 

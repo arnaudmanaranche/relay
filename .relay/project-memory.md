@@ -33,16 +33,16 @@ This file is read by every agent on every feature run. It documents lessons, con
 - **Two detector input patterns:** Some detectors are dependency-based (take a parsed `package.json` object as input), others are filesystem-based (take a directory path and read config files). Tests use corresponding fixture types: in-memory objects vs. real temp directories. (detector-tests)
 - **fs-helpers.mjs as a shared primitive:** All filesystem-based detectors depend on `fs-helpers.mjs`'s `exists()`, `readJson()`, `readText()`, `ls()`, `findFiles()`, `isDirectory()`. Getting this module's contract right (behavior on missing/malformed input) is critical; other detectors' tests ripple from it. Write `fs-helpers.test.mjs` first to establish ground truth. (detector-tests)
 - **No lint/format tooling configured for this repo:** This is a Node.js CLI/skills repository with no end-user-facing app code, so ESLint/Prettier/Biome are not dependencies. `commands.lint`, `commands.formatCheck`, `commands.formatWrite` are intentionally empty strings. Do not invent a linter. (detector-tests)
-- **Test command delegates to package.json:** `.ai/config.json`'s `commands.test` is typically a short delegation (e.g., `"npm test"`) that reads the actual test script from `package.json`. If widening the test glob, update `package.json`'s `scripts.test` first; no need to change `.ai/config.json` unless the delegation itself changes. (detector-tests)
+- **Test command delegates to package.json:** `.relay/config.json`'s `commands.test` is typically a short delegation (e.g., `"npm test"`) that reads the actual test script from `package.json`. If widening the test glob, update `package.json`'s `scripts.test` first; no need to change `.relay/config.json` unless the delegation itself changes. (detector-tests)
 
 ---
 
 ## Integration notes
 
-- **Detector output feeds into `.ai/config.json` generation:** The `detect-stack.mjs` script runs all 11 detectors and aggregates their outputs into a project's initial `.ai/config.json`. If a detector returns an empty string or array ("no signal found"), that field in `.ai/config.json` is either omitted or set to a placeholder. (detector-tests)
+- **Detector output feeds into `.relay/config.json` generation:** The `detect-stack.mjs` script runs all 11 detectors and aggregates their outputs into a project's initial `.relay/config.json`. If a detector returns an empty string or array ("no signal found"), that field in `.relay/config.json` is either omitted or set to a placeholder. (detector-tests)
 - **Three known detector bugs with documented workarounds:** (detector-tests)
-  1. `detectAppId` fabricates a mobile bundle id for non-mobile projects → this repo's `.ai/config.json` set `appId: ''` manually.
-  2. `detectLintCmd`/`detectFormatCmd`/`detectFormatWriteCmd` default to eslint/prettier even when not installed → this repo's `.ai/config.json` set `commands.lint: ''`, `commands.formatCheck: ''`, `commands.formatWrite: ''` manually.
-  3. `detectSourceDirs` falls back to `['src']` even when `src/` doesn't exist → this repo's `.ai/config.json` set `sourceDirs: ['skills', 'test']` manually.
+  1. `detectAppId` fabricates a mobile bundle id for non-mobile projects → this repo's `.relay/config.json` set `appId: ''` manually.
+  2. `detectLintCmd`/`detectFormatCmd`/`detectFormatWriteCmd` default to eslint/prettier even when not installed → this repo's `.relay/config.json` set `commands.lint: ''`, `commands.formatCheck: ''`, `commands.formatWrite: ''` manually.
+  3. `detectSourceDirs` falls back to `['src']` even when `src/` doesn't exist → this repo's `.relay/config.json` set `sourceDirs: ['skills', 'test']` manually.
   - These bugs are documented and already fixed on the main branch. Tests now lock in the correct behavior to prevent regressions.
 - **GitHub repo name mismatch:** The project rebranded to "Relay" internally, but the GitHub repo (`arnaudmanaranche/ai-feature-pipeline`) hasn't been renamed/transferred yet. `detectGithubRepo` correctly reads the actual git remote and returns the real, currently-valid repo name. Don't invent a rename. (detector-tests)

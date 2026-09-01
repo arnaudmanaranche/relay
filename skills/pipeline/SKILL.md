@@ -15,7 +15,7 @@ PM → Dev Review → Architect → Dev → Review → QA → Retro.
 
 ## Workflow stages
 
-Each stage produces an artifact in `.ai/artifacts/features/<slug>/`.
+Each stage produces an artifact in `.relay/artifacts/features/<slug>/`.
 
 ### 1. PM — Product Manager
 **Prompt:** `prompts/pm.md`
@@ -30,12 +30,12 @@ Each stage produces an artifact in `.ai/artifacts/features/<slug>/`.
 ### 3. Architect — Software Architect
 **Prompt:** `prompts/architect.md`
 **Output:** `technical-plan.md` (including a mandatory Mermaid diagram of the actual flow) + `repository-context.md` — architecture, impacted files, risks, implementation order
-**Gate:** Diagram gate — a plan with no ` ```mermaid ` block triggers one automatic retry, then aborts if still missing. Design gate — the pipeline then pauses (exit 0) — no code is written until a human has read the plan and re-runs with `--approve-design`. A resumed run reuses the exact plan the human reviewed (it does not regenerate the non-deterministic Architect output), and the approval is bound to the plan's content hash stored in `.ai/artifacts/features/<slug>/.architect-approved`: if the plan changes afterward, the stored hash no longer matches and re-approval is required.
+**Gate:** Diagram gate — a plan with no ` ```mermaid ` block triggers one automatic retry, then aborts if still missing. Design gate — the pipeline then pauses (exit 0) — no code is written until a human has read the plan and re-runs with `--approve-design`. A resumed run reuses the exact plan the human reviewed (it does not regenerate the non-deterministic Architect output), and the approval is bound to the plan's content hash stored in `.relay/artifacts/features/<slug>/.architect-approved`: if the plan changes afterward, the stored hash no longer matches and re-approval is required.
 
 ### 4. Dev — Developer
 **Prompt:** `prompts/dev.md`
 **Output:** Code changes + `dev-log.md` — implements the feature per the tech plan
-**Gate:** Typecheck, lint, `commands.test`, `commands.build`, and content gates all run after Dev. One retry allowed with combined error feedback. Fails pipeline on second failure. When `sandbox.enabled` is `true` in `.ai/config.json` and this isn't an iOS project (no `ios.scheme` set) and the configured `sandbox.runtime` (default `docker`; `podman`/`nerdctl` also work) is available, `commands.test`/`commands.build` run inside a disposable `--network=none` container instead of directly on the host — the code under test was just written by an LLM, so it gets no unmediated access to the host filesystem or network. iOS projects always run these on the host (Xcode has no Linux container image); if sandboxing is enabled but the runtime binary isn't installed, the pipeline falls back to host execution rather than failing the gate on an environment problem.
+**Gate:** Typecheck, lint, `commands.test`, `commands.build`, and content gates all run after Dev. One retry allowed with combined error feedback. Fails pipeline on second failure. When `sandbox.enabled` is `true` in `.relay/config.json` and this isn't an iOS project (no `ios.scheme` set) and the configured `sandbox.runtime` (default `docker`; `podman`/`nerdctl` also work) is available, `commands.test`/`commands.build` run inside a disposable `--network=none` container instead of directly on the host — the code under test was just written by an LLM, so it gets no unmediated access to the host filesystem or network. iOS projects always run these on the host (Xcode has no Linux container image); if sandboxing is enabled but the runtime binary isn't installed, the pipeline falls back to host execution rather than failing the gate on an environment problem.
 
 ### 5. Review — Code Reviewer
 **Prompt:** `prompts/review.md`
@@ -49,13 +49,13 @@ Each stage produces an artifact in `.ai/artifacts/features/<slug>/`.
 
 ### 7. Retro — Retrospective
 **Prompt:** `prompts/retro.md`
-**Output:** `retrospective.md` + merges learnings into `.ai/project-memory.md`'s four fixed categories (Pitfalls, Conventions confirmed, Architecture decisions, Integration notes). If a pattern has recurred essentially unchanged across 3+ features, also submits a skill proposal at `.ai/artifacts/skill-proposals/<name>.md` — a suggestion for a human to review, never applied automatically.
-**Gate:** Evidence check — `verify-skill-proposals.mjs` counts how many slugs each proposal cites that actually appear as `(slug)` tags under Conventions confirmed in `.ai/project-memory.md`; fewer than 3 verifiable prints an advisory warning for the human reviewer (non-blocking — the tally is Retro's claim, this just makes it auditable).
+**Output:** `retrospective.md` + merges learnings into `.relay/project-memory.md`'s four fixed categories (Pitfalls, Conventions confirmed, Architecture decisions, Integration notes). If a pattern has recurred essentially unchanged across 3+ features, also submits a skill proposal at `.relay/artifacts/skill-proposals/<name>.md` — a suggestion for a human to review, never applied automatically.
+**Gate:** Evidence check — `verify-skill-proposals.mjs` counts how many slugs each proposal cites that actually appear as `(slug)` tags under Conventions confirmed in `.relay/project-memory.md`; fewer than 3 verifiable prints an advisory warning for the human reviewer (non-blocking — the tally is Retro's claim, this just makes it auditable).
 
 ### Memory Compact (periodic, not per-feature)
 **Prompt:** `prompts/memory-compact.md`
 **Trigger:** every `project.memoryCompactEvery` shipped features (default 10; both the counter and the memory file live on feature branches, so this only fires once merged PRs have carried the counter forward)
-**Output:** deduplicated, pruned `.ai/project-memory.md`. Restricted at the permission layer to touch only that one file.
+**Output:** deduplicated, pruned `.relay/project-memory.md`. Restricted at the permission layer to touch only that one file.
 
 ## Automation
 
@@ -89,7 +89,7 @@ node scripts/status.mjs --json          # machine-readable (one line per run sta
 node scripts/status.mjs ~/proj-a ~/proj-b   # several Relay repos in one call
 ```
 
-Read-only aggregation over state the pipeline already writes: live worktrees and their concurrency locks (`running` vs crashed), per-role verdict files, cumulative cost from `.agent-token-usage.json`, the design-gate approval hash (`awaiting design approval`, including the plan-changed-since-approval case), quality-gate feedback presence, and merged features under `.ai/artifacts/features/`. Never writes, never calls an LLM. The `--json` output is a stable contract intended for external consumers (menu-bar extras, dashboards): `{ generatedAt, repos: [{ root, name, budget, active: [{ slug, branch, state, lastRole, costUsd, lock, resumeHint }], completed }] }`. Run states: `running | blocked-pm-questions | design-gate | blocked-dev-review | failed-typecheck | failed-review | failed-qa | halted | crashed`.
+Read-only aggregation over state the pipeline already writes: live worktrees and their concurrency locks (`running` vs crashed), per-role verdict files, cumulative cost from `.agent-token-usage.json`, the design-gate approval hash (`awaiting design approval`, including the plan-changed-since-approval case), quality-gate feedback presence, and merged features under `.relay/artifacts/features/`. Never writes, never calls an LLM. The `--json` output is a stable contract intended for external consumers (menu-bar extras, dashboards): `{ generatedAt, repos: [{ root, name, budget, active: [{ slug, branch, state, lastRole, costUsd, lock, resumeHint }], completed }] }`. Run states: `running | blocked-pm-questions | design-gate | blocked-dev-review | failed-typecheck | failed-review | failed-qa | halted | crashed`.
 
 ## Workspace isolation
 
@@ -101,18 +101,18 @@ Reference these registries when scoping or reviewing features:
 
 - `registries/scope-checklist.md` — 7 questions (IN/OUT, entry points, edge cases, etc.)
 - `registries/ship-checklist.md` — pre-MR approval checklist
-- `registries/analytics-events.md` — analytics signal registry (project-specific, in `.ai/registry/`)
-- `registries/paywall-touchpoints.md` — paywall surface registry (project-specific, in `.ai/registry/`)
+- `registries/analytics-events.md` — analytics signal registry (project-specific, in `.relay/registry/`)
+- `registries/paywall-touchpoints.md` — paywall surface registry (project-specific, in `.relay/registry/`)
 
 ## Configuration
 
-The module reads project configuration from `.ai/config.json`. Run the `setup` skill to generate it.
+The module reads project configuration from `.relay/config.json`. Run the `setup` skill to generate it.
 
 Key config fields: `sourceDirs`, `skipDirs`, `sourceExtensions`, `commands`, `stack`, `e2e`, `sandbox`.
 
 `sandbox.enabled` (default `false`) isolates the Dev stage's `commands.test`/`commands.build` execution inside a disposable, network-disabled container instead of running Dev-authored code directly on the host. `sandbox.runtime` (default `docker`) picks the CLI used to run it — any runtime accepting the same `run --rm --network=none -v ... -w ... <image> sh -c ...` invocation works, e.g. `podman` or `nerdctl`, so it's not tied to Docker specifically. `sandbox.image` (default `node:20-slim`) sets the container image. Only takes effect for web/backend projects — an `ios.scheme` config (see Build Upload) always runs these commands on the host, since Xcode has no Linux container image; the pipeline also falls back to host execution if the configured runtime binary isn't found.
 
-`project.maxTokensPerFeature` and `project.maxCostUsdPerFeature` are both opt-in circuit breakers on cumulative spend per feature (across every stage and retry, tracked in `.agent-token-usage.json`) — undefined or 0 means unlimited. Track both, not just tokens: `.ai/agents.json` routinely assigns different models per role (e.g. a cheap model for `qa`/`dev-review`, a stronger one for `architect`/`dev`), so two features with the same token total can have very different real cost. Cost tracking is best-effort — it only populates when the backend reports it (`claude-cli` always does; the `openai-compatible` backend only does when the upstream provider returns `usage.cost`, e.g. OpenRouter with `usage.include: true`, sent automatically).
+`project.maxTokensPerFeature` and `project.maxCostUsdPerFeature` are both opt-in circuit breakers on cumulative spend per feature (across every stage and retry, tracked in `.agent-token-usage.json`) — undefined or 0 means unlimited. Track both, not just tokens: `.relay/agents.json` routinely assigns different models per role (e.g. a cheap model for `qa`/`dev-review`, a stronger one for `architect`/`dev`), so two features with the same token total can have very different real cost. Cost tracking is best-effort — it only populates when the backend reports it (`claude-cli` always does; the `openai-compatible` backend only does when the upstream provider returns `usage.cost`, e.g. OpenRouter with `usage.include: true`, sent automatically).
 
 ## Version
 

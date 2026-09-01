@@ -222,20 +222,20 @@ describe('CLI — advisory end-to-end over temp fixtures', () => {
   function runCli(root) {
     return execFileSync(
       process.execPath,
-      [VERIFIER, '--memory=.ai/project-memory.md', '--proposals-dir=.ai/artifacts/skill-proposals'],
+      [VERIFIER, '--memory=.relay/project-memory.md', '--proposals-dir=.relay/artifacts/skill-proposals'],
       { cwd: root, encoding: 'utf-8' }
     );
   }
 
   test('strong evidence prints OK; weak evidence prints WARNING; exit code stays 0 either way', () => {
     withFixture(root => {
-      mkdirSync(join(root, '.ai/artifacts/skill-proposals'), { recursive: true });
-      writeFileSync(join(root, '.ai/project-memory.md'), memory);
+      mkdirSync(join(root, '.relay/artifacts/skill-proposals'), { recursive: true });
+      writeFileSync(join(root, '.relay/project-memory.md'), memory);
       writeFileSync(
-        join(root, '.ai/artifacts/skill-proposals/strong.md'),
+        join(root, '.relay/artifacts/skill-proposals/strong.md'),
         strongProposal
       );
-      writeFileSync(join(root, '.ai/artifacts/skill-proposals/weak.md'), weakProposal);
+      writeFileSync(join(root, '.relay/artifacts/skill-proposals/weak.md'), weakProposal);
       const out = runCli(root);
       assert.match(out, /OK — strong\.md: evidence cites 3 slugs/);
       assert.match(out, /WARNING — weak\.md: only 1 of the cited slugs/);
@@ -244,8 +244,8 @@ describe('CLI — advisory end-to-end over temp fixtures', () => {
 
   test('missing memory file skips verification instead of failing', () => {
     withFixture(root => {
-      mkdirSync(join(root, '.ai/artifacts/skill-proposals'), { recursive: true });
-      writeFileSync(join(root, '.ai/artifacts/skill-proposals/a.md'), strongProposal);
+      mkdirSync(join(root, '.relay/artifacts/skill-proposals'), { recursive: true });
+      writeFileSync(join(root, '.relay/artifacts/skill-proposals/a.md'), strongProposal);
       const out = runCli(root);
       assert.match(out, /verification skipped/);
     });
@@ -253,8 +253,8 @@ describe('CLI — advisory end-to-end over temp fixtures', () => {
 
   test('empty proposals directory reports nothing to verify', () => {
     withFixture(root => {
-      mkdirSync(join(root, '.ai/artifacts/skill-proposals'), { recursive: true });
-      writeFileSync(join(root, '.ai/project-memory.md'), memory);
+      mkdirSync(join(root, '.relay/artifacts/skill-proposals'), { recursive: true });
+      writeFileSync(join(root, '.relay/project-memory.md'), memory);
       const out = runCli(root);
       assert.match(out, /nothing to verify/);
     });

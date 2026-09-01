@@ -35,7 +35,7 @@ for arg in "${@:2}"; do
     ISSUE_BODY="$arg"
   fi
 done
-ARTIFACTS_DIR=".ai/artifacts/features/$SLUG"
+ARTIFACTS_DIR=".relay/artifacts/features/$SLUG"
 MAX_LOOPS=3
 MAX_REVIEW_RETRIES=1
 
@@ -44,7 +44,7 @@ read_config() {
   # Strip a leading '.' before splitting — '.commands.typecheck'.split('.')
   # otherwise yields a leading empty segment and every lookup silently
   # falls through to the default value below, even when the key exists.
-  node -e "try{var c=JSON.parse(require('fs').readFileSync('$ROOT/.ai/config.json','utf-8'));var p='$1'.replace(/^\./,'').split('.');for(var k of p)c=c[k];if(c===undefined)throw new Error('undefined');console.log(c)}catch(e){console.log('$2')}"
+  node -e "try{var c=JSON.parse(require('fs').readFileSync('$ROOT/.relay/config.json','utf-8'));var p='$1'.replace(/^\./,'').split('.');for(var k of p)c=c[k];if(c===undefined)throw new Error('undefined');console.log(c)}catch(e){console.log('$2')}"
 }
 PACKAGE_MANAGER=$(read_config ".commands.packageManager" "npm")
 INSTALL_CMD=$(read_config ".commands.install" "$PACKAGE_MANAGER install")
@@ -528,18 +528,18 @@ run_review_panel() {
   fi
 }
 
-# Session memory before context reset — .ai/project-memory.md lives across
+# Session memory before context reset — .relay/project-memory.md lives across
 # features (committed on each feature branch, so it survives via merges),
 # but left to grow forever it stops being memory and starts being noise.
 # Bump the counter here (before the retro commit, so it rides along in the
 # same commit with no extra noise) and compact every MEMORY_COMPACT_EVERY
 # shipped features.
 bump_memory_compact_counter() {
-  local counter_file=".ai/.memory-compact-counter"
+  local counter_file=".relay/.memory-compact-counter"
   local count=0
   [ -f "$counter_file" ] && count=$(cat "$counter_file")
   count=$((count + 1))
-  mkdir -p .ai
+  mkdir -p .relay
   echo "$count" > "$counter_file"
   echo "$count"
 }
@@ -548,7 +548,7 @@ run_memory_compact_if_due() {
   local count="$1"
   if [ $((count % MEMORY_COMPACT_EVERY)) -eq 0 ]; then
     echo ""
-    echo "==> $count features shipped — compacting .ai/project-memory.md..."
+    echo "==> $count features shipped — compacting .relay/project-memory.md..."
     run_agent memory-compact
     commit_stage "chore(memory-compact): after $count features" memory-compact
   fi
@@ -561,13 +561,13 @@ run_memory_compact_if_due() {
 #
 # Structural verification of the gate itself: "repeated 3+ times" is an LLM
 # judgment call, so each proposal's Evidence section is checked against
-# .ai/project-memory.md deterministically — how many of the slugs it cites
+# .relay/project-memory.md deterministically — how many of the slugs it cites
 # actually appear as (slug) tags under Conventions confirmed. Advisory and
 # non-blocking (same posture as the diagram-vs-diff pre-check): it catches
 # evidence that doesn't hold up before a human spends time on the proposal,
 # not instead of their judgment.
 notify_skill_proposals() {
-  local proposals_dir=".ai/artifacts/skill-proposals"
+  local proposals_dir=".relay/artifacts/skill-proposals"
   [ -d "$proposals_dir" ] || return 0
   local printed_header=""
   for f in "$proposals_dir"/*.md; do
@@ -581,7 +581,7 @@ notify_skill_proposals() {
   done
   if [ -n "$printed_header" ]; then
     echo ""
-    echo "==> Verifying proposal evidence against .ai/project-memory.md..."
+    echo "==> Verifying proposal evidence against .relay/project-memory.md..."
     node "$SCRIPT_DIR/verify-skill-proposals.mjs" 2>&1 \
       || echo "  (skill-proposal verification skipped)"
   fi
@@ -590,7 +590,7 @@ notify_skill_proposals() {
 # 0. Scaffold if not exists
 if [ ! -d "$ARTIFACTS_DIR" ]; then
   echo "==> Scaffolding feature folder..."
-  .ai/scripts/new-feature.sh "$SLUG"
+  .relay/scripts/new-feature.sh "$SLUG"
 fi
 
 # Seed issue body if provided

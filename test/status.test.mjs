@@ -163,7 +163,7 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
   test('live lock pid → running, cost and last role surfaced', () => {
     const fx = fixture();
     try {
-      const art = '.relay-worktrees/myrepo-dark-mode/.ai/artifacts/features/dark-mode';
+      const art = '.relay-worktrees/myrepo-dark-mode/.relay/artifacts/features/dark-mode';
       fx.write(`${art}/.agent-status.json`, statusJson('dev'));
       fx.write(`${art}/.agent-token-usage.json`, { totalTokens: 42000, totalCostUsd: 2.41, calls: [] });
       fx.write(`.relay-worktrees/.locks/dark-mode/pid`, String(process.pid)); // provably alive
@@ -190,7 +190,7 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
   test('preserved worktree with unapproved plan → design gate + concrete resume hint', () => {
     const fx = fixture();
     try {
-      const art = '.relay-worktrees/myrepo-auth/.ai/artifacts/features/auth';
+      const art = '.relay-worktrees/myrepo-auth/.relay/artifacts/features/auth';
       fx.write(`${art}/technical-plan.md`, '# plan');
       const run = inspectWorktree({
         repoRoot: '/somewhere/myrepo',
@@ -260,7 +260,7 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
   test('blocked-dev-review never gets a resumeArgs — needs a human answer first', () => {
     const fx = fixture();
     try {
-      const art = '.relay-worktrees/myrepo-thread/.ai/artifacts/features/thread';
+      const art = '.relay-worktrees/myrepo-thread/.relay/artifacts/features/thread';
       fx.write(`${art}/.agent-status-dev-review.json`, JSON.stringify({ verdict: 'questions' }));
       const run = inspectWorktree({
         repoRoot: '/somewhere/myrepo',
@@ -280,7 +280,7 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
   test('blocked-pm-questions never gets a resumeArgs — needs a human answer first', () => {
     const fx = fixture();
     try {
-      const art = '.relay-worktrees/myrepo-newthing/.ai/artifacts/features/newthing';
+      const art = '.relay-worktrees/myrepo-newthing/.relay/artifacts/features/newthing';
       fx.write(`${art}/.agent-status-pm.json`, JSON.stringify({ verdict: 'questions-for-human' }));
       const run = inspectWorktree({
         repoRoot: '/somewhere/myrepo',
@@ -300,7 +300,7 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
 
 describe('collectRepo — whole-repo aggregation over a synthetic Relay repo', () => {
   function buildRepo(fx) {
-    fx.write('myrepo/.ai/config.json', {
+    fx.write('myrepo/.relay/config.json', {
       project: {
         name: 'My Repo',
         githubRepo: 'me/myrepo',
@@ -309,15 +309,15 @@ describe('collectRepo — whole-repo aggregation over a synthetic Relay repo', (
       },
     });
     // Completed feature: merged artifacts in the main checkout.
-    fx.write('myrepo/.ai/artifacts/features/shipped-thing/retrospective.md', '# retro');
-    fx.write('myrepo/.ai/artifacts/features/shipped-thing/feature-brief.md', '# brief');
+    fx.write('myrepo/.relay/artifacts/features/shipped-thing/retrospective.md', '# retro');
+    fx.write('myrepo/.relay/artifacts/features/shipped-thing/feature-brief.md', '# brief');
     // Active run: preserved worktree + live lock.
-    const art = '.relay-worktrees/myrepo-dark-mode/.ai/artifacts/features/dark-mode';
+    const art = '.relay-worktrees/myrepo-dark-mode/.relay/artifacts/features/dark-mode';
     fx.write(`${art}/.agent-status.json`, statusJson('dev'));
     fx.write(`${art}/.agent-token-usage.json`, { totalTokens: 1000, totalCostUsd: 1.25, calls: [] });
     fx.write('.relay-worktrees/.locks/dark-mode/pid', String(process.pid));
     // Another repo's worktree sharing the parent dir — must be ignored.
-    fx.write('.relay-worktrees/other-repo-x/.ai/artifacts/features/x/.agent-status.json', statusJson('qa'));
+    fx.write('.relay-worktrees/other-repo-x/.relay/artifacts/features/x/.agent-status.json', statusJson('qa'));
   }
 
   test('config, completed features, and only this repo\'s active runs', () => {
@@ -346,7 +346,7 @@ describe('collectRepo — whole-repo aggregation over a synthetic Relay repo', (
     try {
       mkdirSync(fx.path('plain-dir'), { recursive: true });
       const repo = collectRepo(fx.path('plain-dir'));
-      assert.equal(repo.error, 'no .ai/ directory — not a Relay repo');
+      assert.equal(repo.error, 'no .relay/ directory — not a Relay repo');
     } finally {
       fx.cleanup();
     }
@@ -400,7 +400,7 @@ describe('renderHuman — stable, greppable summary lines', () => {
   });
 
   test('non-Relay repo renders its error line', () => {
-    const out = renderHuman([{ root: '/x', name: 'x', error: 'no .ai/ directory — not a Relay repo' }]);
-    assert.match(out, /no \.ai\/ directory/);
+    const out = renderHuman([{ root: '/x', name: 'x', error: 'no .relay/ directory — not a Relay repo' }]);
+    assert.match(out, /no \.relay\/ directory/);
   });
 });

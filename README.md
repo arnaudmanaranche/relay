@@ -47,7 +47,7 @@ Skills are plain Markdown with accompanying scripts. Any agent that can read a `
 
 </details>
 
-`setup` auto-detects your stack and generates `.ai/config.json` and `.ai/agents.json`, plus governance files, registries, and a `.ai/.gitignore` under `.ai/`.
+`setup` auto-detects your stack and generates `.relay/config.json` and `.relay/agents.json`, plus governance files, registries, and a `.relay/.gitignore` under `.relay/`.
 
 ## Quick start
 

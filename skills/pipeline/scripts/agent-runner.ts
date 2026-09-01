@@ -3,7 +3,7 @@
 // (OpenRouter by default) — Relay module
 // Usage: node scripts/agent-runner.ts --role=<role> --slug=<slug> [--project-root=<path>]
 // Requires: OPENROUTER_API_KEY env var, or whatever key is set at llm.apiKeyEnv
-// in .ai/config.json for a non-OpenRouter provider
+// in .relay/config.json for a non-OpenRouter provider
 
 // dotenv is optional — load via dynamic import so the script works without it
 import { execSync, execFile } from 'child_process';
@@ -56,7 +56,7 @@ interface ProjectConfig {
     maxTokensPerFeature?: number;
     // Opt-in circuit breaker on total real $ spend per feature. Tokens
     // alone are a poor proxy for spend once roles use different models
-    // (.ai/agents.json routinely mixes e.g. claude-sonnet-5 and
+    // (.relay/agents.json routinely mixes e.g. claude-sonnet-5 and
     // claude-haiku-4-5 across roles) — two features with the same token
     // total can cost very different amounts. Undefined or 0 means
     // unlimited, same convention as maxTokensPerFeature. Best-effort: only
@@ -149,7 +149,7 @@ interface ProjectConfig {
   providerNesting: string[];
 }
 
-const DEFAULT_LLM_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const DEFAULT_LLM_BASE_URL = 'https://openrouter.relay/api/v1/chat/completions';
 
 // Found live: a real ~13-file feature truncated (finish_reason: "length")
 // at maxTokens=64000 trying to emit every touched file's complete content
@@ -161,10 +161,10 @@ const DEFAULT_LLM_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_DEV_FILE_BATCH_SIZE = 6;
 
 function loadProjectConfig(): ProjectConfig {
-  const configPath = join(getRoot(), '.ai/config.json');
+  const configPath = join(getRoot(), '.relay/config.json');
   try {
     const parsed = JSON.parse(readFileSync(configPath, 'utf-8'));
-    // Back-compat: older .ai/config.json files use the pre-abstraction
+    // Back-compat: older .relay/config.json files use the pre-abstraction
     // `openRouter` key instead of `llm`. Alias it rather than breaking
     // every existing install on upgrade.
     if (!parsed.llm && parsed.openRouter) {
@@ -228,7 +228,7 @@ function loadProjectConfig(): ProjectConfig {
 
 const CONFIG = loadProjectConfig();
 
-// --- Config (loaded from .ai/agents.json) ---
+// --- Config (loaded from .relay/agents.json) ---
 
 // Effort controls how thoroughly a role works its task (files read, checks
 // run, retries attempted before giving up) — independent from `model`, which
@@ -250,7 +250,7 @@ interface RoleConfig {
   extraSkills?: string[];
 }
 
-// Every one of these MUST have an entry in .ai/agents.json — agent-runner.ts
+// Every one of these MUST have an entry in .relay/agents.json — agent-runner.ts
 // hardcodes behavior (permissions, output schema, task instructions) by
 // these exact role names elsewhere in this file. A missing or malformed
 // role previously only surfaced as "Unknown role: X" whenever the pipeline
@@ -321,7 +321,7 @@ function validateRegistry(
 }
 
 function loadRegistry(): Record<string, RoleConfig> {
-  const registryPath = join(getRoot(), '.ai/agents.json');
+  const registryPath = join(getRoot(), '.relay/agents.json');
   let raw: string;
   try {
     raw = readFileSync(registryPath, 'utf-8');
@@ -339,7 +339,7 @@ function loadRegistry(): Record<string, RoleConfig> {
   return validateRegistry(data, registryPath);
 }
 
-// Lazy — loadRegistry() exits the process if .ai/agents.json is missing,
+// Lazy — loadRegistry() exits the process if .relay/agents.json is missing,
 // which must not happen just from importing this module (e.g. in tests).
 let _roles: Record<string, RoleConfig> | null = null;
 function getRoles(): Record<string, RoleConfig> {
@@ -533,7 +533,7 @@ function parseArgs() {
       );
       process.exit(1);
     }
-    const techPlan = read(`.ai/artifacts/features/${args.slug}/technical-plan.md`);
+    const techPlan = read(`.relay/artifacts/features/${args.slug}/technical-plan.md`);
     if (!techPlan.startsWith('[file not found')) {
       for (const f of extractImpactedFiles(techPlan)) {
         console.log(f);
@@ -553,7 +553,7 @@ function parseArgs() {
       );
       process.exit(1);
     }
-    const techPlan = read(`.ai/artifacts/features/${args.slug}/technical-plan.md`);
+    const techPlan = read(`.relay/artifacts/features/${args.slug}/technical-plan.md`);
     if (!techPlan.startsWith('[file not found')) {
       for (const f of extractLatestAmendmentFiles(techPlan)) {
         console.log(f);
@@ -634,7 +634,7 @@ function fileTree(dir: string, prefix = ''): string {
 // --- Context loading ---
 
 function loadContext(role: string, slug: string) {
-  const featureDir = `.ai/artifacts/features/${slug}`;
+  const featureDir = `.relay/artifacts/features/${slug}`;
   const briefPath = `${featureDir}/feature-brief.md`;
   const devLogPath = `${featureDir}/dev-log.md`;
 
@@ -652,13 +652,13 @@ function loadContext(role: string, slug: string) {
   const pmQuestions = existsSync(join(getRoot(), pmQuestionsPath))
     ? read(pmQuestionsPath)
     : null;
-  const governance = read('.ai/GOVERNANCE.md');
-  const denied = read('.ai/DENIED_ACTIONS.md');
-  const projectContext = read('.ai/project-context.md');
-  const registryAnalytics = read('.ai/registry/analytics-events.md');
-  const registryPaywall = read('.ai/registry/paywall-touchpoints.md');
-  const registryShip = read('.ai/registry/ship-checklist.md');
-  const registryScope = read('.ai/registry/scope-checklist.md');
+  const governance = read('.relay/GOVERNANCE.md');
+  const denied = read('.relay/DENIED_ACTIONS.md');
+  const projectContext = read('.relay/project-context.md');
+  const registryAnalytics = read('.relay/registry/analytics-events.md');
+  const registryPaywall = read('.relay/registry/paywall-touchpoints.md');
+  const registryShip = read('.relay/registry/ship-checklist.md');
+  const registryScope = read('.relay/registry/scope-checklist.md');
 
   return {
     featureDir,
@@ -864,8 +864,8 @@ function extractImpactedFiles(techPlan: string): string[] {
   let m: RegExpExecArray | null;
   while ((m = fileRefPattern.exec(scope)) !== null) {
     const p = m[1];
-    // Skip template paths and .ai artifact paths — those are not source files
-    if (!p.startsWith('.ai/') && !p.includes('{')) fileRefSet.add(p);
+    // Skip template paths and .relay artifact paths — those are not source files
+    if (!p.startsWith('.relay/') && !p.includes('{')) fileRefSet.add(p);
   }
 
   // Reconcile bare-filename self-references against their fully-qualified
@@ -1158,7 +1158,7 @@ function buildUserPrompt(
   // Cross-session project memory — every role gets this, not just PM/Architect/
   // Retro. A pitfall or convention Retro recorded after a past feature is
   // just as relevant to Dev Review or QA as it is to PM/Architect.
-  const memory = read('.ai/project-memory.md');
+  const memory = read('.relay/project-memory.md');
   if (memory && !memory.startsWith('[file not found')) {
     sections.push(
       `## Project memory (cross-session)\n\n\`\`\`markdown\n${memory}\n\`\`\``
@@ -1174,7 +1174,7 @@ function buildUserPrompt(
 
   // Architect-specific: architecture maps and templates
   if (role === 'architect') {
-    const ctxData = read('.ai/context.json');
+    const ctxData = read('.relay/context.json');
     if (ctxData && !ctxData.startsWith('[file not found')) {
       sections.push(
         `## Architecture maps\n\n\`\`\`json\n${trimContextForPrompt(ctxData)}\n\`\`\``
@@ -1455,7 +1455,7 @@ function buildUserPrompt(
 
   // For QA: framework-agnostic E2E flow listing + results contract. Which
   // E2E tool a project uses (Maestro, Playwright, Cypress, Detox, ...) is
-  // entirely a project choice (`e2e.framework`/`e2e.dir` in .ai/config.json)
+  // entirely a project choice (`e2e.framework`/`e2e.dir` in .relay/config.json)
   // — this module doesn't run any of them itself, since orchestrating a
   // simulator/browser in CI is inherently framework- and infra-specific.
   // What it standardizes is the single handoff contract: project-specific
@@ -1601,9 +1601,9 @@ Write \`${ctx.featureDir}/retrospective.md\` with:
 5. **Patterns identified** — reusable patterns worth noting for future features
 6. **Recommendations** — actionable advice for future pipeline runs
 7. **Blocker log** — any blockers and how they were resolved
-8. **Coherence check** — different roles in this pipeline can run on different models (each role's \`model\` in \`.ai/agents.json\` is independent). Skim the artifacts you just read for signs that a downstream role drifted from an upstream one it should have been consistent with: naming a concept differently than the brief named it, a convention the Architect specified that Dev quietly did differently, terminology that shifts partway through a single artifact. This is not the same failure as a wrong acceptance criterion — it's models talking past each other. List anything you find here; leave this section explicitly empty (not omitted) if nothing drifted.
+8. **Coherence check** — different roles in this pipeline can run on different models (each role's \`model\` in \`.relay/agents.json\` is independent). Skim the artifacts you just read for signs that a downstream role drifted from an upstream one it should have been consistent with: naming a concept differently than the brief named it, a convention the Architect specified that Dev quietly did differently, terminology that shifts partway through a single artifact. This is not the same failure as a wrong acceptance criterion — it's models talking past each other. List anything you find here; leave this section explicitly empty (not omitted) if nothing drifted.
 
-After writing the feature retrospective, also submit an updated \`.ai/project-memory.md\` artifact (create if missing). This file is read by EVERY role on EVERY future feature, so it must stay small and organized by fixed categories, not grow forever as one section per feature:
+After writing the feature retrospective, also submit an updated \`.relay/project-memory.md\` artifact (create if missing). This file is read by EVERY role on EVERY future feature, so it must stay small and organized by fixed categories, not grow forever as one section per feature:
 
 ## Project memory (cross-session)
 
@@ -1621,10 +1621,10 @@ After writing the feature retrospective, also submit an updated \`.ai/project-me
 
 Merge your new learnings into the matching category (don't create a new \`## ${slug}\` section). Tag each new bullet with \`(${slug})\` so its origin is traceable. Keep bullets short — future agents scan this, they don't read it closely. If a category already has a bullet that's now outdated or superseded, replace it instead of appending a contradiction next to it.
 
-Skill creation: check the "Conventions confirmed" category for a pattern that has now recurred, essentially unchanged, across 3+ different (slug) tags (e.g. "add a settings toggle" or "add an analytics event + i18n keys + registry entry" showing up the same way each time). If you find one, submit an additional artifact at \`.ai/artifacts/skill-proposals/<short-pattern-name>.md\` with: **Pattern observed**, **Evidence** (which slugs, what varied vs. stayed fixed), **Proposed skill** (inputs/outputs), and **Worth a deterministic script?** (say so explicitly if the pattern is mechanical enough to skip the LLM entirely). This is a proposal for a human to review, never something you build yourself — same design-before-implementation discipline as the Architect's plan, applied to the pipeline's own tooling. Skip this section entirely if nothing has repeated 3+ times yet; don't force a proposal just to have one.`,
-    'memory-compact': `You are the **memory compaction** agent. This runs periodically (not on every feature) to keep \`.ai/project-memory.md\` useful instead of letting it grow unbounded.
+Skill creation: check the "Conventions confirmed" category for a pattern that has now recurred, essentially unchanged, across 3+ different (slug) tags (e.g. "add a settings toggle" or "add an analytics event + i18n keys + registry entry" showing up the same way each time). If you find one, submit an additional artifact at \`.relay/artifacts/skill-proposals/<short-pattern-name>.md\` with: **Pattern observed**, **Evidence** (which slugs, what varied vs. stayed fixed), **Proposed skill** (inputs/outputs), and **Worth a deterministic script?** (say so explicitly if the pattern is mechanical enough to skip the LLM entirely). This is a proposal for a human to review, never something you build yourself — same design-before-implementation discipline as the Architect's plan, applied to the pipeline's own tooling. Skip this section entirely if nothing has repeated 3+ times yet; don't force a proposal just to have one.`,
+    'memory-compact': `You are the **memory compaction** agent. This runs periodically (not on every feature) to keep \`.relay/project-memory.md\` useful instead of letting it grow unbounded.
 
-Read the current \`.ai/project-memory.md\` (in the Project memory section of the context above).
+Read the current \`.relay/project-memory.md\` (in the Project memory section of the context above).
 
 Rewrite it, keeping the same four categories (Pitfalls, Conventions confirmed, Architecture decisions, Integration notes):
 1. **Deduplicate** — merge bullets that say the same thing, even if worded differently or tagged with different feature slugs.
@@ -1632,7 +1632,7 @@ Rewrite it, keeping the same four categories (Pitfalls, Conventions confirmed, A
 3. **Keep it terse** — one line per bullet, no prose paragraphs.
 4. **Preserve traceability** — keep the \`(slug)\` tags on surviving bullets so a human can still trace where a piece of memory came from.
 
-Do NOT touch any feature artifact — this role may only submit \`.ai/project-memory.md\`. Submit the full rewritten file as a single artifact.`,
+Do NOT touch any feature artifact — this role may only submit \`.relay/project-memory.md\`. Submit the full rewritten file as a single artifact.`,
   };
 
   sections.push(`## Task\n\n${tasks[role]}`);
@@ -1703,7 +1703,7 @@ const ARTIFACT_ITEM_SCHEMA = {
     path: {
       type: 'string',
       description:
-        'Path under .ai/artifacts/features/<slug>/ or .ai/project-memory.md.',
+        'Path under .relay/artifacts/features/<slug>/ or .relay/project-memory.md.',
     },
     action: { type: 'string', enum: ['create', 'update'] },
     content: { type: 'string' },
@@ -1781,38 +1781,38 @@ function missingRequiredFields(parsed: unknown, role: string): string[] {
 }
 
 // Every role's task instructions spell out the exact artifact path (e.g.
-// `.ai/artifacts/features/<slug>/feature-brief.md`), but the JSON Schema
+// `.relay/artifacts/features/<slug>/feature-brief.md`), but the JSON Schema
 // only *describes* that convention in prose, it doesn't enforce it — a
 // model can (and, observed live, does) still submit a bare filename like
 // "feature-brief.md" despite explicit instructions to use the full path.
 // Since every artifact unambiguously belongs under this feature's own
-// directory (or is .ai/project-memory.md, already anchored under .ai/),
-// normalizing a path that isn't already under .ai/ is safe: it only ever
+// directory (or is .relay/project-memory.md, already anchored under .relay/),
+// normalizing a path that isn't already under .relay/ is safe: it only ever
 // adds the expected prefix, never redirects anywhere the model didn't
 // already say to write relative to its own working directory.
 function normalizeArtifactPath(path: string, slug: string): string {
-  if (path.startsWith('.ai/')) return path;
+  if (path.startsWith('.relay/')) return path;
 
   // Model included the "artifacts/features/<slug>/" segment but dropped
-  // the leading ".ai/" — keep from there on rather than re-prefixing the
+  // the leading ".relay/" — keep from there on rather than re-prefixing the
   // whole thing (which would double the slug directory).
   const featureDirMarker = `artifacts/features/${slug}/`;
   const markerIdx = path.indexOf(featureDirMarker);
   if (markerIdx !== -1) {
-    return `.ai/${path.slice(markerIdx)}`;
+    return `.relay/${path.slice(markerIdx)}`;
   }
 
-  // Model included just "<slug>/filename.md" (no .ai/artifacts/features/
+  // Model included just "<slug>/filename.md" (no .relay/artifacts/features/
   // prefix at all) — same fix, different starting point. Found live: two
   // consecutive real calls to the same role returned two different partial
   // forms of the same expected path, so both have to be handled, not just
   // the bare-filename case.
   const slugPrefix = `${slug}/`;
   if (path.startsWith(slugPrefix)) {
-    return `.ai/artifacts/features/${path}`;
+    return `.relay/artifacts/features/${path}`;
   }
 
-  return `.ai/artifacts/features/${slug}/${path}`;
+  return `.relay/artifacts/features/${slug}/${path}`;
 }
 
 function parseToolArgs(argsRaw: string, role: string, slug: string): AgentResult {
@@ -1842,7 +1842,7 @@ function parseToolArgs(argsRaw: string, role: string, slug: string): AgentResult
 
 // --- LLM API dispatch ---
 
-// NOTE on `maxTokens` (each role's `.ai/agents.json` entry, e.g. dev: 8000):
+// NOTE on `maxTokens` (each role's `.relay/agents.json` entry, e.g. dev: 8000):
 // it only reaches the API on the openai-compatible backend below. `claude
 // -p` has no equivalent flag (checked: `claude -p --help` has nothing for
 // max output tokens), so on the claude-cli backend this value is silently
@@ -1945,7 +1945,7 @@ function evaluateClaudeCliResult(
   if (data.is_error) {
     const budgetHint =
       data.terminal_reason === 'budget_exhausted'
-        ? ` Raise llm.maxBudgetUsd in .ai/config.json if this role legitimately needs more per call — retrying would hit the same cap again.`
+        ? ` Raise llm.maxBudgetUsd in .relay/config.json if this role legitimately needs more per call — retrying would hit the same cap again.`
         : '';
     return {
       status: 'fatal',
@@ -2336,23 +2336,23 @@ const PERMISSIONS: Record<
   }
 > = {
   pm: {
-    allowedArtifacts: [/\.ai\/artifacts\/.*\.md$/],
+    allowedArtifacts: [/\.relay\/artifacts\/.*\.md$/],
     allowedFiles: [/^$/], // none
   },
   'dev-review': {
-    allowedArtifacts: [/\.ai\/artifacts\/.*\.md$/],
+    allowedArtifacts: [/\.relay\/artifacts\/.*\.md$/],
     allowedFiles: [/^$/],
   },
   'pm-respond': {
-    allowedArtifacts: [/\.ai\/artifacts\/.*\.md$/],
+    allowedArtifacts: [/\.relay\/artifacts\/.*\.md$/],
     allowedFiles: [/^$/],
   },
   architect: {
-    allowedArtifacts: [/\.ai\/artifacts\/.*\.md$/],
+    allowedArtifacts: [/\.relay\/artifacts\/.*\.md$/],
     allowedFiles: [/^$/],
   },
   dev: {
-    allowedArtifacts: [/dev-log\.md$/, /\.ai\/artifacts\/.*\.md$/],
+    allowedArtifacts: [/dev-log\.md$/, /\.relay\/artifacts\/.*\.md$/],
     // Found live while dogfooding: no .mjs/.cjs here meant Dev could
     // produce entirely correct output for a project using those
     // extensions (e.g. this repo's own detector test files) and every
@@ -2366,25 +2366,25 @@ const PERMISSIONS: Record<
     // unconditionally rejected on the very last file of a 10-batch,
     // $6.79 real Dev run — discarding that one file's write while every
     // other batch had already landed.
-    allowedFiles: [/\.(ts|tsx|js|jsx|mjs|cjs|css|json|yaml|yml)$/, /\.ai\/artifacts\/.*\.md$/],
+    allowedFiles: [/\.(ts|tsx|js|jsx|mjs|cjs|css|json|yaml|yml)$/, /\.relay\/artifacts\/.*\.md$/],
   },
   review: {
-    allowedArtifacts: [/\.ai\/artifacts\/.*\.md$/],
+    allowedArtifacts: [/\.relay\/artifacts\/.*\.md$/],
     allowedFiles: [/^$/],
   },
   qa: {
-    allowedArtifacts: [/\.ai\/artifacts\/.*\.md$/],
+    allowedArtifacts: [/\.relay\/artifacts\/.*\.md$/],
     allowedFiles: [/^$/],
   },
   retro: {
-    allowedArtifacts: [/\.ai\/artifacts\/.*\.md$/, /\.ai\/project-memory\.md$/],
+    allowedArtifacts: [/\.relay\/artifacts\/.*\.md$/, /\.relay\/project-memory\.md$/],
     allowedFiles: [/^$/],
   },
   'memory-compact': {
     // Single-purpose role: it may ONLY touch project-memory.md, not any
     // feature artifact — its whole job is to prune and restructure that
     // one file, nothing else.
-    allowedArtifacts: [/\.ai\/project-memory\.md$/],
+    allowedArtifacts: [/\.relay\/project-memory\.md$/],
     allowedFiles: [/^$/],
   },
 };
@@ -2452,7 +2452,7 @@ function applyChanges(
   // Write source files
   for (const file of files) {
     const action = file.action === 'delete' ? 'delete' : 'write';
-    if (isDryRun && action === 'write' && !file.path.match(/\.ai\/artifacts/)) {
+    if (isDryRun && action === 'write' && !file.path.match(/\.relay\/artifacts/)) {
       console.log(`  ⏭️  ${file.path} (skipped — dry run)`);
       continue;
     }
@@ -2518,7 +2518,7 @@ async function runDevBatched(
         `❌ Token budget exceeded for feature "${slug}" mid-batch (${i}/${batches.length} batches done): ${usageBefore.totalTokens}/${budget} tokens already spent.`
       );
       console.error(
-        `   Raise project.maxTokensPerFeature in .ai/config.json, or take over this feature manually.`
+        `   Raise project.maxTokensPerFeature in .relay/config.json, or take over this feature manually.`
       );
       process.exit(1);
     }
@@ -2528,7 +2528,7 @@ async function runDevBatched(
         `❌ Cost budget exceeded for feature "${slug}" mid-batch (${i}/${batches.length} batches done): $${usageBefore.totalCostUsd.toFixed(2)}/$${costBudget} already spent.`
       );
       console.error(
-        `   Raise project.maxCostUsdPerFeature in .ai/config.json, or take over this feature manually.`
+        `   Raise project.maxCostUsdPerFeature in .relay/config.json, or take over this feature manually.`
       );
       process.exit(1);
     }
@@ -2649,7 +2649,7 @@ async function runArchitectSplit(
         `❌ Token budget exceeded for feature "${slug}" mid-split (pass: ${pass}): ${usageBefore.totalTokens}/${budget} tokens already spent.`
       );
       console.error(
-        `   Raise project.maxTokensPerFeature in .ai/config.json, or take over this feature manually.`
+        `   Raise project.maxTokensPerFeature in .relay/config.json, or take over this feature manually.`
       );
       process.exit(1);
     }
@@ -2659,7 +2659,7 @@ async function runArchitectSplit(
         `❌ Cost budget exceeded for feature "${slug}" mid-split (pass: ${pass}): $${usageBefore.totalCostUsd.toFixed(2)}/$${costBudget} already spent.`
       );
       console.error(
-        `   Raise project.maxCostUsdPerFeature in .ai/config.json, or take over this feature manually.`
+        `   Raise project.maxCostUsdPerFeature in .relay/config.json, or take over this feature manually.`
       );
       process.exit(1);
     }
@@ -2727,7 +2727,7 @@ async function runArchitectSplit(
 // --- Main ---
 
 function mockResponse(role: string, slug: string): AgentResult {
-  const featureDir = `.ai/artifacts/features/${slug}`;
+  const featureDir = `.relay/artifacts/features/${slug}`;
   const base = { files: [] as FileChange[], artifacts: [] as ArtifactChange[], verdict: '', raw: '[dry-run mock]' };
 
   if (role === 'pm') {
@@ -2948,7 +2948,7 @@ N/A — E2E suite ran successfully.
       ...base,
       artifacts: [
         {
-          path: '.ai/project-memory.md',
+          path: '.relay/project-memory.md',
           action: 'update',
           content: `## Project memory (cross-session)
 
@@ -2989,7 +2989,7 @@ N/A — E2E suite ran successfully.
           content: `# Retrospective\n\nA settings-toggle-shaped pattern recurred across features.\n`,
         },
         {
-          path: '.ai/project-memory.md',
+          path: '.relay/project-memory.md',
           action: 'update',
           content: [
             '# Project memory',
@@ -3009,7 +3009,7 @@ N/A — E2E suite ran successfully.
           ].join('\n'),
         },
         {
-          path: '.ai/artifacts/skill-proposals/settings-toggle.md',
+          path: '.relay/artifacts/skill-proposals/settings-toggle.md',
           action: 'create',
           content: [
             '# Skill proposal: settings-toggle',
@@ -3094,7 +3094,7 @@ async function main() {
   // Same override mechanism as model, one knob down: OPENROUTER_EFFORT_PM,
   // OPENROUTER_EFFORT_DEV, etc. — lets a human bump a single role's effort
   // for one run (e.g. a stubborn Architect retry) without editing
-  // .ai/agents.json.
+  // .relay/agents.json.
   const effortEnvVarKey = `OPENROUTER_EFFORT_${role.toUpperCase().replace(/-/g, '_')}`;
   const effortEnvOverride = (process.env as Record<string, string | undefined>)[
     effortEnvVarKey
@@ -3127,7 +3127,7 @@ async function main() {
         `❌ Token budget exceeded for feature "${slug}": ${usage.totalTokens}/${budget} tokens already spent.`
       );
       console.error(
-        `   Raise project.maxTokensPerFeature in .ai/config.json, or take over this feature manually.`
+        `   Raise project.maxTokensPerFeature in .relay/config.json, or take over this feature manually.`
       );
       process.exit(1);
     }
@@ -3137,7 +3137,7 @@ async function main() {
         `❌ Cost budget exceeded for feature "${slug}": $${usage.totalCostUsd.toFixed(2)}/$${costBudget} already spent.`
       );
       console.error(
-        `   Raise project.maxCostUsdPerFeature in .ai/config.json, or take over this feature manually.`
+        `   Raise project.maxCostUsdPerFeature in .relay/config.json, or take over this feature manually.`
       );
       process.exit(1);
     }
@@ -3147,7 +3147,7 @@ async function main() {
   //
   // RELAY_SKILL_<ROLE> lets you run a role with an ALTERNATE prompt file
   // without editing agents.json — the knob for A/B-testing a prompt change
-  // (e.g. RELAY_SKILL_PM=.ai/experiments/pm-v2.md). The prompt hash recorded
+  // (e.g. RELAY_SKILL_PM=.relay/experiments/pm-v2.md). The prompt hash recorded
   // in provenance is computed from whatever file is actually used, so an
   // experiment's output is auditable and comparable via the eval harness.
   const skillEnvKey = `RELAY_SKILL_${role.toUpperCase().replace(/-/g, '_')}`;

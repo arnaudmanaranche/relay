@@ -13,7 +13,7 @@
 - `skills/setup/scripts/detectors/stack.mjs`, `analytics.mjs`, `paywall.mjs`, `e2e.mjs`, `error-tracking.mjs`, `locales.mjs` — read each in full immediately before writing its corresponding test file. Each is small; enumerate every distinct signal/dependency name each function checks so the happy-path matrix in the test file is exhaustive rather than a guess at one example signal.
 - `skills/setup/scripts/detect-stack.mjs` — read (do not modify) to understand how each detector is actually invoked in practice (argument order, which detectors depend on which other detectors' output as input) — this context helps get fixture shapes right even though this file itself is out of scope for edits.
 - `package.json` (repo root) — read the `scripts.test` value to determine whether the current test command already recursively discovers files under `test/detectors/`, or whether it needs widening per the technical plan's Implementation Order step 8. Also check `dependencies`/`devDependencies` here to confirm no test framework beyond Node builtins is present (AC 23).
-- `.ai/config.json` — read-only reference to confirm what `commands.test` currently points to and cross-check it against the literal `package.json` script it wraps; do not edit unless the technical plan's narrow exception applies.
+- `.relay/config.json` — read-only reference to confirm what `commands.test` currently points to and cross-check it against the literal `package.json` script it wraps; do not edit unless the technical plan's narrow exception applies.
 
 ## Similar Features
 
@@ -56,8 +56,8 @@
 - `skills/setup/scripts/detectors/source-layout.mjs`
 - `skills/setup/scripts/detectors/stack.mjs`
 - `skills/setup/scripts/detect-stack.mjs`
-- `.ai/config.json` — read-only; do not edit unless the literal `commands.test` string stored there is the specific thing being changed, and only after `package.json`'s actual runnable script has been changed first and confirmed to work
-- `.ai/agents.json` and any other governance file
+- `.relay/config.json` — read-only; do not edit unless the literal `commands.test` string stored there is the specific thing being changed, and only after `package.json`'s actual runnable script has been changed first and confirmed to work
+- `.relay/agents.json` and any other governance file
 - `skills/pipeline/**` (agent prompts, registries, templates, `agent-runner.ts`, `eval-pipeline.mjs`, `rebuild-context.mjs`) — unrelated module, not part of this feature
 - `video/**` (Remotion project) — unrelated, not part of this feature
 - `test/agent-runner.test.ts`, `test/eval-pipeline.test.mjs`, `test/rebuild-context.test.mjs` — existing tests must not be modified or weakened; only read them for pattern reference

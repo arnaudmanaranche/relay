@@ -41,7 +41,7 @@ build rather than treating upload as best-effort.
 ## Structural verification of the skill-proposal gate
 
 **Done (2026-08-21):** `run-pipeline.sh` now verifies each skill proposal's Evidence section against
-`.ai/project-memory.md` deterministically (`verify-skill-proposals.mjs`): slugs cited as evidence must appear
+`.relay/project-memory.md` deterministically (`verify-skill-proposals.mjs`): slugs cited as evidence must appear
 as `(slug)` tags under Conventions confirmed, and fewer than 3 verifiable prints an advisory WARNING
 (non-blocking, same posture as the diagram-vs-diff check) before a human spends time on the proposal.
 Exercisable end-to-end in `--dry-run` via `RELAY_MOCK_RETRO_SKILL_PROPOSAL=1` (verifiable evidence) or `weak`

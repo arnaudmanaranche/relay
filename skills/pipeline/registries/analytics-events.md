@@ -1,6 +1,6 @@
 # Analytics registry
 
-**Source of truth:** Configurable per project in `.ai/config.json.stack.analytics`
+**Source of truth:** Configurable per project in `.relay/config.json.stack.analytics`
 
 All signals must respect analytics opt-out.
 

@@ -8,7 +8,7 @@
 
 ## Problem & Goals
 
-`skills/setup/scripts/detectors/*.mjs` implements the auto-detection logic that `detect-stack.mjs` uses to bootstrap a new project's `.ai/config.json` (app id, lint/format/test commands, source layout, stack, analytics provider, paywall provider, e2e framework, error tracking provider, locales). This module currently has **zero automated test coverage**, and that gap has already let real bugs ship silently:
+`skills/setup/scripts/detectors/*.mjs` implements the auto-detection logic that `detect-stack.mjs` uses to bootstrap a new project's `.relay/config.json` (app id, lint/format/test commands, source layout, stack, analytics provider, paywall provider, e2e framework, error tracking provider, locales). This module currently has **zero automated test coverage**, and that gap has already let real bugs ship silently:
 
 - `detectAppId` fabricated a mobile-style bundle id for projects that are not mobile projects at all.
 - `detectLintCmd` / `detectFormatCmd` / `detectFormatWriteCmd` defaulted to `eslint` / `prettier` commands even when neither tool was an actual dependency of the target project (producing a generated command that would fail to run in the target repo).
@@ -54,7 +54,7 @@
 
 ### Cross-cutting / process criteria
 21. Unit tests exist for every exported function in all 10 detector files, not only the ones named above — at minimum one "happy path" and one "no signal found" case per exported function, using the same fixture patterns (package.json-shaped objects and/or real temp dirs via `mkdtempSync`).
-22. All new tests run via the project's configured test command (`commands.test` in `.ai/config.json`) and pass locally and in CI.
+22. All new tests run via the project's configured test command (`commands.test` in `.relay/config.json`) and pass locally and in CI.
 23. Tests use Node's built-in `node:test` and `node:assert` (or `node:assert/strict`) exclusively — no new test framework or assertion library dependency is introduced.
 24. Filesystem-based detector tests create real temp directories via `mkdtempSync` (under `os.tmpdir()`) with marker files/directories, and clean up (`rmSync` with `{ recursive: true, force: true }`) in an `after`/`afterEach` hook, leaving no residue on disk after a run.
 25. No file under `skills/setup/scripts/detectors/` or `skills/setup/scripts/detect-stack.mjs` is modified as part of this change.
@@ -105,7 +105,7 @@ N/A — this is internal developer tooling with no free/premium user surfaces. T
 **Rationale for one test file per detector module** (rather than a single flat `test/detectors.test.mjs`): mirrors the 1:1 mapping already used for source files under `skills/setup/scripts/detectors/`, keeps each file focused and reviewable, and matches how `test/agent-runner.test.ts` maps to `skills/pipeline/scripts/agent-runner.ts`. Placing them under a `test/detectors/` subdirectory (new directory) rather than flat in `test/` avoids cluttering the existing three top-level test files with ten more.
 
 **Config/tooling check (not a production code change, but must be verified):**
-- Confirm the project's configured test command (`commands.test` in `.ai/config.json`, run via `npm test` or equivalent) actually discovers files under a new `test/detectors/` subdirectory. If the current script uses an explicit file list instead of a recursive glob (e.g. `node --test test/*.test.ts test/*.test.mjs`), the glob/list needs to be widened to include `test/detectors/**/*.test.mjs`. This is a test-runner configuration adjustment, not a change to detector logic, and stays within the spirit of "test-only change" — but must be called out explicitly in the dev log per the denied-actions rule on installing/adding things silently.
+- Confirm the project's configured test command (`commands.test` in `.relay/config.json`, run via `npm test` or equivalent) actually discovers files under a new `test/detectors/` subdirectory. If the current script uses an explicit file list instead of a recursive glob (e.g. `node --test test/*.test.ts test/*.test.mjs`), the glob/list needs to be widened to include `test/detectors/**/*.test.mjs`. This is a test-runner configuration adjustment, not a change to detector logic, and stays within the spirit of "test-only change" — but must be called out explicitly in the dev log per the denied-actions rule on installing/adding things silently.
 - No new npm dependency is required: `node:test`, `node:assert`, `node:fs` (`mkdtempSync`, `mkdirSync`, `writeFileSync`, `rmSync`), `node:os` (`tmpdir`), and `node:path` are all Node built-ins already used by `test/agent-runner.test.ts`.
 
 **Fixture patterns to standardize across all 10 test files:**
@@ -124,7 +124,7 @@ This repo has no configured end-to-end UI test framework (it is a Node.js CLI/sk
 3. **Manual smoke test against `detect-stack.mjs`:** Run `detect-stack.mjs` directly against a small set of representative fixture directories to confirm no observable behavior change from before this PR (since this is test-only):
  - An Expo app (static `app.json` config) → app id detected as before.
  - A Capacitor app → app id detected as before.
- - A plain web app with no lint/format tool installed → `commands.lint`/`commands.formatCheck`/`commands.formatWrite` come back empty (matches this repo's own `.ai/config.json`, per the project context setup notes).
+ - A plain web app with no lint/format tool installed → `commands.lint`/`commands.formatCheck`/`commands.formatWrite` come back empty (matches this repo's own `.relay/config.json`, per the project context setup notes).
  - A repo with no `src`/`app`/`pages` directory (this repo itself, per the setup notes) → `sourceDirs` detection returns `[]`, confirming the fix this issue is guarding against stays fixed.
 4. **Regression check:** Diff `git status` / `git diff` after running the test suite to confirm zero changes to any file under `skills/setup/scripts/detectors/` or `skills/setup/scripts/detect-stack.mjs` (per AC 25 and the issue's "no production code should change" requirement).
 5. **Dev log check:** If any test fails against current implementation behavior in a way that reveals a new, previously-undocumented bug, confirm the dev log contains a clear write-up (symptom, minimal repro, affected function) rather than an inline code fix.
@@ -179,7 +179,7 @@ There is no end-user entry point (this is not an app feature). The developer/CI-
 - No user-facing data is stored by this feature. Test fixtures are either:
  - **In-memory:** plain JS objects shaped like a parsed `package.json`, held only for the duration of a test.
  - **Ephemeral on-disk:** real temp directories created via `mkdtempSync(path.join(os.tmpdir(), 'relay-detector-'))`, populated with marker files (e.g. `app.json`, `capacitor.config.json`, `src/`, `app/_layout.tsx`) needed for a given scenario, and deleted via `rmSync({ recursive: true, force: true })` after each test.
-- No data is written to the actual repository (`.ai/config.json` or elsewhere) by the tests themselves.
+- No data is written to the actual repository (`.relay/config.json` or elsewhere) by the tests themselves.
 
 ### 7. Screens / navigation
 N/A — no screens exist in this repository and none are added, modified, or removed by this feature. No navigation changes apply.
