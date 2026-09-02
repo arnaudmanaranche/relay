@@ -1,10 +1,12 @@
 # Relay
 
-**A structured, multi-agent pipeline for AI-assisted feature development. Model-agnostic, stack-agnostic.**
+**A gated pipeline for the features your coding agent writes. Model-agnostic, stack-agnostic.**
 
-Each role produces artifacts, gates, and handoffs, so shipping a feature with an AI agent looks like shipping one with a team, not a single unreviewed diff.
+Built for solo builders who ship with an agent and have no team to catch what it got wrong. Seven roles — brief, plan, build, review, QA, retro — each producing a real artifact, with every handoff gated by a check enforced in code rather than asked for in a prompt.
 
-[Full documentation](docs/index.html): pipeline stages, role anatomy, safety model, configuration reference, backends, roadmap.
+Relay is not another coding agent. It's the process around the one you already use.
+
+[Full documentation](docs/index.html): how a run works stage by stage, the safety model, where Relay sits among agent tooling, and the configuration reference.
 
 [Design principles & guarantees](https://github.com/arnaudmanaranche/relay/wiki/Design-Principles-and-Guarantees): trust, auditability, bounded growth, measurable self-improvement.
 
@@ -88,7 +90,11 @@ For configuration (models, effort, backends, batching, review panel size, E2E wi
 
 ## Why Relay?
 
-AI coding agents default to the shortest path from prompt to diff, which usually means no scoping, no design review, no QA, and no memory of what was tried before. Relay forces the same discipline a human team applies before merging: a written brief, a reviewed technical plan with a diagram, a code review against that plan, a QA verdict, and a retro that feeds back into the next feature. Every gate exists because skipping it is exactly where an unsupervised agent goes wrong.
+On a team, five people touch a feature before it merges: someone writes down what it should do, someone plans it, someone builds it, someone reviews the diff against that plan, someone verifies it works. Building solo with an agent, all five collapse into one prompt and one diff you skim at midnight.
+
+Relay puts the five back. A written brief, a technical plan with a diagram that **you** approve before code exists, a code review against that plan, a QA verdict from real E2E results, and a retro that feeds the next feature. Every gate exists because skipping it is exactly where an unsupervised agent goes wrong.
+
+It is deliberately not for everyone: it costs more time and tokens per feature, and it stops and waits for a human at the design gate on purpose. If you're prototyping something disposable, prompt your agent directly.
 
 ---
 
@@ -102,7 +108,7 @@ npm test
 npm run eval    # score pipeline output quality against golden rubric cases
 ```
 
-`.github/workflows/test.yml` runs both on every push and PR to `main`. The eval harness also powers a provenance-keyed A/B loop for improving the pipeline's own prompts; see the Eval section of the [full documentation](docs/index.html).
+`.github/workflows/test.yml` runs both on every push and PR to `main`. The eval harness also powers a provenance-keyed A/B loop for improving the pipeline's own prompts.
 
 ## Versioning
 
