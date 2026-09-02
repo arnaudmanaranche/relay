@@ -1,7 +1,7 @@
 // Unit tests for the read-only status aggregator (status.mjs).
 // Run with: npm test
 //
-// status.mjs must never misreport a run's state — a menu bar or dashboard
+// status.mjs must never misreport a run's state — a dashboard app
 // will act on it (e.g. surface "--approve-design"). These tests pin every
 // branch of the classifier against synthetic fixtures built in a temp dir,
 // using shapes copied verbatim from what run-pipeline.sh / agent-runner.ts

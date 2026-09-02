@@ -8,7 +8,7 @@ web
 
 ## Users
 
-**Solo builders** — and teams of two or three — who ship real software with an AI coding agent (Claude Code, Codex, OpenCode, Cline) and have nobody else to catch what the agent got wrong. They are the PM, the reviewer, and the QA on their own project. They want the quality control of a real engineering team applied to their "vibe coding" without hiring one. Primary entry points: running `/relay:new` inside an existing repo, and later checking `relay-menubar` or `status.mjs` to see what's running, gated, or failed across repos.
+**Solo builders** — and teams of two or three — who ship real software with an AI coding agent (Claude Code, Codex, OpenCode, Cline) and have nobody else to catch what the agent got wrong. They are the PM, the reviewer, and the QA on their own project. They want the quality control of a real engineering team applied to their "vibe coding" without hiring one. Primary entry points: running `/relay:new` inside an existing repo, and later checking `relay-dashboard` or `status.mjs` to see what's running, gated, or failed across repos.
 
 Explicitly **not** the target: people who want one-shot "build my app" autonomy, throwaway prototypes, or teams that already have humans doing PR review and QA.
 
@@ -32,7 +32,7 @@ Current vocabulary that resonates in this space: "deterministic gates / guardrai
 
 - Installed as a Claude Code plugin (`/plugin install relay@relay`) or, for other agents (Codex/OpenCode/Cline), as plain Markdown skills + scripts any tool that reads a SKILL.md and runs shell commands can drive.
 - Each feature runs inside an isolated git worktree; the Architect stage pauses for a mandatory human design-gate approval before code is written.
-- `relay-menubar`: a native, read-only macOS menu-bar app that polls `status.mjs` across configured repos every 5s and surfaces runs needing attention (design gate waiting, review/QA FAIL, crash, halt).
+- `relay-dashboard`: a native, read-only macOS app (Dock icon, one dashboard window) that polls `status.mjs` across configured repos every 5s and surfaces runs needing attention (design gate waiting, review/QA FAIL, crash, halt), grouped per repo.
 - CI/E2E is framework-agnostic (Maestro, Playwright, Cypress, whatever the project already runs) — QA reads real results and reports `BLOCKED_ENV` rather than inventing a pass.
 - Config lives in `.relay/config.json` / `.relay/agents.json`, generated once by `relay-setup`; project memory (`.relay/project-memory.md`) carries pitfalls/conventions/decisions across features and is periodically compacted.
 - Dev is the only role that writes source; large features batch automatically (default 6 impacted files/call) to avoid truncation at the model's real output ceiling.
@@ -53,14 +53,14 @@ Current vocabulary that resonates in this space: "deterministic gates / guardrai
 
 ## Evidence on Hand
 
-Real content only, pulled from this repo: `README.md`, `docs/index.html` (existing interactive walkthrough: role descriptions, gate types, example artifact excerpts per stage, config reference, backend comparison), `TODO.md` (roadmap), `.claude-plugin/marketplace.json` (plugin metadata), `relay-menubar/README.md` (menu-bar app behavior). No customer names, testimonials, benchmarks, or pricing exist anywhere in the project — none should be fabricated for the new site.
+Real content only, pulled from this repo: `README.md`, `docs/index.html` (existing interactive walkthrough: role descriptions, gate types, example artifact excerpts per stage, config reference, backend comparison), `TODO.md` (roadmap), `.claude-plugin/marketplace.json` (plugin metadata), `relay-dashboard/README.md` (dashboard app behavior). No customer names, testimonials, benchmarks, or pricing exist anywhere in the project — none should be fabricated for the new site.
 
 ## Product Principles
 
 1. Discipline is enforced in code, never requested of the model — every claim on the site about a "gate" or "guardrail" must be traceable to real enforcement logic already described in the repo.
 2. Model-agnostic and stack-agnostic by design; the site should not read as tied to one vendor.
 3. Relay is deliberately opinionated and unfinished-by-design (roadmap-driven, eval-improved) — the site can say so plainly rather than projecting false completeness.
-4. The ecosystem is one product with three faces (skill/plugin, CLI pipeline, menubar), not three separate products — the site should present them as one coherent system.
+4. The ecosystem is one product with three faces (skill/plugin, CLI pipeline, dashboard app), not three separate products — the site should present them as one coherent system.
 
 ## Accessibility & Inclusion
 

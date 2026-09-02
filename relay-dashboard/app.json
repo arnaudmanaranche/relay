@@ -1,15 +1,15 @@
 {
   "$schema": "https://schema.native-sdk.dev/app/v1.json",
-  "id": "sh.relay.menubar",
-  "name": "relay-menubar",
+  "id": "sh.relay.dashboard",
+  "name": "relay-dashboard",
   "display_name": "Relay",
-  "description": "Menu-bar status for Relay pipeline runs across your repos.",
+  "description": "Dashboard for Relay pipeline runs across your repos.",
   "version": "0.1.0",
   "icons": ["assets/icon.png"],
   "platforms": ["macos"],
   "permissions": ["view", "command", "filesystem", "clipboard", "reveal_path"],
-  "capabilities": ["tray", "native_views", "gpu_surfaces", "clipboard", "reveal_path"],
-  "dock_visible": false,
+  "capabilities": ["native_views", "gpu_surfaces", "clipboard", "reveal_path"],
+  "dock_visible": true,
   "service_carrier": "child",
   "shell": {
     "windows": [
@@ -18,7 +18,7 @@
         "title": "Relay",
         "width": 640,
         "height": 560,
-        "initially_hidden": true,
+        "initially_hidden": false,
         "close_policy": "hide",
         "views": [
           { "label": "main-canvas", "kind": "gpu_surface", "fill": true, "role": "Dashboard canvas", "accessibility_label": "Relay dashboard", "gpu_backend": "metal", "gpu_pixel_format": "bgra8_unorm", "gpu_present_mode": "timer", "gpu_alpha_mode": "opaque", "gpu_color_space": "srgb", "gpu_vsync": true }

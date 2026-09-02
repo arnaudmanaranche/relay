@@ -73,7 +73,7 @@ Check what Relay is doing right now: running/halted/crashed runs, design-gate ap
 
 ```bash
 node skills/pipeline/scripts/status.mjs                  # human-readable
-node skills/pipeline/scripts/status.mjs --json           # machine-readable, for dashboards/menu bars
+node skills/pipeline/scripts/status.mjs --json           # machine-readable, for dashboards
 ```
 
 Babysit a PR after it's open (polls CI, reruns flaky jobs, optionally auto-approves once Review/QA/diff-size gates all pass):
@@ -82,7 +82,7 @@ Babysit a PR after it's open (polls CI, reruns flaky jobs, optionally auto-appro
 bash skills/pipeline/scripts/babysit-pr.sh <branch> --max-reruns=3 --auto-stamp
 ```
 
-[relay-menubar](relay-menubar/README.md) is a macOS menu-bar app that polls `status.mjs` every 5s across your repos, flags runs needing attention (design gate, review/QA FAIL, crash, halt), and lets you reveal the worktree or copy a resume command. Read-only.
+[relay-dashboard](relay-dashboard/README.md) is a small macOS app (Dock icon, one window) that polls `status.mjs` every 5s across your repos, flags runs needing attention (design gate, review/QA FAIL, crash, halt), and lets you reveal the worktree or copy a resume command. Read-only.
 
 For configuration (models, effort, backends, batching, review panel size, E2E wiring), the safety model, and everything else, see the [full documentation](docs/index.html).
 

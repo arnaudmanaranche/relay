@@ -1,5 +1,5 @@
 {
-  "name": "relay-menubar",
+  "name": "relay-dashboard",
   "private": true,
   "type": "module",
   "description": "Editor and versioning surface only: stock TypeScript tooling resolves @native-sdk/core from here. The native CLI never reads it and builds with node_modules absent.",

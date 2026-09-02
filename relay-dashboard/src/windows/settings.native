@@ -1,6 +1,6 @@
 <!-- Relay settings (model-declared window, label "settings"). Edits a
      draft copy of the configured repo roots; Save persists via the
-     relaySaveRepos service op, which rewrites ~/.config/relay-menubar.json
+     relaySaveRepos service op, which rewrites ~/.config/relay-dashboard.json
      atomically and preserves unknown keys. Bindings come from src/core.ts:
      {draftRows} {hasDrafts} {noDrafts} {draftCount} {newText} {addDisabled}
      {saving} {saveLabel} {hasSaveError} {saveErrorText}. Presses dispatch
@@ -13,7 +13,7 @@
       <text size="heading">Repositories</text>
     </row>
     <text foreground="text_muted">
-      Folders polled by status.mjs. Saved to ~/.config/relay-menubar.json.
+      Folders polled by status.mjs. Saved to ~/.config/relay-dashboard.json.
     </text>
   </column>
 

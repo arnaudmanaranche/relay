@@ -1,16 +1,26 @@
 <!-- Relay dashboard. Binds helpers exported from src/core.ts ({isBoot},
-     {watching}, {runs}, {emptyQuiet}, {erroredRepos}, {hasSyncError},
+     {watching}, {panelRows}, {emptyQuiet}, {erroredRepos}, {hasSyncError},
      {syncError}, {hasActionError}, {actionErrorText}, {runningCount},
-     {attentionCount}, {hasAttention}, {totalCompleted}, {hasRecentlyMerged},
-     {recentlyMerged}). runs() is sorted failed -> gated -> running across
-     all repos so what needs attention is always first. Buttons dispatch
-     Msg arms directly: on-press="reveal:{r.index}" /
-     "reveal_artifacts:{r.index}" / "copy_resume:{r.index}" /
-     "retry:{r.index}" / "open_in_editor:{r.index}" / "open_run:{r.index}" / "refresh" /
-     "open_settings" / "do_quit". Style attributes take literal token names
-     only, so severity tinting is chosen by flag bindings ({r.running} /
-     {r.gated} / {r.failed} / {r.done}). Repo grouping is flattened: the first row of
-     each repo renders the group header ({r.showHeader}).
+     {attentionCount}, {hasAttention}, {totalCompleted}). panelRows() is
+     the panel's spine: ONE flat list in repo order, interleaving each
+     repo's active runs ({r.isRun}, sorted failed -> gated -> running) with
+     what that same repo recently merged ({r.isMerged}) under one header
+     ({r.showHeader}) — merges belong to a repo, not to a separate bottom
+     section. It is flat rather than a group record holding two lists
+     because `each` only accepts a model slice or fn, never a field of its
+     own loop item, so nested per-repo `for`s are not expressible; each row
+     renders whichever arm its flags select. Repos stay in configured order
+     so they don't shuffle under the pointer between polls. Buttons dispatch
+     Msg arms directly:
+     on-press="reveal:{r.index}" / "reveal_artifacts:{r.index}" /
+     "copy_resume:{r.index}" / "retry:{r.index}" /
+     "open_in_editor:{r.index}" / "open_run:{r.index}" / "refresh" /
+     "open_settings" / "do_quit" — {r.index} stays the flat activeRuns()
+     index the core resolves, unaffected by the grouping. Style attributes
+     take literal token names only, so a row's state <badge> picks its
+     variant/ink through flag bindings ({r.running} / {r.gated} /
+     {r.failed} / {r.done}) and carries the state's words in
+     {r.stateLabel}.
 
      Run Detail and New Feature are <sheet> overlays over this same
      window (not separate windows — see core.ts's windows(), which only
@@ -77,7 +87,7 @@
 
   <scroll grow="1">
     <column gap="10" padding="14">
-      <for each="runs" key="seq" as="r">
+      <for each="panelRows" key="seq" as="r">
         <if test="{r.showHeader}">
           <column gap="4">
             <row gap="8" cross="center">
@@ -88,47 +98,63 @@
             <separator/>
           </column>
         </if>
-        <column gap="3">
+
+        <if test="{r.isRun}">
+          <column gap="3">
+            <row gap="8" cross="center">
+              <text grow="1">{r.slug}</text>
+              <if test="{r.hasArtifacts}">
+                <button size="sm" variant="ghost" icon="edit" on-press="open_in_editor:{r.index}">Open in Code</button>
+                <button size="sm" variant="ghost" icon="archive" on-press="reveal_artifacts:{r.index}">Artifacts</button>
+              </if>
+              <button size="sm" variant="ghost" icon="folder-open" on-press="reveal:{r.index}">Reveal</button>
+              <button size="sm" icon="terminal" on-press="open_run:{r.index}">Open</button>
+            </row>
+            <row gap="8" cross="center">
+              <if test="{r.running}">
+                <badge variant="secondary" foreground="info" icon="play">{r.stateLabel}</badge>
+              </if>
+              <if test="{r.gated}">
+                <badge variant="secondary" foreground="warning" icon="pause">{r.stateLabel}</badge>
+              </if>
+              <if test="{r.failed}">
+                <badge variant="destructive" icon="alert">{r.stateLabel}</badge>
+              </if>
+              <if test="{r.done}">
+                <badge variant="secondary" foreground="success" icon="check-circle">{r.stateLabel}</badge>
+              </if>
+              <text grow="1" foreground="text_muted">{r.caption}</text>
+            </row>
+            <if test="{r.resumable}">
+              <row gap="8" cross="center">
+                <icon name="copy" foreground="warning" width="13" height="13"/>
+                <text grow="1" wrap="false" overflow="clip" foreground="warning">{r.resumeHint}</text>
+                <button size="sm" on-press="copy_resume:{r.index}">Copy resume</button>
+              </row>
+            </if>
+            <if test="{r.retryable}">
+              <row gap="8" cross="center">
+                <icon name="repeat" foreground="destructive" width="13" height="13"/>
+                <text grow="1" wrap="false" overflow="clip" foreground="destructive">{r.resumeHint}</text>
+                <button size="sm" on-press="retry:{r.index}">Retry</button>
+              </row>
+            </if>
+            <if test="{r.hasGuidance}">
+              <text wrap="true" foreground="text_muted">{r.guidance}</text>
+            </if>
+          </column>
+        </if>
+
+        <if test="{r.showMergedLabel}">
+          <text foreground="text_muted">Recently merged</text>
+        </if>
+        <if test="{r.isMerged}">
           <row gap="8" cross="center">
-            <if test="{r.running}">
-              <icon name="play" foreground="info" width="15" height="15"/>
-            </if>
-            <if test="{r.gated}">
-              <icon name="pause" foreground="warning" width="15" height="15"/>
-            </if>
-            <if test="{r.failed}">
-              <icon name="alert" foreground="destructive" width="15" height="15"/>
-            </if>
-            <if test="{r.done}">
-              <icon name="check-circle" foreground="success" width="15" height="15"/>
-            </if>
-            <text grow="1">{r.slug}</text>
-            <if test="{r.hasArtifacts}">
-              <button size="sm" variant="ghost" icon="edit" on-press="open_in_editor:{r.index}">Open in Code</button>
-              <button size="sm" variant="ghost" icon="archive" on-press="reveal_artifacts:{r.index}">Artifacts</button>
-            </if>
-            <button size="sm" variant="ghost" icon="folder-open" on-press="reveal:{r.index}">Reveal</button>
-            <button size="sm" icon="terminal" on-press="open_run:{r.index}">Open</button>
+            <icon name="check-circle" foreground="success" width="14" height="14"/>
+            <text grow="1" wrap="false" overflow="clip">{r.slug}</text>
+            <text text-alignment="end" foreground="text_muted" wrap="false" overflow="clip">{r.branch}</text>
           </row>
-          <text foreground="text_muted">{r.caption}</text>
-          <if test="{r.resumable}">
-            <row gap="8" cross="center">
-              <icon name="copy" foreground="warning" width="13" height="13"/>
-              <text grow="1" wrap="false" overflow="clip" foreground="warning">{r.resumeHint}</text>
-              <button size="sm" on-press="copy_resume:{r.index}">Copy resume</button>
-            </row>
-          </if>
-          <if test="{r.retryable}">
-            <row gap="8" cross="center">
-              <icon name="repeat" foreground="destructive" width="13" height="13"/>
-              <text grow="1" wrap="false" overflow="clip" foreground="destructive">{r.resumeHint}</text>
-              <button size="sm" on-press="retry:{r.index}">Retry</button>
-            </row>
-          </if>
-          <if test="{r.hasGuidance}">
-            <text wrap="true" foreground="text_muted">{r.guidance}</text>
-          </if>
-        </column>
+        </if>
       </for>
 
       <for each="erroredRepos" key="name" as="e">
@@ -141,28 +167,13 @@
         </column>
       </for>
 
-      <if test="{hasRecentlyMerged}">
-        <column gap="4">
-          <text foreground="text_muted">Recently merged</text>
-          <for each="recentlyMerged" key="seq" as="m">
-            <column gap="0">
-              <row gap="8" cross="center">
-                <icon name="check-circle" foreground="success" width="14" height="14"/>
-                <text grow="1">{m.repoName}</text>
-              </row>
-              <text foreground="text_muted" wrap="false" overflow="clip">{m.branch}</text>
-            </column>
-          </for>
-        </column>
-      </if>
-
       <if test="{emptyQuiet}">
         <card padding="28">
           <column gap="6" cross="center">
             <icon name="check-circle" foreground="success" width="30" height="30"/>
             <text>All quiet</text>
             <text foreground="text_muted">No active Relay runs.</text>
-            <text foreground="text_muted">Repos are configured in ~/.config/relay-menubar.json</text>
+            <text foreground="text_muted">Repos are configured in ~/.config/relay-dashboard.json</text>
           </column>
         </card>
       </if>
@@ -172,7 +183,7 @@
   <separator/>
   <column padding="10">
     <row gap="8" cross="center">
-      <text grow="1" foreground="text_muted">Polls every 5s · Option-click the menu-bar title to refresh</text>
+      <text grow="1" foreground="text_muted">Polls every 5s · closing the window keeps Relay in the Dock</text>
       <button size="sm" variant="ghost" on-press="do_quit">Quit Relay</button>
     </row>
   </column>

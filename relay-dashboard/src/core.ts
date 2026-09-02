@@ -1,7 +1,7 @@
-// Relay menu-bar core. Deterministic app logic only: polls the relay
-// service for status.mjs snapshots, derives one flattened active-run list,
-// renders the macOS status item + a small dashboard window, and fires
-// read-only effects (reveal worktree, copy resume command).
+// Relay dashboard core. Deterministic app logic only: polls the relay
+// service for status.mjs snapshots, derives one repo-grouped run list,
+// renders the dashboard window, and fires read-only effects (reveal
+// worktree, copy resume command).
 //
 // Subset constraints that shaped this file:
 //   - no byte concatenation / float formatting -> display captions are
@@ -9,13 +9,10 @@
 //     literal table entry keyed by RunState
 //   - markup dispatches Msg arms directly with payload fields
 //     ("reveal:{r.index}"); commandMsg only routes shell commands
-//     (activation / Option-click) by name
+//     (app menu / bridge) by name
 
 import { Cmd, Sub, asciiBytes, utf8Bytes, windowDescriptor } from "@native-sdk/core";
-import type {
-  StatusItemState,
-  WindowDescriptor,
-} from "@native-sdk/core/events";
+import type { WindowDescriptor } from "@native-sdk/core/events";
 import { applyTextInputEvent, trimAsciiSpaces } from "@native-sdk/core/text";
 import type { TextInputEvent, TextEditState } from "@native-sdk/core/text";
 import {
@@ -34,7 +31,6 @@ import {
 import type {
   ActiveRun,
   AppConfig,
-  CompletedFeature,
   ReadArtifactResult,
   ReadLogResult,
   ReadTimelineResult,
@@ -338,38 +334,6 @@ function eqBytes(a: Uint8Array, b: Uint8Array): boolean {
 
 // --- dashboard bindings ---------------------------------------------------
 
-// One flattened run row; the first row of each repo carries its header.
-export interface RunRow {
-  readonly seq: number;
-  // Global flat index across all repos — the payload of reveal/copy presses.
-  readonly index: number;
-  readonly slug: Uint8Array;
-  readonly caption: Uint8Array;
-  readonly guidance: Uint8Array;
-  readonly resumeHint: Uint8Array;
-  readonly resumable: boolean;
-  // Mechanical re-run of a failed/crashed/halted run — excludes design-gate
-  // (that one needs a human to read technical-plan.md first, so it only
-  // ever offers the copy-and-paste-yourself resumeHint above) and
-  // blocked-dev-review (needs pm-dev-thread.md answered first; status.mjs
-  // never gives that state a resumeArgs, so retryable is false for it too).
-  readonly retryable: boolean;
-  readonly resumeArgs: readonly Uint8Array[];
-  readonly repoRoot: Uint8Array;
-  readonly hasArtifacts: boolean;
-  // Severity groups pick the row icon + tint in markup (style attributes
-  // are literals-only there, so the variant choice must be a flag).
-  readonly running: boolean;
-  readonly gated: boolean;
-  readonly failed: boolean;
-  readonly done: boolean;
-  readonly hasGuidance: boolean;
-  // Repo grouping: the first row of each repo renders the group header.
-  readonly showHeader: boolean;
-  readonly repoName: Uint8Array;
-  readonly repoDone: number;
-}
-
 function severityFailed(state: RunState): boolean {
   return (
     state === "failedTypecheck" ||
@@ -389,56 +353,170 @@ function severityRank(state: RunState): number {
   return 1;
 }
 
-export function runs(model: Model): readonly RunRow[] {
-  const flat = activeRuns(model);
-  let out: RunRow[] = [];
-  let prevName: Uint8Array = new Uint8Array(0);
-  // Three passes over the same flat list, one per severity tier, each
-  // still index-bounded by the literal the prover needs. Every run matches
-  // exactly one tier, so the flat index (used as both seq and the
-  // reveal/retry/copy_resume payload) stays unique across all three.
-  for (let tier = 0; tier < 3; tier += 1) {
-    for (let i = 0; i < 8; i += 1) {
-      if (out.length >= 8) break;
-      if (i >= flat.length) break;
-      const run = flat[i];
-      if (severityRank(run.state) !== tier) continue;
-      const showHeader = !eqBytes(run.repoName, prevName);
-      prevName = run.repoName;
-      let repoDone = 0;
-      for (const repo of model.repos) {
-        if (eqBytes(repo.name, run.repoName)) repoDone = repo.completedCount;
+// One panel row. The panel is ONE flat list because markup's `for` cannot
+// iterate a field of its own loop item (`each="{g.runs}"` is rejected: the
+// iterable must be a model slice or a model fn), so a repo's runs and its
+// merged features cannot be nested `for`s under a group record. Instead the
+// list interleaves both registers in repo order and the markup renders
+// whichever arm each row's flags select — the polymorphic-row pattern.
+//
+// Merged rows deliberately REUSE the run fields that mean the same thing
+// (`slug`), and carry the branch in `branch`; every field belonging to the
+// other register is a zero-value sentinel (empty bytes / 0 / false), the
+// same convention as shared.ts's boundary records.
+export interface PanelRow {
+  readonly seq: number;
+  // Repo grouping: the first row of each repo renders the group header.
+  readonly showHeader: boolean;
+  readonly repoName: Uint8Array;
+  readonly repoDone: number;
+  // Which register this row is. An active run, or a merged feature under
+  // the same repo header — the first merged row of a repo also renders the
+  // small "Recently merged" label that separates the two registers.
+  readonly isRun: boolean;
+  readonly isMerged: boolean;
+  readonly showMergedLabel: boolean;
+  readonly slug: Uint8Array;
+  // Merged rows only: the branch that carried the feature.
+  readonly branch: Uint8Array;
+  // --- active-run fields (sentinels on a merged row) -------------------
+  // Global flat index across all repos — the payload of reveal/copy presses.
+  readonly index: number;
+  // Chip text for the state badge; the severity flags below pick its
+  // variant (markup style attributes are literals-only).
+  readonly stateLabel: Uint8Array;
+  readonly caption: Uint8Array;
+  readonly guidance: Uint8Array;
+  readonly resumeHint: Uint8Array;
+  readonly resumable: boolean;
+  // Mechanical re-run of a failed/crashed/halted run — excludes design-gate
+  // (that one needs a human to read technical-plan.md first, so it only
+  // ever offers the copy-and-paste-yourself resumeHint above) and
+  // blocked-dev-review (needs pm-dev-thread.md answered first; status.mjs
+  // never gives that state a resumeArgs, so retryable is false for it too).
+  readonly retryable: boolean;
+  readonly repoRoot: Uint8Array;
+  readonly hasArtifacts: boolean;
+  // Severity groups pick the row's badge variant in markup (style
+  // attributes are literals-only there, so the choice must be a flag).
+  readonly running: boolean;
+  readonly gated: boolean;
+  readonly failed: boolean;
+  readonly done: boolean;
+  readonly hasGuidance: boolean;
+}
+
+// Repos in CONFIGURED order (not severity order): the panel's groups stay
+// put across polls, and "what needs a decision" is answered by the stat
+// strip's attention count plus each row's badge rather than by shuffling
+// whole repos around under the pointer. Severity sorting still applies
+// WITHIN a repo, and a repo with nothing running and nothing merged renders
+// nothing at all (its poll error, if any, stays in the errors section).
+//
+// `seq` is r * 32 + a literal-bounded offset per register (runs from 1,
+// merged from 17), never an accumulated counter: keys must be unique across
+// the whole list, and only expressions built from literal-bounded loop
+// counters stay provably whole (the same reason recentlyMerged() used
+// r * 5 + c before this).
+export function panelRows(model: Model): readonly PanelRow[] {
+  let out: PanelRow[] = [];
+  let base = 0;
+  for (let r = 0; r < 8; r += 1) {
+    if (r >= model.repos.length) break;
+    const repo = model.repos[r];
+    const repoBase = base;
+    base += repo.active.length;
+    if (repo.active.length === 0 && repo.completed.length === 0) continue;
+    let headerPending = true;
+
+    // Three passes over the repo's runs, one per severity tier, each still
+    // index-bounded by the literal the prover needs. Every run matches
+    // exactly one tier, so each row is emitted exactly once.
+    for (let tier = 0; tier < 3; tier += 1) {
+      for (let i = 0; i < 8; i += 1) {
+        if (i >= repo.active.length) break;
+        const run = repo.active[i];
+        if (severityRank(run.state) !== tier) continue;
+        // The flat index takes the full boundary ceremony: `repoBase` is an
+        // accumulated array length, which the prover cannot refine the way
+        // it refines a literal-bounded loop counter, so the range guard
+        // supplies the bounds (written as a condition the value must PASS —
+        // that is what excludes NaN) and Math.trunc states the wholeness
+        // intent. 512 is a ceiling no real snapshot reaches.
+        const flatIndex = repoBase + i;
+        if (!(flatIndex >= 0 && flatIndex < 512)) continue;
+        const showHeader = headerPending;
+        headerPending = false;
+        out = out.concat([
+          {
+            seq: r * 32 + 1 + i,
+            showHeader,
+            repoName: repo.name,
+            repoDone: repo.completedCount,
+            isRun: true,
+            isMerged: false,
+            showMergedLabel: false,
+            slug: run.slug,
+            branch: new Uint8Array(0),
+            index: Math.trunc(flatIndex),
+            stateLabel: run.stateLabel,
+            caption: run.caption,
+            guidance: run.guidance,
+            resumeHint: run.resumeHint,
+            resumable: run.state === "designGate",
+            retryable: run.state !== "designGate" && run.resumeArgs.length > 0,
+            repoRoot: run.repoRoot,
+            hasArtifacts: run.artifactsDir.length > 0,
+            running: run.state === "running",
+            gated: run.state !== "running" && run.state !== "done" && !severityFailed(run.state),
+            failed: severityFailed(run.state),
+            done: run.state === "done",
+            hasGuidance: run.guidance.length > 0 && run.state !== "running",
+          },
+        ]);
       }
+    }
+
+    // Merged features of the same repo, most-recent-first (status.mjs
+    // orders each repo's list that way, and the service caps it at 5).
+    let labelPending = true;
+    for (let c = 0; c < 5; c += 1) {
+      if (c >= repo.completed.length) break;
+      const feature = repo.completed[c];
+      const showHeader = headerPending;
+      headerPending = false;
+      const showMergedLabel = labelPending;
+      labelPending = false;
       out = out.concat([
         {
-          seq: i,
-          index: i,
-          slug: run.slug,
-          caption: run.caption,
-          guidance: run.guidance,
-          resumeHint: run.resumeHint,
-          resumable: run.state === "designGate",
-          retryable: run.state !== "designGate" && run.resumeArgs.length > 0,
-          resumeArgs: run.resumeArgs,
-          repoRoot: run.repoRoot,
-          hasArtifacts: run.artifactsDir.length > 0,
-          running: run.state === "running",
-          gated: run.state !== "running" && run.state !== "done" && !severityFailed(run.state),
-          failed: severityFailed(run.state),
-          done: run.state === "done",
-          hasGuidance: run.guidance.length > 0 && run.state !== "running",
+          seq: r * 32 + 17 + c,
           showHeader,
-          repoName: run.repoName,
-          repoDone,
+          repoName: repo.name,
+          repoDone: repo.completedCount,
+          isRun: false,
+          isMerged: true,
+          showMergedLabel,
+          slug: feature.slug,
+          branch: feature.branch,
+          index: 0,
+          stateLabel: new Uint8Array(0),
+          caption: new Uint8Array(0),
+          guidance: new Uint8Array(0),
+          resumeHint: new Uint8Array(0),
+          resumable: false,
+          retryable: false,
+          repoRoot: repo.root,
+          hasArtifacts: false,
+          running: false,
+          gated: false,
+          failed: false,
+          done: false,
+          hasGuidance: false,
         },
       ]);
     }
   }
   return out;
-}
-
-export function hasRuns(model: Model): boolean {
-  return activeRuns(model).length > 0;
 }
 
 export function watching(model: Model): boolean {
@@ -482,46 +560,14 @@ export function hasErroredRepos(model: Model): boolean {
   return erroredRepos(model).length > 0;
 }
 
-export interface MergedRow {
-  readonly seq: number;
-  readonly repoName: Uint8Array;
-  readonly slug: Uint8Array;
-  readonly branch: Uint8Array;
-}
-
-// Recently merged features, most-recent-first (status.mjs orders each
-// repo's list that way), flattened across repos and capped so "which one
-// merged" is answerable without leaving the panel.
-export function recentlyMerged(model: Model): readonly MergedRow[] {
-  let out: MergedRow[] = [];
-  for (let r = 0; r < 8; r += 1) {
-    if (out.length >= 5) break;
-    if (r >= model.repos.length) break;
-    const repo = model.repos[r];
-    for (let c = 0; c < 5; c += 1) {
-      if (out.length >= 5) break;
-      if (c >= repo.completed.length) break;
-      const feature = repo.completed[c];
-      // r and c are both literal-bounded loop counters, so this stays a
-      // provably whole, bounded i64 — unlike out.length, which the prover
-      // cannot refine the same way.
-      out = out.concat([
-        { seq: r * 5 + c, repoName: repo.name, slug: feature.slug, branch: feature.branch },
-      ]);
-    }
-  }
-  return out;
-}
-
-export function hasRecentlyMerged(model: Model): boolean {
-  return recentlyMerged(model).length > 0;
-}
-
-// Watching, everything healthy, nothing in flight — the calm dashboard.
+// Watching with nothing to show at all — the calm dashboard. Keyed on the
+// PANEL, not on active runs: a repo that merged something recently still
+// renders its rows, and an empty-state card under a populated panel would
+// be a lie.
 export function emptyQuiet(model: Model): boolean {
   return (
     watching(model) &&
-    !hasRuns(model) &&
+    panelRows(model).length === 0 &&
     !hasErroredRepos(model) &&
     !hasSyncError(model)
   );
@@ -1565,42 +1611,8 @@ export function windows(model: Model): readonly WindowDescriptor[] {
   return [];
 }
 
-// --- menu-bar status item ---------------------------------------------------
-
-function menuTitle(model: Model): Uint8Array {
-  const all = activeRuns(model);
-  let attention = false;
-  let running = false;
-  for (const run of all) {
-    if (needsAttention(run.state)) attention = true;
-    if (run.state === "running") running = true;
-  }
-  if (attention) return asciiBytes("! RELAY");
-  if (running) return asciiBytes("> RELAY");
-  return asciiBytes("RELAY");
-}
-
-export function statusItem(_model: Model): StatusItemState {
-  // The tray is deliberately menu-less: the AppKit host pops the dropdown
-  // AND fires the activation command on every click when items exist, which
-  // duplicated the dashboard with a second, weaker surface. With no items
-  // the native menu stays nil and a click is purely "open the dashboard";
-  // Option-click still refreshes. Every action lives in the window.
-  return {
-    iconPath: asciiBytes("assets/menu-bar.svg"),
-    tooltip: utf8Bytes("Relay pipelines"),
-    activationCommand: asciiBytes("app.open_dashboard"),
-    alternateActivationCommand: asciiBytes("app.refresh"),
-    openCommand: asciiBytes(""),
-    presentation: {
-      title: menuTitle(_model),
-      width: 74,
-      tone: "normal",
-      iconOpacity: 1,
-      monospaced: true,
-      fontSize: 12,
-      fontWeight: "semibold",
-    },
-    items: [],
-  };
-}
+// No status item: Relay is a REGULAR Dock app (app.json dock_visible), not
+// a status-item accessory. The dashboard window is the whole presence — the
+// Dock icon activates it, and close_policy "hide" plus AppKit's
+// reopen-on-Dock-click keeps it reachable after a close. app.open_dashboard
+// stays routable in commandMsg for the app menu / bridge.

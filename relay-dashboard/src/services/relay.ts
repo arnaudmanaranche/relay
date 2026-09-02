@@ -1,7 +1,7 @@
 // relay service — ordinary TypeScript behind the effect boundary.
 //
 // Operations:
-//   loadConfig()    reads ~/.config/relay-menubar.json and resolves the
+//   loadConfig()    reads ~/.config/relay-dashboard.json and resolves the
 //                   status.mjs path.
 //   fetchStatus()   spawns `node <statusScript> --json <roots...>` and maps
 //                   the JSON into the shared boundary records. All parsing
@@ -88,32 +88,61 @@ function parseState(name: string): RunState {
   return "halted";
 }
 
-const STATE_LABELS: Record<RunState, string> = {
+// Chip text for the row's state <badge> — a NAME, not a sentence: it sits
+// in a fixed-height pill, so anything longer than two words belongs in
+// STATE_NOTES (the caption) or in the producer's own `detail` guidance.
+const STATE_BADGES: Record<RunState, string> = {
   running: "running",
+  designGate: "design gate",
+  blockedPmQuestions: "PM questions",
+  blockedDevReview: "clarifications",
+  failedTypecheck: "typecheck FAIL",
+  failedReview: "review FAIL",
+  failedQa: "QA FAIL",
+  halted: "halted",
+  crashed: "crashed",
+  done: "done",
+};
+
+// What the old one-line STATE_LABELS said BEYOND the badge name — kept as
+// the caption's first segment so splitting the label into a chip loses no
+// operator-relevant fact (that the QA failure still pushed a branch, that a
+// done run leaves a worktree behind). Empty where the badge says it all.
+const STATE_NOTES: Record<RunState, string> = {
+  running: "",
   designGate: "awaiting design approval",
   blockedPmQuestions: "blocked on PM clarifying questions",
   blockedDevReview: "blocked on clarifications",
   failedTypecheck: "quality gates failing",
-  failedReview: "review FAIL",
-  failedQa: "QA FAIL — pushed, no PR",
-  halted: "halted",
-  crashed: "crashed",
-  done: "done — check PR / clean up worktree",
+  failedReview: "",
+  failedQa: "pushed, no PR",
+  halted: "",
+  crashed: "",
+  done: "check PR / clean up worktree",
 };
 
 function usdText(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
+// The state itself now rides in the row's badge (STATE_BADGES), so a
+// stale design approval is the one state fact still worth spelling out in
+// the caption: the badge says "design gate" either way, and only the note
+// distinguishes "never approved" from "approved, then the plan changed".
+function stateNote(raw: RunEntry, state: RunState): string {
+  if (state === "designGate" && raw.staleApproval === true) {
+    return "plan changed since approval";
+  }
+  return STATE_NOTES[state];
+}
+
 // The core subset cannot concatenate bytes or format numbers, so the
 // display caption is composed HERE where ordinary TS is available:
-// "<state> · <role> · $<cost> · <model>", skipping missing parts.
+// "<note> · <role> · $<cost> · <model>", skipping missing parts.
 function composeCaption(raw: RunEntry, state: RunState): string {
-  const parts: string[] = [
-    raw.staleApproval === true
-      ? "plan changed since approval"
-      : STATE_LABELS[state],
-  ];
+  const parts: string[] = [];
+  const note = stateNote(raw, state);
+  if (note.length > 0) parts.push(note);
   if (typeof raw.lastRole === "string" && raw.lastRole.length > 0) {
     parts.push(raw.lastRole);
   }
@@ -172,7 +201,7 @@ function configPath(): string {
   // The child carrier only receives an allowlisted environment (path,
   // user/home/temp, locale, certs, proxy) — custom overrides never reach
   // this process, so the config location is fixed by convention.
-  return join(homedir(), ".config", "relay-menubar.json");
+  return join(homedir(), ".config", "relay-dashboard.json");
 }
 
 export function loadConfig(): AppConfig {
@@ -275,6 +304,7 @@ function mapRun(repoName: string, repoRoot: string, raw: RunEntry): ActiveRun {
     slug: bytes(slug),
     repoName: bytes(repoName),
     state,
+    stateLabel: bytes(STATE_BADGES[state]),
     caption: bytes(composeCaption(raw, state)),
     guidance: bytes(guidance),
     staleApproval: raw.staleApproval === true,
@@ -329,7 +359,7 @@ export function fetchStatus(request: StatusRequest): StatusSnapshot {
         mapped = mapped.concat([mapRun(name, rootRaw, run)]);
       }
     }
-    // status.mjs already sorts most-recent-first; the menu bar only has
+    // status.mjs already sorts most-recent-first; the panel only has
     // room for a handful, so cap what crosses the boundary.
     const completed: CompletedFeature[] = completedRaw.slice(0, 5).map((entry) => ({
       slug: bytes(typeof entry.slug === "string" ? entry.slug : ""),
@@ -366,7 +396,7 @@ function spawnDetachedLogged(
   if (!existsSync(script)) {
     throw { kind: "script_missing", message: `${script} does not exist.` };
   }
-  const logDir = join(tmpdir(), "relay-menubar");
+  const logDir = join(tmpdir(), "relay-dashboard");
   mkdirSync(logDir, { recursive: true });
   const logPath = join(logDir, `${logTag}-${Date.now()}.log`);
   const logFd = openSync(logPath, "a");
@@ -421,7 +451,7 @@ export function startRun(request: StartRunRequest): StartRunResult {
       message: "Slug must be lowercase letters, digits, and hyphens only (e.g. dark-mode).",
     };
   }
-  const scratchDir = join(tmpdir(), "relay-menubar");
+  const scratchDir = join(tmpdir(), "relay-dashboard");
   mkdirSync(scratchDir, { recursive: true });
   const issuePath = join(scratchDir, `issue-${slug}-${Date.now()}.md`);
   writeFileSync(issuePath, `${issueText}\n`);

@@ -4,7 +4,7 @@
 // The pipeline already writes everything needed to answer "what is Relay
 // doing right now, and what is it waiting on?" — this script just reads those
 // signals and aggregates them. It never writes, never calls an LLM, never
-// touches the worktrees. A GUI (menu-bar extra, dashboard) should consume the
+// touches the worktrees. A GUI (the relay-dashboard app) should consume the
 // --json output rather than reimplementing any of this.
 //
 // Signals consumed (all written by run-pipeline.sh / agent-runner.ts):
@@ -21,7 +21,7 @@
 //
 // Usage:
 //   node status.mjs                       # current repo, human-readable table
-//   node status.mjs --json                # machine-readable (feed a menu bar/dashboard with this)
+//   node status.mjs --json                # machine-readable (feed a dashboard with this)
 //   node status.mjs ~/proj-a ~/proj-b     # several Relay repos in one invocation
 //
 // States (run.state): running | blocked-pm-questions | design-gate |
@@ -185,12 +185,12 @@ export function inspectWorktree({ repoRoot, repoDirName, entry, worktreeRoot, br
   });
 
   // costUsd/lastRole/livePid are omitted (not set to null) when unknown:
-  // the relay-menubar side casts this JSON as `RunEntry` with
+  // the relay-dashboard side casts this JSON as `RunEntry` with
   // `costUsd?: number`, `lastRole?: string`, `livePid?: number`, and
   // native-sdk's runtime cast validator rejects explicit `null` against
   // an optional field (https://github.com/vercel-labs/native/issues/407)
   // — so an absent key is required, not just permitted. livePid (rather
-  // than the `lock` object below) is what the menubar's Stop action
+  // than the `lock` object below) is what the dashboard's Stop action
   // targets — a live process to send SIGTERM to.
   const run = {
     slug,
@@ -230,7 +230,7 @@ export function inspectWorktree({ repoRoot, repoDirName, entry, worktreeRoot, br
   // re-run a shipped feature rather than what it actually needs (checking
   // the PR merged, then deleting the worktree). resumeArgs is the same
   // command as resumeHint (the display string), but as argv — a
-  // programmatic consumer (e.g. the menu-bar app's Retry button) must
+  // programmatic consumer (e.g. the dashboard app's Retry button) must
   // never shell out `resumeHint` as a string, since slug/repoRoot
   // ultimately come from the filesystem.
   if (
@@ -294,7 +294,7 @@ export function collectRepo(rootArg) {
       completed.push(feature);
     }
   }
-  // Most recently merged first — the menu bar only surfaces the first few.
+  // Most recently merged first — the dashboard only surfaces the first few.
   completed = completed.sort((a, b) => b.mergedAtMs - a.mergedAtMs);
 
   return {

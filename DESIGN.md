@@ -12,7 +12,7 @@
 
 **OWN-WORLD:** Cream/paper ground (`#f7f5f2`), near-black ink (`#171512`), flat isometric blocks in three accent families — sage (`#9fb49a`/`#7e9678`, start/scope), charcoal (`#26241f`/`#171512`, the one role that writes code), slate-blue (`#8ea7b8`/`#6d8898`, learn/close the loop) — against plain cream/white blocks for the remaining roles. Coral (`#d85f2f`) stays the single interactive accent (active states, links, CTAs), never a block color. Type: Archivo (UI/display), Source Serif (headings), IBM Plex Mono (kickers, code, small labels) — all already self-hosted via base64 `@font-face`, preserved as a confirmed brand asset. Flat surfaces, 1px hairline borders, no gradients, no shadows beyond the isometric cubes' own three-face shading.
 
-**STORY:** A visitor sees the seven gated roles as physical blocks before reading a word, understands Relay replaces "prompt in, diff out" with a real team's discipline, sees the ecosystem (skill/plugin install, the pipeline engine, the menubar app) as one coherent system rather than three products, then walks the actual pipeline station by station.
+**STORY:** A visitor sees the seven gated roles as physical blocks before reading a word, understands Relay replaces "prompt in, diff out" with a real team's discipline, sees the ecosystem (skill/plugin install, the pipeline engine, the dashboard app) as one coherent system rather than three products, then walks the actual pipeline station by station.
 
 **FIRST VIEWPORT:** Kicker + crossed-out list of what unsupervised AI coding actually looks like (mirrors the pinned reference's struck-through pain list) → headline → isometric staircase of the seven role-blocks, ascending left to right, each labeled, clickable (jumps the walkthrough rail below to that stage) → lede paragraph → two CTAs.
 
@@ -22,7 +22,7 @@ The earlier order put three screens of positioning (problem, landscape, for-you)
 
 The hero carries one static scene — the feature outlined at the centre with its four pieces in four different states — beside the colour legend. It teaches the state palette in one frame without repeating the interactive walkthrough.
 
-**FORM:** Single-page Read-mode site, sidenav + long-scroll sections (inherited structure). Light-only — no dark-mode variant, no theme toggle. New sections: Motivation (the "why", short, right after hero) and Ecosystem (skill / pipeline / menubar as one system), both using the same block-token visual language at smaller scale. The interactive walkthrough (rail, gate explorer, config groups, safety grid) keeps its JS state machine; rail nodes carry each stage's own illustration.
+**FORM:** Single-page Read-mode site, sidenav + long-scroll sections (inherited structure). Light-only — no dark-mode variant, no theme toggle. New sections: Motivation (the "why", short, right after hero) and Ecosystem (skill / pipeline / dashboard app as one system), both using the same block-token visual language at smaller scale. The interactive walkthrough (rail, gate explorer, config groups, safety grid) keeps its JS state machine; rail nodes carry each stage's own illustration.
 
 ## The cube is the feature
 

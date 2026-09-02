@@ -28,9 +28,16 @@ export interface ActiveRun {
   readonly slug: Uint8Array;
   readonly repoName: Uint8Array;
   readonly state: RunState;
-  // Precomposed display caption ("running · dev · $0.42 · claude-opus…"),
-  // built by the service — the core subset cannot concatenate or format.
-  // Empty bytes when there is nothing beyond the state to show.
+  // Chip text for the row's state badge ("halted", "review FAIL") — a name,
+  // never a sentence (see STATE_BADGES in relay.ts). The core picks the
+  // badge's VARIANT from its own severity flags, so this carries only the
+  // words.
+  readonly stateLabel: Uint8Array;
+  // Precomposed display caption ("dev · $0.42 · claude-opus…"), built by
+  // the service — the core subset cannot concatenate or format. The state
+  // is NOT in it (that is stateLabel's job); it opens with a state note
+  // only where one adds a fact the badge cannot (STATE_NOTES). Empty bytes
+  // when there is nothing beyond the state to show.
   readonly caption: Uint8Array;
   // Producer `detail`: per-state operator guidance ("Quality gates failing
   // — see .agent-typecheck-feedback.md…"). Empty for plain running runs.
