@@ -12,13 +12,15 @@
 //     (app menu / bridge) by name
 
 import { Cmd, Sub, asciiBytes, utf8Bytes, windowDescriptor } from "@native-sdk/core";
-import type { WindowDescriptor } from "@native-sdk/core/events";
+import type { ThemeState, WindowDescriptor } from "@native-sdk/core/events";
 import { applyTextInputEvent, trimAsciiSpaces } from "@native-sdk/core/text";
 import type { TextInputEvent, TextEditState } from "@native-sdk/core/text";
 import {
   relayLoadConfig,
+  relayLoadTheme,
   relayFetchStatus,
   relaySaveRepos,
+  relaySaveTheme,
   relayRetryRun,
   relayOpenInEditor,
   relayReadArtifact,
@@ -43,6 +45,8 @@ import type {
   OpenResult,
   StopRunResult,
   SubmitAnswerResult,
+  ThemePref,
+  ThemeSettings,
   TimelineRow,
 } from "./shared.ts";
 
@@ -71,6 +75,11 @@ export interface Model {
   // Settings window (model-declared): a draft copy of the configured roots
   // edited in place, the add-field buffer, and the save round-trip state.
   readonly settingsOpen: boolean;
+  // The forced appearance, fed to themeState() below. NOT part of the
+  // draft/Save flow the repo list uses: picking one applies and persists
+  // immediately (the macOS settings convention — you see the theme you
+  // clicked), so Cancel discards repo edits and leaves the theme alone.
+  readonly theme: ThemePref;
   readonly draftRepos: readonly Uint8Array[];
   readonly newTextEditor: TextEditState;
   readonly saving: boolean;
@@ -170,9 +179,17 @@ export type Msg =
   | { readonly kind: "editor_opened"; readonly result: OpenResult }
   | { readonly kind: "editor_open_failed"; readonly error: Uint8Array }
   | { readonly kind: "open_dashboard" }
+  | { readonly kind: "close_window" }
   | { readonly kind: "do_quit" }
   | { readonly kind: "open_settings" }
   | { readonly kind: "close_settings" }
+  | { readonly kind: "set_theme_system" }
+  | { readonly kind: "set_theme_light" }
+  | { readonly kind: "set_theme_dark" }
+  | { readonly kind: "theme_loaded"; readonly settings: ThemeSettings }
+  | { readonly kind: "theme_load_failed"; readonly error: Uint8Array }
+  | { readonly kind: "theme_saved"; readonly result: SaveResult }
+  | { readonly kind: "theme_save_failed"; readonly error: Uint8Array }
   | { readonly kind: "new_repo_edit"; readonly edit: TextInputEvent }
   | { readonly kind: "add_new_repo" }
   | { readonly kind: "remove_draft"; readonly index: number }
@@ -231,6 +248,15 @@ export const viewUnbound = [
   "lastSyncMs",
   "nowMs",
   "settingsOpen",
+  // Read by themeState() and by the three themeIs* flags, never bound raw.
+  "theme",
+  "theme_loaded",
+  "theme_load_failed",
+  "theme_saved",
+  "theme_save_failed",
+  // Menu-bar commands (app.json menus -> commandMsg), never markup.
+  "open_settings",
+  "close_window",
   "detail_run_started",
   "detail_run_start_failed",
   "log_poll_tick",
@@ -264,6 +290,7 @@ export function initialModel(): [Model, Cmd<Msg>] {
     nowMs: -1,
     lastError: new Uint8Array(0),
     settingsOpen: false,
+    theme: "system",
     draftRepos: [],
     newTextEditor: emptyEditor(),
     saving: false,
@@ -281,7 +308,12 @@ export function initialModel(): [Model, Cmd<Msg>] {
   };
   return [
     model,
-    relayLoadConfig({ key: "boot", ok: "configured", err: "configure_failed" }),
+    Cmd.batch([
+      relayLoadConfig({ key: "boot", ok: "configured", err: "configure_failed" }),
+      // Its own op, its own key: an unusable repo list must not decide
+      // which appearance the window opens in (see loadTheme in relay.ts).
+      relayLoadTheme({ key: "boot-theme", ok: "theme_loaded", err: "theme_load_failed" }),
+    ]),
   ];
 }
 
@@ -330,6 +362,13 @@ function eqBytes(a: Uint8Array, b: Uint8Array): boolean {
     if (a[i] !== b[i]) return false;
   }
   return true;
+}
+
+// The committed half of an appearance pick. The WRITE half stays inline
+// in each set_theme_* arm: a command may only be issued in update's own
+// return (NS1017), so a helper cannot hand one back.
+function withTheme(model: Model, theme: ThemePref): Model {
+  return { ...model, theme, saveError: new Uint8Array(0) };
 }
 
 // --- dashboard bindings ---------------------------------------------------
@@ -670,6 +709,38 @@ export function actionErrorText(model: Model): Uint8Array {
 export function saveLabel(model: Model): Uint8Array {
   if (model.saving) return utf8Bytes("Saving…");
   return asciiBytes("Save");
+}
+
+// One flag per appearance rather than one `set_theme:{pref}` chip loop:
+// the options are a closed set of three, and a boolean per chip is what
+// `selected=` binds (a model-driven toggle-group — the model owns which
+// chip is active, see the chips pattern in the native-ui guide).
+export function themeIsSystem(model: Model): boolean {
+  return model.theme === "system";
+}
+
+export function themeIsLight(model: Model): boolean {
+  return model.theme === "light";
+}
+
+export function themeIsDark(model: Model): boolean {
+  return model.theme === "dark";
+}
+
+// The view root's identity, keyed on the appearance. Changing it tears the
+// whole tree down and rebuilds it on a theme flip, which is what makes the
+// flip repaint: with a stable identity, the runtime's incremental damage
+// only covers widgets whose CONTENT changed, so nodes that merely changed
+// COLOR (the header strip, a section label) keep their old pixels on the
+// live Metal path — visible as a light band across a window that just went
+// dark. The reference renderer plans every frame as a full repaint, so
+// `native automate screenshot` never shows it; only the glass does.
+// Re-keying costs a full rebuild on an action that happens by hand, once
+// in a while, and resets engine-owned scroll offsets with it.
+export function themeKey(model: Model): Uint8Array {
+  if (model.theme === "light") return asciiBytes("theme-light");
+  if (model.theme === "dark") return asciiBytes("theme-dark");
+  return asciiBytes("theme-system");
 }
 
 // --- run-detail bindings ---------------------------------------------------
@@ -1055,12 +1126,23 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     case "open_dashboard":
       return [model, Cmd.showWindow("main")];
 
+    // Window > Close Window (⌘W). The menu command names no window, so
+    // the settings window wins while it exists — it is the transient one
+    // and the one a ⌘W right after ⌘, means — and the dashboard's own
+    // close is a hide (app.json close_policy), never a quit.
+    case "close_window":
+      if (model.settingsOpen) return { ...model, settingsOpen: false };
+      return [model, Cmd.hideWindow("main")];
+
     case "do_quit":
       return [model, Cmd.quitApp()];
 
     // --- settings -------------------------------------------------------------
 
     case "open_settings": {
+      // ⌘, with the window already up must not clobber the drafts being
+      // edited in it — just bring it forward.
+      if (model.settingsOpen) return [model, Cmd.showWindow("settings")];
       const draft = model.roots.map((root) => root.slice());
       return {
         ...model,
@@ -1123,6 +1205,58 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
 
     case "repos_save_failed":
       return { ...model, saving: false, saveError: msg.error };
+
+    // --- appearance -----------------------------------------------------------
+
+    // Applied on the spot (themeState re-derives after every committed
+    // update) and written through in the same step — no Save button, so
+    // the write is the only place a failure can surface: it lands in the
+    // settings window's one error line, same as a repo save's. Re-picking
+    // the active appearance is a no-op, not a redundant write.
+    case "set_theme_system":
+      if (model.theme === "system") return model;
+      return [
+        withTheme(model, "system"),
+        relaySaveTheme(
+          { theme: "system" },
+          { key: "save-theme", ok: "theme_saved", err: "theme_save_failed" },
+        ),
+      ];
+
+    case "set_theme_light":
+      if (model.theme === "light") return model;
+      return [
+        withTheme(model, "light"),
+        relaySaveTheme(
+          { theme: "light" },
+          { key: "save-theme", ok: "theme_saved", err: "theme_save_failed" },
+        ),
+      ];
+
+    case "set_theme_dark":
+      if (model.theme === "dark") return model;
+      return [
+        withTheme(model, "dark"),
+        relaySaveTheme(
+          { theme: "dark" },
+          { key: "save-theme", ok: "theme_saved", err: "theme_save_failed" },
+        ),
+      ];
+
+    case "theme_loaded":
+      return { ...model, theme: msg.settings.theme };
+
+    // A theme that cannot be read is not worth a banner over the
+    // dashboard: the model keeps its "system" default and the settings
+    // window shows that as the active chip.
+    case "theme_load_failed":
+      return model;
+
+    case "theme_saved":
+      return { ...model, saveError: new Uint8Array(0) };
+
+    case "theme_save_failed":
+      return { ...model, saveError: msg.error };
 
     // --- run-detail window ------------------------------------------------
 
@@ -1438,16 +1572,25 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     // --- new-feature window ------------------------------------------------
 
     case "open_new_run":
-      return {
-        ...model,
-        newRunOpen: true,
-        newRunRepoRoot: new Uint8Array(0),
-        newRunRepoName: new Uint8Array(0),
-        newRunSlugEditor: emptyEditor(),
-        newRunIssueEditor: emptyEditor(),
-        newRunSubmitting: false,
-        newRunError: new Uint8Array(0),
-      };
+      // ⌘N from the menu bar can arrive with the sheet already open (or
+      // the dashboard hidden): show the window rather than resetting a
+      // half-typed issue body.
+      if (model.newRunOpen) return [model, Cmd.showWindow("main")];
+      return [
+        {
+          ...model,
+          newRunOpen: true,
+          newRunRepoRoot: new Uint8Array(0),
+          newRunRepoName: new Uint8Array(0),
+          newRunSlugEditor: emptyEditor(),
+          newRunIssueEditor: emptyEditor(),
+          newRunSubmitting: false,
+          newRunError: new Uint8Array(0),
+        },
+        // The sheet lives in the dashboard window — ⌘N must bring that
+        // window up, not just flip the flag behind a hidden window.
+        Cmd.showWindow("main"),
+      ];
 
     case "close_new_run":
       return { ...model, newRunOpen: false };
@@ -1576,14 +1719,32 @@ function capTail(content: Uint8Array, cap: number): Uint8Array {
 }
 
 
-// --- command routing (status item shell + markup payloads) ------------------
+// --- command routing (menu bar + window close commands) ---------------------
 
+// Every name here is either an app.json `menus` item's command (the
+// macOS menu bar — Settings… ⌘, and the rest) or a window's
+// onCloseCommand. Menu items carry no window id, so the arms they reach
+// resolve their own target (see "close_window").
 export function commandMsg(name: string): Msg | null {
   if (name === "app.refresh") return { kind: "refresh" };
   if (name === "app.open_dashboard") return { kind: "open_dashboard" };
+  if (name === "app.close_window") return { kind: "close_window" };
   if (name === "app.quit") return { kind: "do_quit" };
+  if (name === "app.settings") return { kind: "open_settings" };
+  if (name === "app.new_run") return { kind: "open_new_run" };
   if (name === "app.settings-closed") return { kind: "close_settings" };
   return null;
+}
+
+// --- appearance -------------------------------------------------------------
+
+// The stock theme's model-owned axes, re-derived after every committed
+// update. Only the color scheme is ours: the pack and accent stay
+// inherited from app.json, and "system" (the default) follows the OS.
+// A forced scheme reaches the CANVAS tokens — the whole UI here — while
+// native chrome (titlebars, the menu bar itself) stays OS-themed.
+export function themeState(model: Model): ThemeState {
+  return { colorScheme: model.theme };
 }
 
 // --- model-declared windows ---------------------------------------------------
@@ -1593,8 +1754,8 @@ function settingsWindow(): WindowDescriptor {
     label: asciiBytes("settings"),
     canvasLabel: asciiBytes("settings-canvas"),
     title: asciiBytes("Relay Settings"),
-    width: 480,
-    height: 420,
+    width: 520,
+    height: 480,
     resizable: true,
     closePolicy: "quit",
     onCloseCommand: asciiBytes("app.settings-closed"),

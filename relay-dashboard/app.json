@@ -8,9 +8,27 @@
   "icons": ["assets/icon.png"],
   "platforms": ["macos"],
   "permissions": ["view", "command", "filesystem", "clipboard", "reveal_path"],
-  "capabilities": ["native_views", "gpu_surfaces", "clipboard", "reveal_path"],
+  "capabilities": ["native_views", "gpu_surfaces", "menus", "clipboard", "reveal_path"],
   "dock_visible": true,
   "service_carrier": "child",
+  "menus": [
+    {
+      "title": "Dashboard",
+      "items": [
+        { "label": "Settings…", "command": "app.settings", "key": ",", "modifiers": ["primary"] },
+        { "separator": true },
+        { "label": "New Feature", "command": "app.new_run", "key": "n", "modifiers": ["primary"] },
+        { "label": "Refresh", "command": "app.refresh", "key": "r", "modifiers": ["primary"] }
+      ]
+    },
+    {
+      "title": "Window",
+      "items": [
+        { "label": "Dashboard", "command": "app.open_dashboard", "key": "0", "modifiers": ["primary"] },
+        { "label": "Close Window", "command": "app.close_window", "key": "w", "modifiers": ["primary"] }
+      ]
+    }
+  ],
   "shell": {
     "windows": [
       {

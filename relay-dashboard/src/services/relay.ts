@@ -3,6 +3,8 @@
 // Operations:
 //   loadConfig()    reads ~/.config/relay-dashboard.json and resolves the
 //                   status.mjs path.
+//   loadTheme()     reads the chosen appearance out of the same file,
+//                   separately, so it survives an unusable repo list.
 //   fetchStatus()   spawns `node <statusScript> --json <roots...>` and maps
 //                   the JSON into the shared boundary records. All parsing
 //                   and process work lives here so src/core.ts stays in the
@@ -54,6 +56,7 @@ import type {
   RunState,
   SaveReposRequest,
   SaveResult,
+  SaveThemeRequest,
   StartRunRequest,
   StartRunResult,
   StatusRequest,
@@ -62,6 +65,7 @@ import type {
   StopRunResult,
   SubmitAnswerRequest,
   SubmitAnswerResult,
+  ThemeSettings,
   TimelineRow,
 } from "../shared.ts";
 
@@ -158,6 +162,7 @@ function composeCaption(raw: RunEntry, state: RunState): string {
 interface ConfigFile {
   repos?: string[];
   statusScript?: string;
+  theme?: string;
 }
 
 interface RunEntry {
@@ -249,15 +254,40 @@ export function loadConfig(): AppConfig {
   return { statusScript: bytes(script), roots: rootBytes };
 }
 
+// The chosen appearance, read on its own so a config whose repo list has
+// no resolvable status.mjs (loadConfig throws there) still opens in the
+// theme the user picked. An unknown/absent value is "system".
+export function loadTheme(): ThemeSettings {
+  let table: ConfigFile = {};
+  if (existsSync(configPath())) {
+    try {
+      table = JSON.parse(readFileSync(configPath(), "utf-8")) as ConfigFile;
+    } catch {
+      // A malformed file is loadConfig's error to report — not a reason to
+      // fail booting the window in the wrong appearance.
+      return { theme: "system" };
+    }
+  }
+  if (table.theme === "light") return { theme: "light" };
+  if (table.theme === "dark") return { theme: "dark" };
+  return { theme: "system" };
+}
+
+// Persist the chosen appearance. Written immediately on pick (the theme
+// is not part of the settings window's Save/Cancel draft), through the
+// same read-modify-write + atomic install saveRepos uses, so neither
+// write drops the other's key.
+export function saveTheme(request: SaveThemeRequest): SaveResult {
+  const table = readConfigFile();
+  writeConfigFile({ ...table, theme: request.theme });
+  return { saved: true };
+}
+
 // Persist an edited repo list. Reads the existing file so unknown keys
 // survive, normalizes entries the same way loadConfig reads them (trim,
 // ~ expansion, dedupe, drop empties), and installs atomically (tmp+rename).
 export function saveRepos(request: SaveReposRequest): SaveResult {
-  const path = configPath();
-  let table: ConfigFile = {};
-  if (existsSync(path)) {
-    table = JSON.parse(readFileSync(path, "utf-8")) as ConfigFile;
-  }
+  const table = readConfigFile();
 
   const seen = new Set<string>();
   const repos: string[] = [];
@@ -271,11 +301,23 @@ export function saveRepos(request: SaveReposRequest): SaveResult {
   }
 
   // The spread preserves every key the typed cast does not name.
-  const next = { ...table, repos };
+  writeConfigFile({ ...table, repos });
+  return { saved: true };
+}
+
+function readConfigFile(): ConfigFile {
+  if (!existsSync(configPath())) return {};
+  return JSON.parse(readFileSync(configPath(), "utf-8")) as ConfigFile;
+}
+
+// Atomic install (tmp + rename) so a half-written config never replaces a
+// working one — every writer of ~/.config/relay-dashboard.json goes
+// through here.
+function writeConfigFile(next: ConfigFile): void {
+  const path = configPath();
   const tmp = `${path}.tmp`;
   writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`);
   renameSync(tmp, path);
-  return { saved: true };
 }
 
 // argv[0] is resolved to an ABSOLUTE path here (repoRoot + the script's

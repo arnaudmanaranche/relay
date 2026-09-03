@@ -1,61 +1,110 @@
-<!-- Relay settings (model-declared window, label "settings"). Edits a
-     draft copy of the configured repo roots; Save persists via the
-     relaySaveRepos service op, which rewrites ~/.config/relay-dashboard.json
-     atomically and preserves unknown keys. Bindings come from src/core.ts:
-     {draftRows} {hasDrafts} {noDrafts} {draftCount} {newText} {addDisabled}
-     {saving} {saveLabel} {hasSaveError} {saveErrorText}. Presses dispatch
-     Msg arms: remove_draft:{d.seq} add_new_repo new_repo_edit save_repos
-     close_settings. Validate with: native check -->
+<!-- Relay settings (model-declared window, label "settings"). Opened from
+     the macOS menu bar — Dashboard > Settings… (⌘,) — never as an overlay
+     on the dashboard: it is the app's preferences surface, so it lives in
+     its own window like any Mac app's.
+
+     Two sections with DIFFERENT commit semantics, deliberately:
+       Appearance — applies and persists on the press (no Save), so the
+         theme you click is the theme you see.
+       Repositories — a draft copy of the configured roots; Save persists
+         via the relaySaveRepos service op (rewrites
+         ~/.config/relay-dashboard.json atomically, preserving unknown
+         keys), Cancel discards the drafts and leaves the theme alone.
+
+     Bindings come from src/core.ts: {themeIsSystem} {themeIsLight}
+     {themeIsDark} {draftRows} {hasDrafts} {noDrafts} {draftCount}
+     {newText} {addDisabled} {saving} {saveLabel} {hasSaveError}
+     {saveErrorText}. Presses dispatch Msg arms: set_theme_system
+     set_theme_light set_theme_dark remove_draft:{d.seq} add_new_repo
+     new_repo_edit save_repos close_settings. Validate with: native check -->
+<!-- The {themeKey} wrapper re-keys this whole tree when the appearance
+     changes, so a theme flip repaints instead of leaving bands of the old
+     scheme behind — see themeKey() in src/core.ts, and app.native for why
+     the key cannot sit on the view root. -->
 <column gap="0" padding="0">
-  <column gap="6" padding="16">
-    <row gap="8" cross="center">
-      <icon name="settings" foreground="text_muted" width="16" height="16"/>
-      <text size="heading">Repositories</text>
-    </row>
-    <text foreground="text_muted">
-      Folders polled by status.mjs. Saved to ~/.config/relay-dashboard.json.
-    </text>
-  </column>
-
-  <separator/>
-
-  <scroll grow="1">
-    <column gap="8" padding="14">
-      <for each="draftRows" key="seq" as="d">
-        <row gap="8" cross="center">
-          <icon name="folder" foreground="text_muted" width="14" height="14"/>
-          <text grow="1" wrap="false" overflow="clip">{d.path}</text>
-          <button size="sm" variant="ghost" on-press="remove_draft:{d.seq}">Remove</button>
-        </row>
-      </for>
-
-      <if test="{noDrafts}">
-        <text foreground="text_muted">No repositories yet — add one below.</text>
-      </if>
-
-      <separator/>
+  <column key="{themeKey}" grow="1" gap="0" padding="0">
+    <column gap="6" padding="20">
       <row gap="8" cross="center">
-        <text-field
-          grow="1"
-          text="{newText}"
-          placeholder="/path/to/repo or ~/repo"
-          on-input="new_repo_edit"
-          on-submit="add_new_repo"
-        />
-        <button size="sm" disabled="{addDisabled}" on-press="add_new_repo">Add</button>
+        <icon name="settings" foreground="text_muted" width="16" height="16"/>
+        <text size="heading">Settings</text>
+      </row>
+      <text foreground="text_muted">
+        Saved to ~/.config/relay-dashboard.json.
+      </text>
+    </column>
+
+    <separator/>
+
+    <scroll grow="1">
+      <column gap="18" padding="20">
+        <column gap="6">
+          <row gap="8" cross="center">
+            <icon name="sun" foreground="text_muted" width="14" height="14"/>
+            <text grow="1">Appearance</text>
+          </row>
+          <toggle-group gap="2" label="Appearance">
+            <toggle-button size="sm" selected="{themeIsSystem}" on-toggle="set_theme_system">
+              System
+            </toggle-button>
+            <toggle-button size="sm" selected="{themeIsLight}" on-toggle="set_theme_light">
+              Light
+            </toggle-button>
+            <toggle-button size="sm" selected="{themeIsDark}" on-toggle="set_theme_dark">
+              Dark
+            </toggle-button>
+          </toggle-group>
+          <text wrap="true" foreground="text_muted">
+            Applies right away, no Save. System follows macOS.
+          </text>
+        </column>
+
+        <separator/>
+
+        <column gap="8">
+          <row gap="8" cross="center">
+            <icon name="folder" foreground="text_muted" width="14" height="14"/>
+            <text grow="1">Repositories</text>
+          </row>
+          <text wrap="true" foreground="text_muted">
+            Folders polled by status.mjs, every 5 seconds.
+          </text>
+
+          <for each="draftRows" key="seq" as="d">
+            <row gap="8" cross="center">
+              <icon name="folder" foreground="text_muted" width="14" height="14"/>
+              <text grow="1" wrap="false" overflow="clip">{d.path}</text>
+              <button size="sm" variant="ghost" on-press="remove_draft:{d.seq}">Remove</button>
+            </row>
+          </for>
+
+          <if test="{noDrafts}">
+            <text foreground="text_muted">No repositories yet — add one below.</text>
+          </if>
+
+          <row gap="8" cross="center">
+            <text-field
+              grow="1"
+              text="{newText}"
+              placeholder="/path/to/repo or ~/repo"
+              on-input="new_repo_edit"
+              on-submit="add_new_repo"
+            />
+            <button size="sm" disabled="{addDisabled}" on-press="add_new_repo">Add</button>
+          </row>
+        </column>
+      </column>
+    </scroll>
+
+    <separator/>
+    <column padding="16">
+      <if test="{hasSaveError}">
+        <status-bar>{saveErrorText}</status-bar>
+      </if>
+      <row gap="8" cross="center">
+        <text grow="1" foreground="text_muted">{draftCount}</text>
+        <button size="sm" variant="ghost" on-press="close_settings">Cancel</button>
+        <button size="sm" disabled="{saving}" on-press="save_repos">{saveLabel}</button>
       </row>
     </column>
-  </scroll>
-
-  <separator/>
-  <column padding="12">
-    <if test="{hasSaveError}">
-      <status-bar>{saveErrorText}</status-bar>
-    </if>
-    <row gap="8" cross="center">
-      <text grow="1" foreground="text_muted">{draftCount}</text>
-      <button size="sm" variant="ghost" on-press="close_settings">Cancel</button>
-      <button size="sm" disabled="{saving}" on-press="save_repos">{saveLabel}</button>
-    </row>
   </column>
 </column>

@@ -97,6 +97,26 @@ export interface AppConfig {
   readonly roots: readonly Uint8Array[];
 }
 
+// The appearance the app forces on its own canvas tokens. "system" (the
+// default) follows the OS; the other two override it. Matches
+// @native-sdk/core/events' ThemeStateColorScheme member for member —
+// declared here rather than imported so ONE declaration is authoritative
+// on both sides of the boundary (the service reads/writes it too) and no
+// SDK type name collides with a core-class name (NS1038).
+export type ThemePref = "system" | "light" | "dark";
+
+// Read and written on its OWN operation rather than as a field of
+// AppConfig: loadConfig throws when no status.mjs resolves (an unusable
+// repo list), and the chosen appearance must still load in that case —
+// the settings window is exactly where such a config gets fixed.
+export interface ThemeSettings {
+  readonly theme: ThemePref;
+}
+
+export interface SaveThemeRequest {
+  readonly theme: ThemePref;
+}
+
 export interface StatusRequest {
   readonly config: AppConfig;
 }

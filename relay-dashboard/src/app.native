@@ -15,12 +15,17 @@
      on-press="reveal:{r.index}" / "reveal_artifacts:{r.index}" /
      "copy_resume:{r.index}" / "retry:{r.index}" /
      "open_in_editor:{r.index}" / "open_run:{r.index}" / "refresh" /
-     "open_settings" / "do_quit" — {r.index} stays the flat activeRuns()
+     "do_quit" — {r.index} stays the flat activeRuns()
      index the core resolves, unaffected by the grouping. Style attributes
      take literal token names only, so a row's state <badge> picks its
      variant/ink through flag bindings ({r.running} / {r.gated} /
      {r.failed} / {r.done}) and carries the state's words in
      {r.stateLabel}.
+
+     Settings is NOT here: it is the app's own window (src/windows/
+     settings.native), reached from the macOS menu bar — Dashboard >
+     Settings… (⌘,) routed through commandMsg — the way a Mac app's
+     preferences are, so no header button opens it.
 
      Run Detail and New Feature are <sheet> overlays over this same
      window (not separate windows — see core.ts's windows(), which only
@@ -43,338 +48,345 @@
      {newRunErrorText}, dispatching pick_new_run_repo:{r.index}
      reset_new_run_repo new_run_slug_edit new_run_issue_edit
      submit_new_run. Validate with: native check -->
+<!-- The {themeKey} wrapper is not decoration: it re-keys the whole tree
+     when the appearance changes, which is what makes a theme flip
+     actually repaint. See themeKey() in src/core.ts. The key sits on this
+     INNER column because a key on the view ROOT is ignored (verified: the
+     widget ids in the automation snapshot are unchanged across a flip
+     with it there, and all change with it here). -->
 <column gap="0" padding="0">
-  <column gap="10" padding="16">
-    <if test="{isBoot}">
-      <row gap="8" cross="center">
-        <spinner/>
-        <text grow="1" foreground="text_muted">Starting…</text>
-        <button size="sm" variant="ghost" icon="settings" on-press="open_settings">Settings</button>
-        <button size="sm" variant="ghost" icon="refresh-cw" on-press="refresh">Refresh</button>
-      </row>
-    </if>
-    <if test="{watching}">
-      <row gap="24" cross="center">
-        <column gap="0">
-          <text size="heading">{runningCount}</text>
-          <text foreground="text_muted">running</text>
-        </column>
-        <if test="{hasAttention}">
+  <column key="{themeKey}" grow="1" gap="0" padding="0">
+    <column gap="10" padding="16">
+      <if test="{isBoot}">
+        <row gap="8" cross="center">
+          <spinner/>
+          <text grow="1" foreground="text_muted">Starting…</text>
+          <button size="sm" variant="ghost" icon="refresh-cw" on-press="refresh">Refresh</button>
+        </row>
+      </if>
+      <if test="{watching}">
+        <row gap="24" cross="center">
           <column gap="0">
-            <text size="heading" foreground="warning">{attentionCount}</text>
-            <text foreground="text_muted">need attention</text>
+            <text size="heading">{runningCount}</text>
+            <text foreground="text_muted">running</text>
           </column>
-        </if>
-        <column gap="0">
-          <text size="heading" foreground="success">{totalCompleted}</text>
-          <text foreground="text_muted">merged</text>
-        </column>
-        <spacer grow="1"/>
-        <button size="sm" variant="ghost" icon="plus" on-press="open_new_run">New Feature</button>
-        <button size="sm" variant="ghost" icon="settings" on-press="open_settings">Settings</button>
-        <button size="sm" variant="ghost" icon="refresh-cw" on-press="refresh">Refresh</button>
-      </row>
-    </if>
-    <if test="{hasSyncError}">
-      <status-bar>{syncError}</status-bar>
-    </if>
-    <if test="{hasActionError}">
-      <status-bar>{actionErrorText}</status-bar>
-    </if>
-  </column>
-
-  <separator/>
-
-  <scroll grow="1">
-    <column gap="10" padding="14">
-      <for each="panelRows" key="seq" as="r">
-        <if test="{r.showHeader}">
-          <column gap="4">
-            <row gap="8" cross="center">
-              <icon name="git-branch" foreground="text_muted" width="14" height="14"/>
-              <text grow="1" size="heading">{r.repoName}</text>
-              <text text-alignment="end" foreground="success">{r.repoDone} merged</text>
-            </row>
-            <separator/>
+          <if test="{hasAttention}">
+            <column gap="0">
+              <text size="heading" foreground="warning">{attentionCount}</text>
+              <text foreground="text_muted">need attention</text>
+            </column>
+          </if>
+          <column gap="0">
+            <text size="heading" foreground="success">{totalCompleted}</text>
+            <text foreground="text_muted">merged</text>
           </column>
-        </if>
-
-        <if test="{r.isRun}">
-          <column gap="3">
-            <row gap="8" cross="center">
-              <text grow="1">{r.slug}</text>
-              <if test="{r.hasArtifacts}">
-                <button size="sm" variant="ghost" icon="edit" on-press="open_in_editor:{r.index}">Open in Code</button>
-                <button size="sm" variant="ghost" icon="archive" on-press="reveal_artifacts:{r.index}">Artifacts</button>
-              </if>
-              <button size="sm" variant="ghost" icon="folder-open" on-press="reveal:{r.index}">Reveal</button>
-              <button size="sm" icon="terminal" on-press="open_run:{r.index}">Open</button>
-            </row>
-            <row gap="8" cross="center">
-              <if test="{r.running}">
-                <badge variant="secondary" foreground="info" icon="play">{r.stateLabel}</badge>
-              </if>
-              <if test="{r.gated}">
-                <badge variant="secondary" foreground="warning" icon="pause">{r.stateLabel}</badge>
-              </if>
-              <if test="{r.failed}">
-                <badge variant="destructive" icon="alert">{r.stateLabel}</badge>
-              </if>
-              <if test="{r.done}">
-                <badge variant="secondary" foreground="success" icon="check-circle">{r.stateLabel}</badge>
-              </if>
-              <text grow="1" foreground="text_muted">{r.caption}</text>
-            </row>
-            <if test="{r.resumable}">
-              <row gap="8" cross="center">
-                <icon name="copy" foreground="warning" width="13" height="13"/>
-                <text grow="1" wrap="false" overflow="clip" foreground="warning">{r.resumeHint}</text>
-                <button size="sm" on-press="copy_resume:{r.index}">Copy resume</button>
-              </row>
-            </if>
-            <if test="{r.retryable}">
-              <row gap="8" cross="center">
-                <icon name="repeat" foreground="destructive" width="13" height="13"/>
-                <text grow="1" wrap="false" overflow="clip" foreground="destructive">{r.resumeHint}</text>
-                <button size="sm" on-press="retry:{r.index}">Retry</button>
-              </row>
-            </if>
-            <if test="{r.hasGuidance}">
-              <text wrap="true" foreground="text_muted">{r.guidance}</text>
-            </if>
-          </column>
-        </if>
-
-        <if test="{r.showMergedLabel}">
-          <text foreground="text_muted">Recently merged</text>
-        </if>
-        <if test="{r.isMerged}">
-          <row gap="8" cross="center">
-            <icon name="check-circle" foreground="success" width="14" height="14"/>
-            <text grow="1" wrap="false" overflow="clip">{r.slug}</text>
-            <text text-alignment="end" foreground="text_muted" wrap="false" overflow="clip">{r.branch}</text>
-          </row>
-        </if>
-      </for>
-
-      <for each="erroredRepos" key="name" as="e">
-        <column gap="2">
-          <row gap="8" cross="center">
-            <icon name="alert" foreground="destructive" width="15" height="15"/>
-            <text grow="1">{e.name}</text>
-          </row>
-          <text wrap="true" foreground="destructive_text">{e.errorText}</text>
-        </column>
-      </for>
-
-      <if test="{emptyQuiet}">
-        <card padding="28">
-          <column gap="6" cross="center">
-            <icon name="check-circle" foreground="success" width="30" height="30"/>
-            <text>All quiet</text>
-            <text foreground="text_muted">No active Relay runs.</text>
-            <text foreground="text_muted">Repos are configured in ~/.config/relay-dashboard.json</text>
-          </column>
-        </card>
+          <spacer grow="1"/>
+          <button size="sm" variant="ghost" icon="plus" on-press="open_new_run">New Feature</button>
+          <button size="sm" variant="ghost" icon="refresh-cw" on-press="refresh">Refresh</button>
+        </row>
+      </if>
+      <if test="{hasSyncError}">
+        <status-bar>{syncError}</status-bar>
+      </if>
+      <if test="{hasActionError}">
+        <status-bar>{actionErrorText}</status-bar>
       </if>
     </column>
-  </scroll>
 
-  <separator/>
-  <column padding="10">
-    <row gap="8" cross="center">
-      <text grow="1" foreground="text_muted">Polls every 5s · closing the window keeps Relay in the Dock</text>
-      <button size="sm" variant="ghost" on-press="do_quit">Quit Relay</button>
-    </row>
-  </column>
+    <separator/>
 
-  <if test="{hasOpenRun}">
-    <sheet on-dismiss="close_run" width="600" height="500">
-      <column gap="0" padding="0">
-        <column gap="6" padding="16">
-          <row gap="8" cross="center">
-            <icon name="git-branch" foreground="text_muted" width="16" height="16"/>
-            <text grow="1" size="heading" wrap="false" overflow="clip">{openRunSlug}</text>
-            <if test="{openRunCanStop}">
-              <icon name="x-circle" foreground="destructive" width="14" height="14"/>
-              <button size="sm" on-press="stop_run">Stop</button>
-            </if>
-            <button size="sm" variant="ghost" icon="x" on-press="close_run">Close</button>
-          </row>
-          <if test="{openRunHasActionError}">
-            <status-bar>{openRunActionErrorText}</status-bar>
+    <scroll grow="1">
+      <column gap="10" padding="14">
+        <for each="panelRows" key="seq" as="r">
+          <if test="{r.showHeader}">
+            <column gap="4">
+              <row gap="8" cross="center">
+                <icon name="git-branch" foreground="text_muted" width="14" height="14"/>
+                <text grow="1" size="heading">{r.repoName}</text>
+                <text text-alignment="end" foreground="success">{r.repoDone} merged</text>
+              </row>
+              <separator/>
+            </column>
           </if>
-        </column>
 
-        <separator/>
-
-        <scroll grow="1">
-          <column gap="10" padding="16">
-            <if test="{openRunTimelineLoaded}">
-              <column gap="6">
+          <if test="{r.isRun}">
+            <column gap="3">
+              <row gap="8" cross="center">
+                <text grow="1">{r.slug}</text>
+                <if test="{r.hasArtifacts}">
+                  <button size="sm" variant="ghost" icon="edit" on-press="open_in_editor:{r.index}">Open in Code</button>
+                  <button size="sm" variant="ghost" icon="archive" on-press="reveal_artifacts:{r.index}">Artifacts</button>
+                </if>
+                <button size="sm" variant="ghost" icon="folder-open" on-press="reveal:{r.index}">Reveal</button>
+                <button size="sm" icon="terminal" on-press="open_run:{r.index}">Open</button>
+              </row>
+              <row gap="8" cross="center">
+                <if test="{r.running}">
+                  <badge variant="secondary" foreground="info" icon="play">{r.stateLabel}</badge>
+                </if>
+                <if test="{r.gated}">
+                  <badge variant="secondary" foreground="warning" icon="pause">{r.stateLabel}</badge>
+                </if>
+                <if test="{r.failed}">
+                  <badge variant="destructive" icon="alert">{r.stateLabel}</badge>
+                </if>
+                <if test="{r.done}">
+                  <badge variant="secondary" foreground="success" icon="check-circle">{r.stateLabel}</badge>
+                </if>
+                <text grow="1" foreground="text_muted">{r.caption}</text>
+              </row>
+              <if test="{r.resumable}">
                 <row gap="8" cross="center">
-                  <text size="heading">Timeline</text>
-                  <spacer grow="1"/>
-                  <text foreground="text_muted">{openRunTotalCostText}</text>
-                  <text foreground="text_muted">{openRunTotalTokens} tokens</text>
-                  <if test="{openRunHasBudget}">
-                    <text foreground="text_muted">/</text>
-                    <text foreground="text_muted">{openRunBudgetText}</text>
-                    <text foreground="text_muted">budget</text>
-                  </if>
+                  <icon name="copy" foreground="warning" width="13" height="13"/>
+                  <text grow="1" wrap="false" overflow="clip" foreground="warning">{r.resumeHint}</text>
+                  <button size="sm" on-press="copy_resume:{r.index}">Copy resume</button>
                 </row>
-                <for each="openRunTimeline" key="seq" as="t">
-                  <column gap="2">
-                    <row gap="8" cross="center">
-                      <if test="{t.reached}">
-                        <icon name="check" foreground="success" width="13" height="13"/>
-                      </if>
-                      <if test="{t.notReached}">
-                        <icon name="circle-dot" foreground="text_muted" width="13" height="13"/>
-                      </if>
-                      <text grow="1">{t.role}</text>
-                      <text foreground="text_muted">{t.costText}</text>
-                      <text foreground="text_muted">{t.completedAgo}</text>
-                    </row>
-                    <if test="{t.reached}">
-                      <row gap="8" cross="center">
-                        <text foreground="text_muted">{t.verdict}</text>
-                        <text foreground="text_muted">{t.model}</text>
-                      </row>
-                    </if>
-                  </column>
-                </for>
-                <separator/>
-              </column>
-            </if>
-
-            <if test="{openRunIsDesignGate}">
-              <column gap="8">
-                <text foreground="text_muted">
-                  Design gate — review the plan below before approving. Nothing runs until you do.
-                </text>
-                <if test="{openRunPlanLoaded}">
-                  <markdown source="{openRunPlanContent}"/>
-                </if>
-                <if test="{openRunCanApprove}">
-                  <button on-press="run_pty">Approve design</button>
-                </if>
-              </column>
-            </if>
-
-            <if test="{openRunNeedsAnswer}">
-              <column gap="8">
-                <text foreground="text_muted">
-                  The pipeline is waiting on an answer to continue.
-                </text>
-                <if test="{openRunQuestionsLoaded}">
-                  <markdown source="{openRunQuestionsContent}"/>
-                </if>
-                <textarea
-                  text="{openRunAnswerText}"
-                  placeholder="Type your answer…"
-                  on-input="answer_edit"
-                />
-                <button disabled="{openRunSubmitDisabled}" on-press="submit_answer">
-                  Submit answer
-                </button>
-              </column>
-            </if>
-
-            <if test="{openRunIsAlreadyRunning}">
-              <text foreground="text_muted">
-                This run is already in progress outside the app — live output isn't available here,
-                but Stop above will still reach it.
-              </text>
-            </if>
-
-            <if test="{openRunCanPlay}">
-              <row gap="8" cross="center">
-                <text grow="1" foreground="text_muted">
-                  Not running — opening a run never starts it on its own.
-                </text>
-                <button on-press="run_pty" icon="play">Play</button>
-              </row>
-            </if>
-
-            <if test="{openRunNothingToRun}">
-              <text foreground="text_muted">Nothing to run here.</text>
-            </if>
-
-            <if test="{openRunIsRunning}">
-              <row gap="8" cross="center">
-                <spinner/>
-                <text foreground="text_muted">Running…</text>
-              </row>
-            </if>
-
-            <if test="{openRunIsExited}">
-              <text foreground="text_muted">{openRunExitSummary}</text>
-            </if>
-
-            <code source="{openRunScrollback}" language="plain"/>
-          </column>
-        </scroll>
-      </column>
-    </sheet>
-  </if>
-
-  <if test="{hasNewRunOpen}">
-    <sheet on-dismiss="close_new_run" width="560" height="480">
-      <column gap="0" padding="0">
-        <column gap="6" padding="16">
-          <row gap="8" cross="center">
-            <icon name="plus" foreground="text_muted" width="16" height="16"/>
-            <text grow="1" size="heading">New Feature</text>
-            <button size="sm" variant="ghost" icon="x" on-press="close_new_run">Close</button>
-          </row>
-          <if test="{newRunHasError}">
-            <status-bar>{newRunErrorText}</status-bar>
+              </if>
+              <if test="{r.retryable}">
+                <row gap="8" cross="center">
+                  <icon name="repeat" foreground="destructive" width="13" height="13"/>
+                  <text grow="1" wrap="false" overflow="clip" foreground="destructive">{r.resumeHint}</text>
+                  <button size="sm" on-press="retry:{r.index}">Retry</button>
+                </row>
+              </if>
+              <if test="{r.hasGuidance}">
+                <text wrap="true" foreground="text_muted">{r.guidance}</text>
+              </if>
+            </column>
           </if>
-        </column>
 
-        <separator/>
+          <if test="{r.showMergedLabel}">
+            <text foreground="text_muted">Recently merged</text>
+          </if>
+          <if test="{r.isMerged}">
+            <row gap="8" cross="center">
+              <icon name="check-circle" foreground="success" width="14" height="14"/>
+              <text grow="1" wrap="false" overflow="clip">{r.slug}</text>
+              <text text-alignment="end" foreground="text_muted" wrap="false" overflow="clip">{r.branch}</text>
+            </row>
+          </if>
+        </for>
 
-        <scroll grow="1">
-          <column gap="10" padding="16">
-            <if test="{newRunNoRepoChosen}">
-              <text foreground="text_muted">Which repo is this feature for?</text>
-              <if test="{newRunHasNoRepos}">
+        <for each="erroredRepos" key="name" as="e">
+          <column gap="2">
+            <row gap="8" cross="center">
+              <icon name="alert" foreground="destructive" width="15" height="15"/>
+              <text grow="1">{e.name}</text>
+            </row>
+            <text wrap="true" foreground="destructive_text">{e.errorText}</text>
+          </column>
+        </for>
+
+        <if test="{emptyQuiet}">
+          <card padding="28">
+            <column gap="6" cross="center">
+              <icon name="check-circle" foreground="success" width="30" height="30"/>
+              <text>All quiet</text>
+              <text foreground="text_muted">No active Relay runs.</text>
+              <text foreground="text_muted">Repos live in the Dashboard menu, under Settings…</text>
+            </column>
+          </card>
+        </if>
+      </column>
+    </scroll>
+
+    <separator/>
+    <column padding="10">
+      <row gap="8" cross="center">
+        <text grow="1" foreground="text_muted">Polls every 5s · closing the window keeps Relay in the Dock</text>
+        <button size="sm" variant="ghost" on-press="do_quit">Quit Relay</button>
+      </row>
+    </column>
+
+    <if test="{hasOpenRun}">
+      <sheet on-dismiss="close_run" width="600" height="500">
+        <column gap="0" padding="0">
+          <column gap="6" padding="16">
+            <row gap="8" cross="center">
+              <icon name="git-branch" foreground="text_muted" width="16" height="16"/>
+              <text grow="1" size="heading" wrap="false" overflow="clip">{openRunSlug}</text>
+              <if test="{openRunCanStop}">
+                <icon name="x-circle" foreground="destructive" width="14" height="14"/>
+                <button size="sm" on-press="stop_run">Stop</button>
+              </if>
+              <button size="sm" variant="ghost" icon="x" on-press="close_run">Close</button>
+            </row>
+            <if test="{openRunHasActionError}">
+              <status-bar>{openRunActionErrorText}</status-bar>
+            </if>
+          </column>
+
+          <separator/>
+
+          <scroll grow="1">
+            <column gap="10" padding="16">
+              <if test="{openRunTimelineLoaded}">
+                <column gap="6">
+                  <row gap="8" cross="center">
+                    <text size="heading">Timeline</text>
+                    <spacer grow="1"/>
+                    <text foreground="text_muted">{openRunTotalCostText}</text>
+                    <text foreground="text_muted">{openRunTotalTokens} tokens</text>
+                    <if test="{openRunHasBudget}">
+                      <text foreground="text_muted">/</text>
+                      <text foreground="text_muted">{openRunBudgetText}</text>
+                      <text foreground="text_muted">budget</text>
+                    </if>
+                  </row>
+                  <for each="openRunTimeline" key="seq" as="t">
+                    <column gap="2">
+                      <row gap="8" cross="center">
+                        <if test="{t.reached}">
+                          <icon name="check" foreground="success" width="13" height="13"/>
+                        </if>
+                        <if test="{t.notReached}">
+                          <icon name="circle-dot" foreground="text_muted" width="13" height="13"/>
+                        </if>
+                        <text grow="1">{t.role}</text>
+                        <text foreground="text_muted">{t.costText}</text>
+                        <text foreground="text_muted">{t.completedAgo}</text>
+                      </row>
+                      <if test="{t.reached}">
+                        <row gap="8" cross="center">
+                          <text foreground="text_muted">{t.verdict}</text>
+                          <text foreground="text_muted">{t.model}</text>
+                        </row>
+                      </if>
+                    </column>
+                  </for>
+                  <separator/>
+                </column>
+              </if>
+
+              <if test="{openRunIsDesignGate}">
+                <column gap="8">
+                  <text foreground="text_muted">
+                    Design gate — review the plan below before approving. Nothing runs until you do.
+                  </text>
+                  <if test="{openRunPlanLoaded}">
+                    <markdown source="{openRunPlanContent}"/>
+                  </if>
+                  <if test="{openRunCanApprove}">
+                    <button on-press="run_pty">Approve design</button>
+                  </if>
+                </column>
+              </if>
+
+              <if test="{openRunNeedsAnswer}">
+                <column gap="8">
+                  <text foreground="text_muted">
+                    The pipeline is waiting on an answer to continue.
+                  </text>
+                  <if test="{openRunQuestionsLoaded}">
+                    <markdown source="{openRunQuestionsContent}"/>
+                  </if>
+                  <textarea
+                    text="{openRunAnswerText}"
+                    placeholder="Type your answer…"
+                    on-input="answer_edit"
+                  />
+                  <button disabled="{openRunSubmitDisabled}" on-press="submit_answer">
+                    Submit answer
+                  </button>
+                </column>
+              </if>
+
+              <if test="{openRunIsAlreadyRunning}">
                 <text foreground="text_muted">
-                  No repositories configured yet — add one in Settings first.
+                  This run is already in progress outside the app — live output isn't available here,
+                  but Stop above will still reach it.
                 </text>
               </if>
-              <for each="newRunRepoRows" key="seq" as="r">
-                <button variant="ghost" icon="folder" on-press="pick_new_run_repo:{r.index}">
-                  {r.name}
-                </button>
-              </for>
-            </if>
 
-            <if test="{newRunRepoChosen}">
-              <row gap="8" cross="center">
-                <icon name="folder" foreground="text_muted" width="14" height="14"/>
-                <text grow="1" foreground="text_muted">{newRunChosenRepoName}</text>
-                <button size="sm" variant="ghost" on-press="reset_new_run_repo">Change</button>
-              </row>
+              <if test="{openRunCanPlay}">
+                <row gap="8" cross="center">
+                  <text grow="1" foreground="text_muted">
+                    Not running — opening a run never starts it on its own.
+                  </text>
+                  <button on-press="run_pty" icon="play">Play</button>
+                </row>
+              </if>
 
-              <text-field
-                text="{newRunSlugText}"
-                placeholder="slug, e.g. dark-mode"
-                on-input="new_run_slug_edit"
-              />
-              <textarea
-                text="{newRunIssueText}"
-                placeholder="Describe the feature — this becomes issue-body.md"
-                on-input="new_run_issue_edit"
-              />
-              <button disabled="{newRunSubmitDisabled}" on-press="submit_new_run">
-                Start
-              </button>
+              <if test="{openRunNothingToRun}">
+                <text foreground="text_muted">Nothing to run here.</text>
+              </if>
+
+              <if test="{openRunIsRunning}">
+                <row gap="8" cross="center">
+                  <spinner/>
+                  <text foreground="text_muted">Running…</text>
+                </row>
+              </if>
+
+              <if test="{openRunIsExited}">
+                <text foreground="text_muted">{openRunExitSummary}</text>
+              </if>
+
+              <code source="{openRunScrollback}" language="plain"/>
+            </column>
+          </scroll>
+        </column>
+      </sheet>
+    </if>
+
+    <if test="{hasNewRunOpen}">
+      <sheet on-dismiss="close_new_run" width="560" height="480">
+        <column gap="0" padding="0">
+          <column gap="6" padding="16">
+            <row gap="8" cross="center">
+              <icon name="plus" foreground="text_muted" width="16" height="16"/>
+              <text grow="1" size="heading">New Feature</text>
+              <button size="sm" variant="ghost" icon="x" on-press="close_new_run">Close</button>
+            </row>
+            <if test="{newRunHasError}">
+              <status-bar>{newRunErrorText}</status-bar>
             </if>
           </column>
-        </scroll>
-      </column>
-    </sheet>
-  </if>
+
+          <separator/>
+
+          <scroll grow="1">
+            <column gap="10" padding="16">
+              <if test="{newRunNoRepoChosen}">
+                <text foreground="text_muted">Which repo is this feature for?</text>
+                <if test="{newRunHasNoRepos}">
+                  <text foreground="text_muted">
+                    No repositories configured yet — add one in the Dashboard menu, under
+                    Settings…, first.
+                  </text>
+                </if>
+                <for each="newRunRepoRows" key="seq" as="r">
+                  <button variant="ghost" icon="folder" on-press="pick_new_run_repo:{r.index}">
+                    {r.name}
+                  </button>
+                </for>
+              </if>
+
+              <if test="{newRunRepoChosen}">
+                <row gap="8" cross="center">
+                  <icon name="folder" foreground="text_muted" width="14" height="14"/>
+                  <text grow="1" foreground="text_muted">{newRunChosenRepoName}</text>
+                  <button size="sm" variant="ghost" on-press="reset_new_run_repo">Change</button>
+                </row>
+
+                <text-field
+                  text="{newRunSlugText}"
+                  placeholder="slug, e.g. dark-mode"
+                  on-input="new_run_slug_edit"
+                />
+                <textarea
+                  text="{newRunIssueText}"
+                  placeholder="Describe the feature — this becomes issue-body.md"
+                  on-input="new_run_issue_edit"
+                />
+                <button disabled="{newRunSubmitDisabled}" on-press="submit_new_run">
+                  Start
+                </button>
+              </if>
+            </column>
+          </scroll>
+        </column>
+      </sheet>
+    </if>
+  </column>
 </column>
