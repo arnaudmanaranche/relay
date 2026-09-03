@@ -40,8 +40,9 @@
      {openRunExitSummary} {openRunHasActionError} {openRunActionErrorText}
      {openRunCanStop} {openRunTimeline} {openRunTimelineLoaded}
      {openRunTotalCostText} {openRunTotalTokens} {openRunHasBudget}
-     {openRunBudgetText}, dispatching run_pty (Approve/Play) submit_answer
-     answer_edit stop_run. New Feature bindings: {hasNewRunOpen}
+     {openRunBudgetText} {openRunCanAttach} {openRunCanType} {ptyInputText},
+     dispatching run_pty (Approve/Play) run_attached submit_answer
+     answer_edit pty_input_edit pty_send stop_run. New Feature bindings: {hasNewRunOpen}
      {newRunRepoRows} {newRunHasNoRepos} {newRunRepoChosen}
      {newRunNoRepoChosen} {newRunChosenRepoName} {newRunSlugText}
      {newRunIssueText} {newRunSubmitDisabled} {newRunHasError}
@@ -299,12 +300,25 @@
               </if>
 
               <if test="{openRunCanPlay}">
-                <row gap="8" cross="center">
-                  <text grow="1" foreground="text_muted">
-                    Not running — opening a run never starts it on its own.
+                <column gap="6">
+                  <row gap="8" cross="center">
+                    <text grow="1" foreground="text_muted">
+                      Not running — opening a run never starts it on its own.
+                    </text>
+                    <if test="{openRunCanAttach}">
+                      <button size="sm" variant="secondary" on-press="run_attached" icon="terminal">
+                        Run attached
+                      </button>
+                    </if>
+                    <button on-press="run_pty" icon="play">Play</button>
+                  </row>
+                  <text foreground="text_muted" wrap="true">
+                    Play detaches the run: it survives closing this window and quitting Relay,
+                    and its output is read back from a log file. Run attached gives you the
+                    pipeline's own terminal — live output, and you can answer its prompts below
+                    — but closing this window ends it.
                   </text>
-                  <button on-press="run_pty" icon="play">Play</button>
-                </row>
+                </column>
               </if>
 
               <if test="{openRunNothingToRun}">
@@ -323,6 +337,22 @@
               </if>
 
               <code source="{openRunScrollback}" language="plain"/>
+
+              <if test="{openRunCanType}">
+                <input-group label="Send a line to the run">
+                  <textarea
+                    text="{ptyInputText}"
+                    placeholder="Answer the pipeline's prompt, or press Enter for its default"
+                    submit-on-enter="true"
+                    on-input="pty_input_edit"
+                    on-submit="pty_send"
+                  />
+                  <input-group-actions gap="8">
+                    <spacer grow="1"/>
+                    <button size="sm" variant="primary" icon="send" on-press="pty_send" label="Send"/>
+                  </input-group-actions>
+                </input-group>
+              </if>
             </column>
           </scroll>
         </column>

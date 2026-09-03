@@ -14,6 +14,8 @@
 import { Cmd, Sub, asciiBytes, utf8Bytes, windowDescriptor } from "@native-sdk/core";
 import type { ThemeState, WindowDescriptor } from "@native-sdk/core/events";
 import { applyTextInputEvent, trimAsciiSpaces } from "@native-sdk/core/text";
+import { scanAnsi, dropPartialLine } from "./ansi.ts";
+import type { AnsiMode } from "./ansi.ts";
 import type { TextInputEvent, TextEditState } from "@native-sdk/core/text";
 import {
   relayLoadConfig,
@@ -29,6 +31,7 @@ import {
   relayStartRun,
   relayStopRun,
   relayReadTimeline,
+  relayPtyCommand,
 } from "@native-sdk/services";
 import type {
   ActiveRun,
@@ -43,6 +46,7 @@ import type {
   StatusSnapshot,
   RetryResult,
   OpenResult,
+  PtyCommandResult,
   StopRunResult,
   SubmitAnswerResult,
   ThemePref,
@@ -78,6 +82,20 @@ import type {
 // webview pane. That rendering cost — not the SDK — is why this window
 // still polls a logfile.
 const SCROLLBACK_CAP = 65536;
+
+// One attached session at a time — one run-detail window, one child. The
+// key is what ptyWrite/ptyKill address, and reusing it while a session
+// lives would be refused by the engine ("rejected"), which is the correct
+// answer to a second Run on the same window.
+const PTY_KEY = "detail_pty";
+// The grid the pipeline's child processes see as their terminal size. Wide
+// enough that the LLM CLIs' own boxed output isn't wrapped at a width no
+// window here would match; the view soft-wraps whatever comes out anyway.
+const PTY_COLS = 120;
+const PTY_ROWS = 40;
+// One line of input. A pipeline prompt wants an answer or a bare Enter,
+// not a paragraph — and Cmd.ptyWrite payloads are bounded anyway.
+const PTY_INPUT_CAP = 512;
 
 export type Phase = "boot" | "watching";
 
@@ -129,6 +147,9 @@ export interface Model {
   readonly newRunIssueEditor: TextEditState;
   readonly newRunSubmitting: boolean;
   readonly newRunError: Uint8Array;
+  // The attached run's input line. Top-level like every other editor, not
+  // nested in OpenRun (see newTextEditor above).
+  readonly ptyInputEditor: TextEditState;
 }
 
 export type OpenRunPhase = "idle" | "running" | "exited";
@@ -156,6 +177,14 @@ export interface OpenRun {
   // outside the app" couldn't be stopped at all before this existed.
   readonly pid: number;
   readonly scrollback: Uint8Array;
+  // True while THIS window owns a pty session (see "run_attached"). It
+  // decides three things: output arrives pushed instead of polled, Stop
+  // reaches the child through ptyKill rather than a pid signal, and the
+  // window can type into the run.
+  readonly ptyLive: boolean;
+  // scanAnsi's resumable state — an escape sequence can be split across
+  // two output events, so the scan carries its mode between them.
+  readonly ansiMode: AnsiMode;
   readonly phase: OpenRunPhase;
   readonly exitSummary: Uint8Array;
   readonly planContent: Uint8Array;
@@ -245,10 +274,36 @@ export type Msg =
   | { readonly kind: "new_run_issue_edit"; readonly edit: TextInputEvent }
   | { readonly kind: "submit_new_run" }
   | { readonly kind: "new_run_started"; readonly result: StartRunResult }
-  | { readonly kind: "new_run_start_failed"; readonly error: Uint8Array };
+  | { readonly kind: "new_run_start_failed"; readonly error: Uint8Array }
+  // --- attached (pty) run ----------------------------------------------
+  | { readonly kind: "run_attached" }
+  | { readonly kind: "pty_command_ready"; readonly result: PtyCommandResult }
+  | { readonly kind: "pty_command_failed"; readonly error: Uint8Array }
+  | {
+      readonly kind: "pty_event";
+      readonly key: Uint8Array;
+      readonly state: PtyState;
+      readonly bytes: Uint8Array;
+      readonly code: number;
+      readonly reason: PtyExitReason;
+      readonly signal: number;
+      readonly droppedWrites: number;
+    }
+  | { readonly kind: "pty_input_edit"; readonly edit: TextInputEvent }
+  | { readonly kind: "pty_send" };
+
+// Declared locally, NOT imported from @native-sdk/core: the contract
+// generator refuses an imported type alias in a crossing shape (NS1063,
+// pointing at the import line) — see the SCROLLBACK_CAP note above. The
+// host matches these members by name, so any declaration order works.
+type PtyState = "output" | "exit";
+type PtyExitReason = "exited" | "signaled" | "cancelled" | "rejected" | "spawn_failed";
 
 // Host-dispatched arms never appear in markup.
 export const viewUnbound = [
+  "pty_event",
+  "pty_command_ready",
+  "pty_command_failed",
   "tick",
   "clock",
   "configured",
@@ -323,6 +378,7 @@ export function initialModel(): [Model, Cmd<Msg>] {
     newRunIssueEditor: emptyEditor(),
     newRunSubmitting: false,
     newRunError: new Uint8Array(0),
+    ptyInputEditor: emptyEditor(),
   };
   return [
     model,
@@ -872,7 +928,30 @@ export function openRunIsRunning(model: Model): boolean {
 // (state "running", phase never left "idle" since there was nothing for
 // this window to spawn) — Stop reaches either.
 export function openRunCanStop(model: Model): boolean {
-  return model.openRun !== null && model.openRun.pid > 0 && model.openRun.phase !== "exited";
+  if (model.openRun === null || model.openRun.phase === "exited") return false;
+  // An attached session is stoppable through ptyKill without ever knowing
+  // a pid — the engine spawned the child, so it owns that mapping.
+  return model.openRun.ptyLive || model.openRun.pid > 0;
+}
+
+// The Run-attached affordance is offered exactly where Play is, and never
+// while a session already lives (a second ptySpawn on the same key would
+// be refused by the engine).
+export function openRunCanAttach(model: Model): boolean {
+  return openRunCanPlay(model) && !openRunIsAttached(model);
+}
+
+export function openRunIsAttached(model: Model): boolean {
+  return model.openRun !== null && model.openRun.ptyLive;
+}
+
+// The input line only accepts text while a child is there to read it.
+export function openRunCanType(model: Model): boolean {
+  return openRunIsAttached(model) && model.openRun !== null && model.openRun.phase === "running";
+}
+
+export function ptyInputText(model: Model): Uint8Array {
+  return model.ptyInputEditor.text;
 }
 
 // A <for> binding directly to an imported service type (TimelineRow,
@@ -1309,6 +1388,8 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
         logPath: new Uint8Array(0),
         pid: run.pid,
         scrollback: new Uint8Array(0),
+        ptyLive: false,
+        ansiMode: "text",
         phase: "idle",
         exitSummary: new Uint8Array(0),
         planContent: new Uint8Array(0),
@@ -1381,8 +1462,23 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
       ];
     }
 
-    case "close_run":
+    case "close_run": {
+      const open = model.openRun;
+      // An attached session has no life of its own: its child's stdin and
+      // stdout are this window's, and nothing else would ever read them
+      // again. Kill it rather than leaving a headless pipeline writing
+      // into an engine buffer no one drains. A run started the durable way
+      // (Play) is untouched here — that one keeps going, which is the
+      // whole difference between the two actions.
+      if (open !== null && open.ptyLive) {
+        // Declared, not inferred: an `openRun: null` literal inside a
+        // [model, cmd] tuple narrows to plain `null` and stops failing to
+        // width-coerce into the model's `OpenRun | null` (SC2002).
+        const closed: Model = { ...model, openRun: null };
+        return [closed, Cmd.ptyKill(PTY_KEY)];
+      }
       return { ...model, openRun: null };
+    }
 
     case "run_pty": {
       const open = model.openRun;
@@ -1393,6 +1489,100 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
           { repoRoot: open.repoRoot, resumeArgs: open.resumeArgs },
           { key: "detail_run", ok: "detail_run_started", err: "detail_run_start_failed" },
         ),
+      ];
+    }
+
+    case "run_attached": {
+      const open = model.openRun;
+      if (open === null || open.phase === "running" || open.resumeArgs.length === 0) return model;
+      // Two steps because Cmd.ptySpawn takes argv only: the service
+      // composes and quotes the `cd … && exec bash …` line first (see
+      // ptyCommand in relay.ts), then pty_command_ready spawns it.
+      return [
+        { ...model, openRun: { ...open, actionError: new Uint8Array(0) } },
+        relayPtyCommand(
+          { repoRoot: open.repoRoot, resumeArgs: open.resumeArgs },
+          { key: "pty_cmd", ok: "pty_command_ready", err: "pty_command_failed" },
+        ),
+      ];
+    }
+
+    case "pty_command_ready": {
+      const open = model.openRun;
+      if (open === null) return model;
+      return [
+        {
+          ...model,
+          openRun: {
+            ...open,
+            phase: "running",
+            ptyLive: true,
+            scrollback: new Uint8Array(0),
+            ansiMode: "text",
+            exitSummary: new Uint8Array(0),
+          },
+          ptyInputEditor: emptyEditor(),
+        },
+        // The third element is model-derived, which the engine accepts —
+        // checked against the running engine (a refused argv would come
+        // back as an "exit" event with reason "rejected", and does not).
+        Cmd.ptySpawn([asciiBytes("/bin/sh"), asciiBytes("-lc"), msg.result.command], {
+          key: PTY_KEY,
+          cols: PTY_COLS,
+          rows: PTY_ROWS,
+          event: "pty_event",
+        }),
+      ];
+    }
+
+    case "pty_command_failed": {
+      const open = model.openRun;
+      if (open === null) return model;
+      return { ...model, openRun: { ...open, phase: "idle", ptyLive: false, actionError: msg.error } };
+    }
+
+    case "pty_event": {
+      const open = model.openRun;
+      if (open === null) return model;
+      if (msg.state === "exit") {
+        return {
+          ...model,
+          openRun: {
+            ...open,
+            phase: "exited",
+            ptyLive: false,
+            exitSummary: ptyExitSummary(msg.reason, msg.code, msg.signal),
+          },
+        };
+      }
+      const scan = scanAnsi(msg.bytes, open.ansiMode);
+      const base = scan.lineReset ? dropPartialLine(open.scrollback) : open.scrollback;
+      return {
+        ...model,
+        openRun: {
+          ...open,
+          scrollback: appendCapped(base, scan.bytes, SCROLLBACK_CAP),
+          ansiMode: scan.mode,
+        },
+      };
+    }
+
+    case "pty_input_edit": {
+      const applied = applyTextInputEvent(model.ptyInputEditor, msg.edit, PTY_INPUT_CAP);
+      // null = the edit would not fit the capacity; keep the old state.
+      if (applied === null) return model;
+      return { ...model, ptyInputEditor: applied };
+    }
+
+    case "pty_send": {
+      const open = model.openRun;
+      if (open === null || !open.ptyLive) return model;
+      // Sent verbatim plus the newline the child is waiting on — this is a
+      // terminal's stdin, not a form field, so an empty line is a
+      // meaningful answer (bare Enter accepts a prompt's default).
+      return [
+        { ...model, ptyInputEditor: emptyEditor() },
+        Cmd.ptyWrite(PTY_KEY, withNewline(model.ptyInputEditor.text)),
       ];
     }
 
@@ -1411,6 +1601,18 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     case "log_poll_tick": {
       const open = model.openRun;
       if (open === null || open.phase !== "running") return model;
+      // An attached run pushes its output; only the timeline still needs
+      // re-reading from disk (the artifacts the pipeline writes as it goes).
+      if (open.ptyLive) {
+        if (open.artifactsDir.length === 0) return model;
+        return [
+          model,
+          relayReadTimeline(
+            { artifactsDir: open.artifactsDir },
+            { key: "timeline", ok: "timeline_loaded", err: "timeline_load_failed" },
+          ),
+        ];
+      }
       // Reuses this same 1.2s timer for the timeline re-read too (see
       // subscriptions()) — one poll loop, not two — gated separately
       // since a run's artifactsDir can be known before its logPath is
@@ -1561,7 +1763,18 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
 
     case "stop_run": {
       const open = model.openRun;
-      if (open === null || open.pid === 0) return model;
+      if (open === null) return model;
+      // An attached run is stopped through the session we hold, not by
+      // signalling a pid: ptyKill reaches the child the engine actually
+      // spawned, and its exit arrives as a pty_event, so the window learns
+      // it stopped from the same channel it learned everything else.
+      if (open.ptyLive) {
+        return [
+          { ...model, openRun: { ...open, actionError: new Uint8Array(0) } },
+          Cmd.ptyKill(PTY_KEY),
+        ];
+      }
+      if (open.pid === 0) return model;
       return [
         { ...model, openRun: { ...open, actionError: new Uint8Array(0) } },
         relayStopRun({ pid: open.pid }, { key: "stop_run", ok: "run_stopped", err: "run_stop_failed" }),
@@ -1700,6 +1913,8 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
         logPath: msg.result.logPath,
         pid: msg.result.pid,
         scrollback: new Uint8Array(0),
+        ptyLive: false,
+        ansiMode: "text",
         phase: "running",
         exitSummary: new Uint8Array(0),
         planContent: new Uint8Array(0),
@@ -1729,6 +1944,52 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
 // its tail anyway. Uint8Array has no .slice-from-end shorthand here that
 // avoids a copy, so this goes through the same new + .set + .subarray
 // splice pattern @native-sdk/core/text's replaceTextRange uses.
+// Appends one output batch to the scrollback, keeping the tail. Bounded on
+// purpose: a live pipeline log is only usefully read from its end, and the
+// model heap holds this between dispatches.
+function appendCapped(base: Uint8Array, addition: Uint8Array, cap: number): Uint8Array {
+  const out = new Uint8Array(base.length + addition.length);
+  out.set(base, 0);
+  out.set(addition, base.length);
+  return capTail(out, cap);
+}
+
+// The child's stdin needs the Enter the user pressed.
+function withNewline(line: Uint8Array): Uint8Array {
+  const out = new Uint8Array(line.length + 1);
+  out.set(line, 0);
+  out[line.length] = 0x0a;
+  return out;
+}
+
+// Every pty end is reported — a refused spawn and a signal included, so a
+// run that never started is never mistaken for one that finished.
+function ptyExitSummary(reason: PtyExitReason, code: number, signal: number): Uint8Array {
+  switch (reason) {
+    case "exited":
+      return code === 0 ? asciiBytes("Finished.") : exitCodeText(code);
+    case "signaled":
+      return signalText(signal);
+    case "cancelled":
+      return asciiBytes("Stopped.");
+    case "rejected":
+      return asciiBytes("The engine refused the session (one attached run at a time).");
+    case "spawn_failed":
+      return asciiBytes("Could not start a terminal for this run.");
+  }
+}
+
+// Integer template holes are fine in the subset (it's float formatting
+// that isn't — see the header note), and `${model.draftRepos.length}`
+// already relies on that.
+function exitCodeText(code: number): Uint8Array {
+  return utf8Bytes(`Exited with code ${code}.`);
+}
+
+function signalText(signal: number): Uint8Array {
+  return utf8Bytes(`Killed by signal ${signal}.`);
+}
+
 function capTail(content: Uint8Array, cap: number): Uint8Array {
   if (content.length <= cap) return content;
   const out = new Uint8Array(cap);

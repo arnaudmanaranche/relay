@@ -138,6 +138,23 @@ export interface RetryRunRequest {
   readonly resumeArgs: readonly Uint8Array[];
 }
 
+// Cmd.ptySpawn takes argv and nothing else — no cwd, no env — so an
+// attached run goes through `sh -lc <one command>`, and that command has to
+// be composed and quoted somewhere. Not in the core: building it means
+// joining and escaping strings, which is exactly the work the subset sends
+// to a service. The core just reads the composed bytes into ptySpawn's argv
+// (a model-derived argv element is accepted — verified against the running
+// engine, not assumed).
+export interface PtyCommandRequest {
+  readonly repoRoot: Uint8Array;
+  readonly resumeArgs: readonly Uint8Array[];
+}
+
+export interface PtyCommandResult {
+  // `cd <repoRoot> && exec bash <script> <args...>`, every word quoted.
+  readonly command: Uint8Array;
+}
+
 export interface RetryResult {
   readonly started: boolean;
   // Where stdout/stderr are being appended — the run-detail window polls

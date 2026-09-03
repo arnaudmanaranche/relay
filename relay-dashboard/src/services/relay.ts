@@ -44,6 +44,8 @@ import type {
   CompletedFeature,
   OpenInEditorRequest,
   OpenResult,
+  PtyCommandRequest,
+  PtyCommandResult,
   ReadArtifactRequest,
   ReadArtifactResult,
   ReadLogRequest,
@@ -474,6 +476,36 @@ export function retryRun(request: RetryRunRequest): RetryResult {
   const slug = args[1] ?? "run";
   const { logPath, pid } = spawnDetachedLogged(repoRoot, args, `retry-${slug}`);
   return { started: true, logPath, pid };
+}
+
+// Single-quotes one shell word: wrap in ', and close/escape/reopen around
+// any ' inside it. Nothing else needs escaping inside single quotes, which
+// is the whole reason to use them — a repo path or slug with a space, a
+// `$`, or a `;` in it stays one literal word.
+function shellQuote(word: string): string {
+  return `'${word.split("'").join(`'\\''`)}'`;
+}
+
+// Composes the command an ATTACHED run executes under `sh -lc`. Same argv
+// retryRun would have spawned, plus the `cd` that Cmd.ptySpawn has no
+// option for, and an `exec` so the pipeline's bash REPLACES the wrapper
+// shell — otherwise ptyKill would reach the wrapper and leave the pipeline
+// orphaned with nobody reading it.
+export function ptyCommand(request: PtyCommandRequest): PtyCommandResult {
+  const repoRoot = decodeBytes(request.repoRoot);
+  const args = request.resumeArgs.map((arg) => decodeBytes(arg));
+  if (!repoRoot || args.length === 0) {
+    throw { kind: "not_resumable", message: "This run has no resume command." };
+  }
+  const script = args[0];
+  if (!existsSync(script)) {
+    throw { kind: "script_missing", message: `${script} does not exist.` };
+  }
+  // `exec bash` stays unquoted — those are the shell's own verbs, not
+  // data. Every word that came from outside is quoted.
+  const quoted = [script, ...args.slice(1)].map(shellQuote).join(" ");
+  const command = `cd ${shellQuote(repoRoot)} && exec bash ${quoted}`;
+  return { command: bytes(command) };
 }
 
 // Starts a feature that has never run before: writes the issue text to a
