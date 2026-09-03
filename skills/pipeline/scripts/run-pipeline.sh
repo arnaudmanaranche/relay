@@ -11,6 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 # shellcheck source=lib/autofix.sh
 source "$SCRIPT_DIR/lib/autofix.sh"
+# shellcheck source=lib/plan-gates.sh
+source "$SCRIPT_DIR/lib/plan-gates.sh"
 # Check for --project-root in args
 for arg in "$@"; do
   case "$arg" in
@@ -803,18 +805,19 @@ else
   node "$SCRIPT_DIR/rebuild-context.mjs" --project-root="$PIPELINE_ROOT"
   run_agent architect
 
-  # Diagrams before handwavy systems: a technical plan without a Mermaid
-  # diagram is prose, not a plan Review can actually check the diff against.
-  # Enforced structurally here, not just via prompt wording — one retry.
-  DIAGRAM_ATTEMPT=1
-  while ! grep -q '```mermaid' "$ARTIFACTS_DIR/technical-plan.md" 2>/dev/null; do
-    if [ "$DIAGRAM_ATTEMPT" -ge 2 ]; then
-      echo "  Architect did not produce a required Mermaid diagram after retry. Aborting."
+  # Structural plan gates — see lib/plan-gates.sh for what's checked and
+  # why. Enforced here rather than trusted to prompt wording, and checked as
+  # one set so a plan missing both the diagram and the data model costs one
+  # Architect retry, not two.
+  PLAN_ATTEMPT=1
+  while ! PLAN_MISSING=$(missing_plan_sections "$ARTIFACTS_DIR/technical-plan.md"); do
+    if [ "$PLAN_ATTEMPT" -ge 2 ]; then
+      echo "  technical-plan.md is still missing $PLAN_MISSING after a retry. Aborting."
       echo "  Worktree preserved for inspection: $PIPELINE_ROOT"
       exit 1
     fi
-    echo "  technical-plan.md is missing a \`\`\`mermaid diagram (attempt $DIAGRAM_ATTEMPT). Retrying Architect..."
-    DIAGRAM_ATTEMPT=$((DIAGRAM_ATTEMPT + 1))
+    echo "  technical-plan.md is missing $PLAN_MISSING (attempt $PLAN_ATTEMPT). Retrying Architect..."
+    PLAN_ATTEMPT=$((PLAN_ATTEMPT + 1))
     run_agent architect
   done
 

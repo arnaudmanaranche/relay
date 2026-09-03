@@ -24,8 +24,15 @@ sequenceDiagram
     Note over S: on failure, revert toggle + show error
 ```
 
+## Data Model
+
+- `user_preferences.marketing_emails` (`boolean`, not null, default `false`) — new
+- `user_preferences.user_id` — read (the row is looked up by it; unchanged)
+- Migration: `supabase/migrations/0042_add_marketing_emails.sql` — adds the column with its default, backfills existing rows to `false`.
+
 ## Impacted files
 
+- `supabase/migrations/0042_add_marketing_emails.sql` — new migration adding the column.
 - `services/preferences.ts` — add `setMarketingEmails(enabled: boolean)` and include the field in `getPreferences()`.
 - `app/(tabs)/settings.tsx` — add the "Marketing emails" row wired to the service.
 - `i18n/locales/en.ts` — add `settings.marketing.*` keys.

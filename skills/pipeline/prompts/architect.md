@@ -12,7 +12,9 @@ This must contain:
 
 **Diagram** — a Mermaid diagram (in a ` ```mermaid ` fenced block) showing the actual flow. Use a sequence diagram for a new interaction or API flow, or a component/flowchart diagram for new UI or data flow — pick whichever type actually represents the feature. This is mandatory, not optional prose: a technical plan without a diagram is incomplete and the pipeline will send it back for a retry. The Review agent will later check the implementation's control/data flow against this diagram, not just against the prose description.
 
-**Impacted files** — exact file paths, one per line, with a one-line description of what changes in each. Be precise:
+**Data model** — every table/collection and column the feature reads or writes, named exactly as it exists in the schema today, plus anything that must be created or altered and the migration that does it. Mark each entry read / written / new / altered, and give the type and nullability of anything new. This is MANDATORY and structurally checked: the pipeline rejects a plan whose `## Data Model` section is missing or empty and retries this stage. When the feature genuinely persists nothing, say so explicitly — `None — this feature reads and writes no persisted data.` — rather than dropping the section. It matters because the Dev agent has no filesystem access: it only ever sees the files you list under Impacted files, so any table or column you leave unnamed is one it will invent.
+
+**Impacted files** — exact file paths, one per line, with a one-line description of what changes in each. Include every schema, migration, and generated-types file referenced in the data model, even read-only ones — this list is what decides which file contents the Dev gets to see. Be precise:
 - `path/to/file.ts` — add new function for X
 - `path/to/component.tsx` — add new UI element
 - `path/to/locales/en.ts` — add translation keys

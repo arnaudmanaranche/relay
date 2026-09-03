@@ -18,6 +18,15 @@ sequenceDiagram
     S-->>UI: returns
 ```
 
+## Data Model
+
+Mandatory section — the Dev agent cannot read the schema itself, so anything not named here gets invented. Name every table/collection and column this feature reads or writes, spelled exactly as it exists today, plus anything that must be created or altered and the migration that does it. Write `None — this feature reads and writes no persisted data.` when that is genuinely the case; never omit the section.
+
+- `table.column` (`type`, nullable) — read | written | new | altered
+- Migration: `path/to/migration.sql` — what it changes
+
+Every schema, migration, and generated-types file named here must also appear under Impacted Files (even read-only ones) — that list is what decides which file contents the Dev actually gets to see.
+
 ## Impacted Files
 
 - `path/to/file.ts` — description of changes

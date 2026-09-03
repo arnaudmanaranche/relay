@@ -818,7 +818,15 @@ function extractImpactedFiles(techPlan: string): string[] {
   // attempted all 11 files' complete content in one call, risking exactly
   // the output-token-ceiling failure Dev batching exists to prevent (the
   // same failure mode already found and fixed for Architect).
-  const fileRefPattern = /`([a-zA-Z0-9_./@()/-]+\.(?:ts|tsx|js|jsx|mjs|cjs|css|json|yaml|yml|md))`/g;
+  //
+  // `sql`/`prisma` are here for the same reason: the technical plan's Data
+  // Model section tells the Architect to list every schema and migration
+  // file under Impacted Files, and this list is what decides which file
+  // contents Dev actually receives. Without those two extensions, a plan
+  // could name `prisma/schema.prisma` correctly and Dev would still never
+  // see it — the exact "Dev invents the schema" failure the Data Model
+  // gate exists to prevent.
+  const fileRefPattern = /`([a-zA-Z0-9_./@()/-]+\.(?:ts|tsx|js|jsx|mjs|cjs|css|json|yaml|yml|md|sql|prisma))`/g;
 
   // Scope to the "Impacted files" section only, not the whole document.
   // Found live right after the .mjs fix above: a real technical plan's
@@ -967,7 +975,9 @@ This must contain:
 
 **Diagram** — a Mermaid diagram (\`\`\`mermaid fenced block) showing the actual flow: a sequence diagram for a new interaction/API flow, or a component/flowchart diagram for new UI or data flow. This is MANDATORY, not optional prose — the pipeline will reject the plan and retry this stage if no \`\`\`mermaid block is present. Pick whichever diagram type actually represents the feature; do not force a sequence diagram onto something that's purely structural. The Review agent will check the implementation against this diagram, not just against the prose above.
 
-**Impacted files** — exact file paths, one per line, with a one-line description of what changes in each. Be precise:
+**Data model** — every table/collection and column this feature reads or writes, named exactly as it exists in the schema today, plus anything that must be created or altered and the migration that does it. Mark each entry read / written / new / altered; give type and nullability for anything new. MANDATORY and structurally checked — the pipeline rejects a plan whose \`## Data Model\` section is missing or empty and retries this stage. When the feature genuinely persists nothing, write exactly \`None — this feature reads and writes no persisted data.\` rather than dropping the section. This exists because the Dev agent has no filesystem access: it only ever sees the contents of the files you list under Impacted files, so any table or column you leave unnamed is one it will invent.
+
+**Impacted files** — exact file paths, one per line, with a one-line description of what changes in each. Include every schema, migration, and generated-types file your data model references, even read-only ones — this list is what decides which file contents the Dev gets to see. Be precise:
 - \`app/(tabs)/settings.tsx\` — add new settings row for X
 - \`services/supabase.ts\` — add new query function
 ${(CONFIG.stack.locales?.length ? CONFIG.stack.locales : ['en']).map(l => `- \`${CONFIG.stack.localeDir || 'i18n/locales'}/${l}.ts\` — add translation keys`).join('\n')}
@@ -1028,7 +1038,9 @@ Count the existing \`## Amendment N\` headings already in the file (zero if this
 
 **What changed and why** — one paragraph: the new constraint/spec and why it wasn't caught the first time.
 
-**Impacted Files** — exact file paths, one per line, in the SAME format as the original Impacted Files section (\`- \\\`path/to/file.ts\\\` — description\`). Only files this amendment touches — do NOT re-list files from the original plan that aren't affected by this change.
+**Impacted Files** — exact file paths, one per line, in the SAME format as the original Impacted Files section (\`- \\\`path/to/file.ts\\\` — description\`). Only files this amendment touches — do NOT re-list files from the original plan that aren't affected by this change. Include any schema/migration/generated-types file the amendment's data model touches: that list is what decides which file contents the Dev gets to see.
+
+**Data model** — any table or column this amendment adds, alters, or newly reads, named exactly as it exists in the schema; \`None\` if it changes nothing persisted. Don't restate the original plan's data model, only what this amendment changes.
 
 **Risks** — anything this amendment could break in the already-shipped part of the feature.
 
@@ -1307,7 +1319,18 @@ function buildUserPrompt(
           impactedFilePaths.push(filePath);
           const content = read(filePath);
           if (content && !content.startsWith('[file not found')) {
-            const ext = filePath.endsWith('.json') ? 'json' : 'tsx';
+            // Fence language per extension — a migration fenced as ```tsx
+            // reads as broken TypeScript to the model being asked to
+            // preserve it.
+            const ext = filePath.endsWith('.json')
+              ? 'json'
+              : filePath.endsWith('.sql')
+                ? 'sql'
+                : filePath.endsWith('.prisma')
+                  ? 'prisma'
+                  : filePath.endsWith('.md')
+                    ? 'markdown'
+                    : 'tsx';
             sections.push(
               `### \`${filePath}\`\n\n\`\`\`${ext}\n${content}\n\`\`\``
             );
@@ -2800,9 +2823,12 @@ Users cannot currently do X, which causes frustration.
     };
   }
   if (role === 'architect') {
-    // Test seam: dry-run only. Lets run-pipeline.sh's diagram gate be
-    // exercised end-to-end without a real model omitting the diagram.
+    // Test seams: dry-run only. Let run-pipeline.sh's structural plan gates
+    // (see lib/plan-gates.sh) be exercised end-to-end without needing a real
+    // model to omit a section.
     const includeDiagram = process.env.RELAY_MOCK_ARCHITECT_NO_DIAGRAM !== '1';
+    const includeDataModel =
+      process.env.RELAY_MOCK_ARCHITECT_NO_DATA_MODEL !== '1';
     return {
       ...base,
       artifacts: [
@@ -2831,6 +2857,15 @@ sequenceDiagram
     : '(no diagram — test seam for the missing-diagram retry path)'
 }
 
+## Data Model
+${
+  includeDataModel
+    ? `
+- \`user_preferences.setting_x\` (\`boolean\`, not null, default \`false\`) — new
+- Migration: \`supabase/migrations/0001_add_setting_x.sql\` — adds the column
+`
+    : ''
+}
 ## Impacted Files
 
 - \`app/(tabs)/settings.tsx\` — add new settings row for X

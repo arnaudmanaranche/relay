@@ -998,6 +998,27 @@ This mirrors the existing \`existing-a.ts\` ↔ \`existing-b.ts\` pattern.
     assert.equal(extractImpactedFiles(plan).length, 11);
   });
 
+  test('schema and migration files (.sql, .prisma) are extracted — the Data Model gate is worthless if Dev never sees them', () => {
+    // The technical plan's mandatory Data Model section tells the Architect
+    // to list every schema/migration/generated-types file under Impacted
+    // Files, and THIS list is what decides which file contents Dev is shown
+    // (Dev runs with no filesystem tools). Same class of gap as the .mjs
+    // case above: a plan could name `prisma/schema.prisma` perfectly and Dev
+    // would still be left inventing column names.
+    const plan = `
+## Impacted Files
+
+- \`prisma/schema.prisma\` — add the \`marketingEmails\` field
+- \`supabase/migrations/0042_add_marketing_emails.sql\` — NEW migration
+- \`services/preferences.ts\` — read/write the new column
+`;
+    assert.deepEqual(extractImpactedFiles(plan), [
+      'prisma/schema.prisma',
+      'supabase/migrations/0042_add_marketing_emails.sql',
+      'services/preferences.ts',
+    ]);
+  });
+
   test('a bare-filename self-reference is reconciled against its fully-qualified path, not duplicated', () => {
     // Found live: a bullet's own description mentioned ANOTHER file by
     // bare name only ("reused as inputs to `project.test.mjs`'s cases"),
@@ -1164,6 +1185,29 @@ describe('buildArchitectTask — per-pass task text for the Architect split', ()
     const task = buildArchitectTask(ctx, 'plan');
     assert.match(task, /Delivery shape/i);
     assert.match(task, /independently mergeable/i);
+  });
+
+  test("the 'plan' pass demands a Data Model section and tells the Architect why Dev can't derive it", () => {
+    // The prompt has to carry the reason, not just the requirement: a model
+    // that doesn't know Dev is blind treats the section as boilerplate and
+    // writes a vague one, which passes the structural gate while still
+    // leaving Dev to invent column names.
+    const task = buildArchitectTask(ctx, 'plan');
+    assert.match(task, /Data model/i);
+    assert.match(task, /## Data Model/);
+    assert.match(task, /no filesystem access/i);
+    assert.match(task, /None — this feature reads and writes no persisted data/);
+  });
+
+  test("the 'plan' pass requires schema and migration files under Impacted files, since that list gates what Dev sees", () => {
+    const task = buildArchitectTask(ctx, 'plan');
+    assert.match(task, /schema, migration, and generated-types file/i);
+  });
+
+  test("the 'amend' pass asks for the amendment's own data-model delta, not a restatement of the original", () => {
+    const task = buildArchitectTask(ctx, 'amend');
+    assert.match(task, /Data model/i);
+    assert.match(task, /Don't restate the original plan's data model/i);
   });
 
   test('an undefined pass (unbatched fallback) asks for both artifacts in one call', () => {

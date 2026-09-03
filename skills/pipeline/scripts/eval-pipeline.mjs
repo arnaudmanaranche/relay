@@ -63,7 +63,7 @@ function escapeRegExp(s) {
 // scoping fixed).
 export function extractImpactedFiles(techPlan) {
   if (!techPlan) return [];
-  const fileRefPattern = /`([a-zA-Z0-9_./@()/-]+\.(?:ts|tsx|js|jsx|mjs|cjs|css|json|yaml|yml|md))`/g;
+  const fileRefPattern = /`([a-zA-Z0-9_./@()/-]+\.(?:ts|tsx|js|jsx|mjs|cjs|css|json|yaml|yml|md|sql|prisma))`/g;
   const headingMatch = techPlan.match(/#{2,4}\s*impacted files|\*\*impacted files\*\*/i);
   let scope = techPlan;
   if (headingMatch && typeof headingMatch.index === 'number') {
