@@ -52,13 +52,31 @@ import type {
 
 // Scrollback is trimmed to this many bytes on every poll — an unbounded
 // byte array isn't provable in the core subset, and a live pipeline log
-// is only ever usefully read from its tail anyway. Polled rather than
-// pushed: native-sdk's Cmd.ptySpawn exists in the TS SDK surface but this
-// SDK version's contract generator can't yet lower its event shape
-// (confirmed by trial — see RetryResult.logPath in shared.ts), so the
-// run-detail window watches a run the same way retryRun's existing
-// detached-spawn-to-logfile path already does, just polled on a timer
-// instead of left for the user to `cat` themselves.
+// is only ever usefully read from its tail anyway.
+//
+// Polling (detached spawn -> logfile -> timer-read the tail, the same path
+// retryRun already used) is a CHOICE here, not a constraint. An earlier
+// note in this spot claimed `Cmd.ptySpawn` was unusable because this SDK
+// version's contract generator "can't lower its event shape". That was a
+// misread of the error: adding a seven-field PtyEventArm arm to Msg builds
+// clean on 0.9.5 (`native test` passes, `pty_event` lands in
+// model-contract.zon, no new capability needed) as long as the arm's
+// `state`/`reason` unions are declared LOCALLY:
+//
+//   type PtyState = "output" | "exit";
+//   type PtyExitReason = "exited" | "signaled" | "cancelled" | "rejected" | "spawn_failed";
+//
+// Importing those same aliases from `@native-sdk/core` is what fails, with
+// NS1063 ("a contract slot resolved to no subset type") pointing at the
+// import line — the contract generator does not resolve an imported type
+// alias. Nothing about pty is blocked.
+//
+// What a pty would still need on top of the wire: the events carry raw
+// output bytes, escape sequences included, and the markup vocabulary has
+// no terminal widget. Rendering means either stripping/interpreting ANSI
+// in a service (where regexes are allowed) or hosting xterm.js in a
+// webview pane. That rendering cost — not the SDK — is why this window
+// still polls a logfile.
 const SCROLLBACK_CAP = 65536;
 
 export type Phase = "boot" | "watching";

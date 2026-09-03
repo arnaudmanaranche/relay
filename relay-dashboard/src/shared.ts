@@ -141,13 +141,18 @@ export interface RetryRunRequest {
 export interface RetryResult {
   readonly started: boolean;
   // Where stdout/stderr are being appended — the run-detail window polls
-  // this via readLog while watching a run it started (native-sdk's
-  // Cmd.ptySpawn exists in the TS SDK surface but this SDK version's
-  // contract generator can't yet lower its event shape, confirmed by
-  // trial: native test fails the moment a pty_event-shaped Msg arm or a
-  // Cmd.ptySpawn/ptyKill call appears anywhere in core.ts, and passes
-  // clean the moment it's removed — so polling a log file is the fallback
-  // until that lands upstream).
+  // this via readLog while watching a run it started.
+  //
+  // The earlier note here blamed the SDK: `Cmd.ptySpawn` supposedly could
+  // not be used because the contract generator "can't lower its event
+  // shape". Re-tested on 0.9.5 and that is wrong — the trial it cites
+  // imported `PtyState`/`PtyExitReason` from `@native-sdk/core`, and it is
+  // the IMPORTED type alias the generator refuses (NS1063, pointing at the
+  // import line). Declare both unions locally in core.ts and a
+  // pty_event-shaped arm plus Cmd.ptySpawn/ptyKill build clean, contract
+  // included. See SCROLLBACK_CAP in core.ts for the full recipe and for
+  // what a pty would still cost (rendering raw ANSI, which no markup
+  // widget does).
   readonly logPath: Uint8Array;
   // The spawned child's pid — lets the run-detail window offer Stop
   // immediately, before status.mjs's next poll would otherwise be the
@@ -189,9 +194,12 @@ export interface OpenResult {
 // read. fileIndex: 0 = technical-plan.md, 1 = pm-questions.md,
 // 2 = pm-dev-thread.md (see relay.ts's ARTIFACT_FILES). A plain number
 // rather than a string-literal union deliberately — a union field here
-// was the thing that tripped native-sdk's contract generator during V1
-// (see RetryResult.logPath's note on the pty gap for how that class of
-// failure was diagnosed).
+// tripped native-sdk's contract generator during V1. Unlike the pty claim
+// in RetryResult above (which turned out to be an imported-alias problem,
+// not an SDK gap), this one has NOT been re-tested: it crosses into
+// services.contract.json rather than the core contract, so the local-alias
+// fix that unblocked pty may or may not apply. Retest before assuming
+// either way.
 export interface ReadArtifactRequest {
   readonly artifactsDir: Uint8Array;
   readonly fileIndex: number;
