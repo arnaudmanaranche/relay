@@ -24,6 +24,8 @@ Run this skill when you first install the module in a project. It auto-detects t
 11. Copies `skills/pipeline/templates/scripts/prune-artifacts.sh` into `.relay/scripts/prune-artifacts.sh` and makes it executable (`chmod +x`) — a human-run maintenance tool for repo hygiene (see **Repo hygiene** below)
 12. Runs the target project's own `format_write_cmd` scoped to `skills/` and `.relay/`, and appends `skills/`/`.relay/` to every lint/format/typecheck exclude mechanism the target project has (see **Excluding module content from the target's tooling** below) — otherwise the module's own copied-in files can fail the target's pre-commit hooks or typecheck gate on the very first commit, for reasons that have nothing to do with the target project itself
 
+13. Distills the project's real code style into `.relay/skills/code-style.md` and wires it into the `dev` role's `extraSkills`, plus `conventions` in `.relay/config.json` (see **Distilling the project's code style** below) — the Dev agent has no filesystem access, so it never sees `eslint.config.js`, `.prettierrc`, or `CLAUDE.md`, and anything not distilled into a prompt is something it has to guess
+
 The pipeline's own helper scripts (`run-pipeline.sh`, `agent-runner.ts`, `status.mjs`, `babysit-pr.sh`, …) are part of the module copy and need no per-project configuration. `status.mjs` is strictly read-only over existing state files (worktrees, locks, `.agent-*` JSON) and is always safe to run: `node skills/pipeline/scripts/status.mjs [--json]`.
 
 ## Auto-detection
@@ -219,6 +221,45 @@ The `dev` role entry additionally supports two optional fields for injecting fil
 - The skill files themselves (`.relay/skills/*.md` in the example above — the path is arbitrary, just needs to exist and be readable from the project root) are plain markdown you write yourself. There's no required structure; they're read verbatim and appended to Dev's system prompt under a `## <filename> (cross-cutting)` or matched-skill heading.
 - `typeSkills`/`extraSkills` paths are resolved from the project root, not from `skills/pipeline/`, since they're project-specific standards, not part of the module.
 - For a project with a real UI surface (`project_type` `web` or `mobile`), offer to copy `skills/pipeline/templates/skills/ui-standards.md` into `.relay/skills/ui-standards.md` and wire it as a `typeSkills` entry for the project's UI file extensions (`*.tsx`, `*.css`, `*.vue`, etc., whatever `source_extensions`/`styling` detected). It's a starter set of design-tokens-first and motion/state-completeness rules — meant to be edited to the project's actual design system, not used verbatim.
+
+### Distilling the project's code style
+
+`detect-stack.mjs` reports which style sources exist — `lint_config_files`, `format_config_files`, `style_doc_files`, `package_json_style_keys` — and stops there. It does not parse them, because resolving a real `eslint.config.js` means executing it (`extends`, plugins, per-directory overrides), and because the useful output isn't a rule list: it's a short prose brief a model can follow without running any tool. That's judgment work, so it's yours, not the script's — same split as the CI-config pass above.
+
+**Why this exists:** the Dev agent runs with `--tools ''` — no Read, no Grep, no filesystem. It never sees `eslint.config.js`, `.prettierrc`, or `CLAUDE.md`. Before this, its output differed from the project's conventions for no better reason than that nobody had told it, and each difference came back as a lint failure that cost a full Dev retry.
+
+When any style source was detected:
+
+1. **Read them, in this priority order.** Hand-written prose first (`CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, a docs/ style guide) — it already explains the *why*, which a config can only imply. Then the lint config, for the rules that fail the build. Then the formatter config, mostly so you know what to leave out. Also read `package.json` when `package_json_style_keys` is non-empty — a project configured there looks, to a path scan, like a project with no style rules at all.
+2. **Sample the actual code.** A config states intent; the codebase states practice, and they diverge. Read a handful of representative files (a component, a service, a test) from `source_dirs` and write down what they actually do — that's what "matches this codebase" means to a Dev agent asked to write code that blends in.
+3. **Copy `skills/pipeline/templates/skills/code-style.md` to `.relay/skills/code-style.md` and rewrite every section** with this project's real rules. The template is a shape to fill in, not a starter set of opinions — unlike `ui-standards.md`, shipping it unedited is worse than not having it.
+4. **Wire it into the `dev` role's `extraSkills`** (not `typeSkills` — it's cross-cutting), alongside `ui-standards.md` if that was also installed.
+5. **Fill in `conventions` in `.relay/config.json`** (see below) from the same reading.
+
+**What to leave out** — this is the part that's easy to get wrong, and the reason the doc stays short:
+
+- Anything `commands.lintFix` or `commands.formatWrite` fixes on its own. `run-pipeline.sh` runs both over the worktree *before* the quality gates judge it, so quote style, semicolons, indent width, and import sorting are corrected mechanically. A rule about them spends prompt budget on every Dev call for the life of the project to prevent something already being fixed for free.
+- Anything the typechecker enforces. A violation there is a failure with an exact file and line — better feedback than any prose rule.
+- Anything generic. "Use meaningful names", "avoid duplication": the model already writes that way, and platitudes dilute the rules that matter.
+
+Aim for one page. What earns its place is the project-specific rule a machine can flag but not fix, and the convention that's invisible in any single file — a layering rule, a banned internal module, the one error wrapper everything must go through.
+
+**When nothing was detected at all**, say so and ask whether the project has conventions worth writing down. Don't fabricate a `code-style.md` from defaults: an invented rule presented to Dev as this project's convention is worse than no file, because Dev has no way to tell the difference.
+
+### `conventions` — naming and patterns in `.relay/config.json`
+
+```json
+{
+  "conventions": {
+    "naming": ["PascalCase.tsx for components", "camelCase.ts for hooks and services"],
+    "patterns": ["TanStack Query for all server state", "zod schemas at every API boundary"]
+  }
+}
+```
+
+`rebuild-context.mjs` copies this into `.relay/context.json`, which `agent-runner.ts` injects into the **Architect's** prompt as part of the architecture maps. Absent or empty, `naming` is omitted entirely rather than defaulted — it used to be hardcoded to `camelCase for variables` / `PascalCase for components` / `kebab-case for files` regardless of what the project actually did, which asserted a falsehood as fact to the one agent whose job is telling Dev what to follow. `patterns` still falls back to the detected `stack` values (router, styling, backend), which are real detections rather than guesses.
+
+Fill both from the same reading as `code-style.md`, and leave `naming` out when a project genuinely has no consistent convention — silence is accurate, a guess is not.
 
 ## Configuration variables
 

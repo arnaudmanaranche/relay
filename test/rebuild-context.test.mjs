@@ -9,8 +9,59 @@ import {
   extractExportsRegex,
   extractFile,
   buildContext,
+  resolveConventions,
   tryLoadTypescript,
 } from '../skills/pipeline/scripts/rebuild-context.mjs';
+
+describe('resolveConventions — what the Architect is told this project does', () => {
+  test('configured naming conventions are passed through verbatim', () => {
+    const conventions = resolveConventions({
+      conventions: { naming: ['PascalCase.tsx for components'] },
+    });
+    assert.deepEqual(conventions.naming, ['PascalCase.tsx for components']);
+  });
+
+  test('naming is omitted entirely when unset, rather than defaulted', () => {
+    // This is the point of the function. The old hardcoded list
+    // ('camelCase for variables', 'PascalCase for components',
+    // 'kebab-case for files') reached the Architect's prompt as a statement
+    // of fact about the project — wrong for any project that does
+    // otherwise, and indistinguishable from a real observation.
+    assert.equal('naming' in resolveConventions({}), false);
+    assert.equal('naming' in resolveConventions({ conventions: {} }), false);
+    assert.equal('naming' in resolveConventions({ conventions: { naming: [] } }), false);
+  });
+
+  test('patterns fall back to the detected stack, which is a real detection and not a guess', () => {
+    const conventions = resolveConventions({
+      stack: { router: 'expo-router', styling: 'nativewind', backend: 'supabase' },
+    });
+    assert.deepEqual(conventions.patterns, [
+      'expo-router for navigation',
+      'nativewind for styling',
+      'supabase for backend',
+    ]);
+  });
+
+  test('configured patterns win over the stack fallback', () => {
+    const conventions = resolveConventions({
+      conventions: { patterns: ['TanStack Query for all server state'] },
+      stack: { router: 'expo-router', styling: '', backend: '' },
+    });
+    assert.deepEqual(conventions.patterns, ['TanStack Query for all server state']);
+  });
+
+  test('an empty stack yields no patterns key at all', () => {
+    const conventions = resolveConventions({ stack: { router: '', styling: '', backend: '' } });
+    assert.deepEqual(conventions, {});
+  });
+
+  test('a fully empty config yields an empty object, not undefined fields', () => {
+    // buildContext spreads this into context.json; undefined entries would
+    // serialize as absent anyway, but an explicit {} keeps the JSON stable.
+    assert.deepEqual(resolveConventions({}), {});
+  });
+});
 
 describe('regex fallback extraction', () => {
   test('extracts named and default exports by declaration kind', () => {

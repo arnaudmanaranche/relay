@@ -20,6 +20,12 @@ import { detectLocales } from './detectors/locales.mjs';
 import { detectIos } from './detectors/ios.mjs';
 import { detectSourceDirs, detectSkipDirs, detectSourceExtensions } from './detectors/source-layout.mjs';
 import { detectSchemaFiles } from './detectors/schema.mjs';
+import {
+  detectLintConfigFiles,
+  detectFormatConfigFiles,
+  detectStyleDocFiles,
+  detectPackageJsonStyleKeys,
+} from './detectors/style.mjs';
 
 const ROOT = (() => {
   for (const arg of process.argv.slice(2)) {
@@ -66,6 +72,14 @@ const detected = {
   skip_dirs:          skipDirs.join(','),
   source_extensions:  sourceExtensions.join(','),
   schema_files:       detectSchemaFiles(ROOT).join(','),
+  // Not config values — inputs for the setup skill's own distillation pass
+  // (see "Distilling the project's code style" in SKILL.md). The script
+  // reports which style sources exist; reading and summarizing them is
+  // judgment work the skill does.
+  lint_config_files:  detectLintConfigFiles(ROOT).join(','),
+  format_config_files: detectFormatConfigFiles(ROOT).join(','),
+  style_doc_files:    detectStyleDocFiles(ROOT).join(','),
+  package_json_style_keys: detectPackageJsonStyleKeys(pkg).join(','),
   router:             detectRouter(pkg),
   styling:            detectStyling(pkg),
   ios_scheme:         ios.scheme,

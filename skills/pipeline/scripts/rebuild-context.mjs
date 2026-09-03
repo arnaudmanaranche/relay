@@ -294,6 +294,37 @@ function toLocalPath(root, filePath) {
   return relative(root, filePath);
 }
 
+// `naming` used to be hardcoded — 'camelCase for variables', 'PascalCase
+// for components', 'kebab-case for files' — for every project regardless of
+// what it actually did. That list lands in .relay/context.json, which
+// agent-runner.ts injects into the Architect's prompt as part of the
+// architecture maps: it was asserted as this project's convention to the
+// one agent whose job is telling Dev what to follow. A project using
+// PascalCase filenames was being told the opposite, with no way to know it
+// was a default rather than an observation.
+//
+// It now comes from `.relay/config.json`'s `conventions`, filled in by
+// setup from the project's real style sources (see "Distilling the
+// project's code style" in skills/setup/SKILL.md), and is omitted entirely
+// when unset. Silence is accurate; a guess is not.
+//
+// `patterns` keeps its fallback to the detected stack values — those are
+// real detections from package.json, not assumptions about taste.
+function resolveConventions(config) {
+  const configured = config.conventions ?? {};
+  const conventions = {};
+  if (configured.naming?.length) conventions.naming = configured.naming;
+  const patterns = configured.patterns?.length
+    ? configured.patterns
+    : [
+        config.stack?.router ? `${config.stack.router} for navigation` : '',
+        config.stack?.styling ? `${config.stack.styling} for styling` : '',
+        config.stack?.backend ? `${config.stack.backend} for backend` : '',
+      ].filter(Boolean);
+  if (patterns.length) conventions.patterns = patterns;
+  return conventions;
+}
+
 async function main() {
   const root = getRoot();
   const config = loadConfig(root);
@@ -318,18 +349,7 @@ async function main() {
     };
   });
 
-  const conventions = {
-    naming: [
-      'camelCase for variables',
-      'PascalCase for components',
-      'kebab-case for files',
-    ],
-    patterns: [
-      config.stack?.router ? `${config.stack.router} for navigation` : '',
-      config.stack?.styling ? `${config.stack.styling} for styling` : '',
-      config.stack?.backend ? `${config.stack.backend} for backend` : '',
-    ].filter(Boolean),
-  };
+  const conventions = resolveConventions(config);
 
   const output = buildContext({ files, previous, ts, conventions });
 
@@ -354,5 +374,6 @@ export {
   extractFromSourceFileAst,
   extractFile,
   buildContext,
+  resolveConventions,
   tryLoadTypescript,
 };
