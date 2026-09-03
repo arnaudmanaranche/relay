@@ -1,3 +1,8 @@
+---
+name: new
+description: Scope a feature from a one-line description and run it through the full Relay pipeline (PM, Dev Review, Architect, Dev, Review, QA, Retro), from brief to PR. Use for /relay:new.
+---
+
 # Relay New — Start a New Feature
 
 Scope a feature from a one-line description and run it through the full Relay pipeline (PM → Dev Review → Architect → Dev → Review → QA → Retro), from brief to PR.

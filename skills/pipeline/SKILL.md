@@ -1,3 +1,8 @@
+---
+name: pipeline
+description: Shared engine (prompts, scripts, templates, registries) behind the Relay feature-development pipeline commands. Reference material for /relay:new, /relay:resume and /relay:run rather than a directly invoked workflow.
+---
+
 # Relay Pipeline — Feature Development Pipeline
 
 A structured multi-agent pipeline for AI-assisted feature development.

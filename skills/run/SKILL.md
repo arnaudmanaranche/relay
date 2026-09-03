@@ -1,3 +1,8 @@
+---
+name: run
+description: Run one role of the Relay pipeline in isolation (PM, Dev Review, Architect, Dev, Review, QA or Retro), without the orchestration run-pipeline.sh provides. Use for /relay:run and for debugging a single stage.
+---
+
 # Relay Run — Run a Single Agent Role
 
 Run one role of the Relay pipeline in isolation, without the orchestration `run-pipeline.sh` provides (gates, retries, worktree lifecycle). Useful for debugging a single stage or re-running a role by hand.

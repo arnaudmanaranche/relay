@@ -1,3 +1,8 @@
+---
+name: resume
+description: Run or re-run the full Relay pipeline for a feature that already has a brief or an in-progress run, most commonly to pass the design gate after reviewing the Architect's technical plan. Use for /relay:resume.
+---
+
 # Relay Resume — Continue an Existing Feature
 
 Run (or re-run) the full pipeline for a feature that already has a brief or an in-progress run — most commonly to pass the design gate after reviewing the Architect's technical plan.

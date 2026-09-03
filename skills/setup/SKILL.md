@@ -1,3 +1,8 @@
+---
+name: setup
+description: First-time project configuration for the Relay module: auto-detects the project stack, then prompts for confirmation and any missing values. Use when first installing Relay in a project.
+---
+
 # Relay Setup — Feature Pipeline Setup
 
 First-time project configuration for the Relay module.
