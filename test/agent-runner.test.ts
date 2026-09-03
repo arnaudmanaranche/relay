@@ -34,6 +34,10 @@ import {
   extractImpactedFiles,
   extractLatestAmendmentFiles,
   scopeToRetryFiles,
+  expandSchemaPattern,
+  resolveSchemaFiles,
+  buildSchemaSection,
+  fenceLangFor,
   buildArchitectTask,
   filterArchitectPassArtifacts,
   formatUsage,
@@ -1159,6 +1163,147 @@ describe('scopeToRetryFiles — scoping a quality-gate retry to implicated files
     const { scoped, matched } = scopeToRetryFiles(planned, 'test/detectors/commands.test.mjs,not/a/planned/file.ts');
     assert.equal(matched, true);
     assert.deepEqual(scoped, ['test/detectors/commands.test.mjs']);
+  });
+});
+
+describe('database schema injection — what Architect and Dev are told the DB looks like', () => {
+  // Dev runs with `--tools ''`, so a table or column that isn't in this
+  // section is one it invents. These functions decide what lands there.
+  const listing: Record<string, string[]> = {
+    'supabase/migrations': [
+      '20240101000000_init.sql',
+      '20240202000000_add_col.sql',
+      '20240303000000_add_index.sql',
+      '20240404000000_drop_col.sql',
+      'README.md',
+    ],
+    'prisma/migrations': ['20240101000000_init', '20240202000000_later'],
+  };
+  const list = (dir: string) => listing[dir] ?? [];
+  const existsAll = () => true;
+
+  test('a plain path is returned when it exists, and dropped when it does not', () => {
+    assert.deepEqual(
+      expandSchemaPattern('prisma/schema.prisma', list, p => p === 'prisma/schema.prisma'),
+      ['prisma/schema.prisma']
+    );
+    assert.deepEqual(expandSchemaPattern('prisma/schema.prisma', list, () => false), []);
+  });
+
+  test('a flat *.sql glob keeps only the newest migrations, in chronological order', () => {
+    // Lexicographic sort is chronological for timestamp-prefixed names, and
+    // the newest few are the only ones that describe state a later
+    // migration hasn't already replaced.
+    assert.deepEqual(expandSchemaPattern('supabase/migrations/*.sql', list, existsAll), [
+      'supabase/migrations/20240202000000_add_col.sql',
+      'supabase/migrations/20240303000000_add_index.sql',
+      'supabase/migrations/20240404000000_drop_col.sql',
+    ]);
+  });
+
+  test('a *.sql glob ignores non-matching files sitting in the same directory', () => {
+    const matches = expandSchemaPattern('supabase/migrations/*.sql', list, existsAll);
+    assert.ok(!matches.some(m => m.endsWith('README.md')));
+  });
+
+  test("Prisma's nested */migration.sql glob resolves one level deeper", () => {
+    assert.deepEqual(
+      expandSchemaPattern('prisma/migrations/*/migration.sql', list, existsAll),
+      [
+        'prisma/migrations/20240101000000_init/migration.sql',
+        'prisma/migrations/20240202000000_later/migration.sql',
+      ]
+    );
+  });
+
+  test('resolveSchemaFiles unions patterns and never repeats a path', () => {
+    const resolved = resolveSchemaFiles(
+      ['prisma/schema.prisma', 'prisma/schema.prisma', 'prisma/migrations/*/migration.sql'],
+      list,
+      existsAll
+    );
+    assert.deepEqual(resolved, [
+      'prisma/schema.prisma',
+      'prisma/migrations/20240101000000_init/migration.sql',
+      'prisma/migrations/20240202000000_later/migration.sql',
+    ]);
+  });
+
+  test('no configured schema files renders no section at all', () => {
+    // The right output for a project with no database — an empty
+    // "## Database schema" heading would read as "the DB has no tables".
+    assert.equal(buildSchemaSection([]), '');
+  });
+
+  test('a file with only whitespace renders no section', () => {
+    assert.equal(buildSchemaSection([{ path: 'db/schema.sql', content: '   \n\n' }]), '');
+  });
+
+  test('the section carries the schema, the exact-names rule, and the do-not-emit rule', () => {
+    // The instructions matter as much as the content: Dev's output is
+    // written to disk verbatim, so a Dev that helpfully "fixes" a schema
+    // file it was shown for reference would ship an unrequested migration.
+    const section = buildSchemaSection([
+      { path: 'prisma/schema.prisma', content: 'model User {\n  id Int @id\n}' },
+    ]);
+    assert.match(section, /## Database schema \(read-only reference\)/);
+    assert.match(section, /never invent, rename, or pluralize one/);
+    assert.match(section, /do NOT emit these files as changes/i);
+    assert.match(section, /model User \{/);
+  });
+
+  test('each file is fenced in its own language, so a migration never reads as broken TypeScript', () => {
+    const section = buildSchemaSection([
+      { path: 'prisma/schema.prisma', content: 'model User { id Int @id }' },
+      { path: 'supabase/migrations/1_init.sql', content: 'create table users();' },
+      { path: 'src/types/database.types.ts', content: 'export type Database = {}' },
+    ]);
+    assert.match(section, /```prisma/);
+    assert.match(section, /```sql/);
+    assert.match(section, /```tsx/);
+  });
+
+  test('fenceLangFor maps each schema-ish extension, defaulting to tsx', () => {
+    assert.equal(fenceLangFor('a/b.sql'), 'sql');
+    assert.equal(fenceLangFor('a/b.prisma'), 'prisma');
+    assert.equal(fenceLangFor('a/b.json'), 'json');
+    assert.equal(fenceLangFor('a/b.md'), 'markdown');
+    assert.equal(fenceLangFor('a/b.ts'), 'tsx');
+    assert.equal(fenceLangFor('a/b.tsx'), 'tsx');
+  });
+
+  test('an oversized file is truncated and says so, rather than being dropped silently', () => {
+    const section = buildSchemaSection([
+      { path: 'db/schema.sql', content: 'x'.repeat(20000) },
+    ]);
+    assert.match(section, /\[truncated to the first \d+ characters/);
+    assert.ok(section.length < 20000, 'the section must not carry the whole oversized file');
+  });
+
+  test('files past the total budget are named as omitted instead of vanishing', () => {
+    // A model told what it cannot see can say "I need that file"; a model
+    // silently missing a table just invents its columns.
+    const section = buildSchemaSection([
+      { path: 'db/a.sql', content: 'a'.repeat(12000) },
+      { path: 'db/b.sql', content: 'b'.repeat(12000) },
+      { path: 'db/c.sql', content: 'c'.repeat(12000) },
+      { path: 'db/d.sql', content: 'd'.repeat(12000) },
+      { path: 'db/e.sql', content: 'e'.repeat(12000) },
+    ]);
+    assert.match(section, /Omitted to stay within the prompt budget/);
+    assert.match(section, /`db\/e\.sql`/);
+  });
+
+  test('the total budget is respected across files, not just per file', () => {
+    const section = buildSchemaSection(
+      Array.from({ length: 20 }, (_, i) => ({
+        path: `db/${i}.sql`,
+        content: 'x'.repeat(12000),
+      }))
+    );
+    // Header and fences add a little; the file *contents* are what the
+    // ceiling governs.
+    assert.ok(section.length < 45000, `section too large: ${section.length}`);
   });
 });
 

@@ -88,6 +88,12 @@ interface ProjectConfig {
     build?: string;
     formatCheck: string;
     formatWrite: string;
+    // Auto-fixing lint command (`eslint . --fix`, `biome lint --write .`).
+    // Read by run-pipeline.sh only — it runs this, then formatWrite, before
+    // the quality gates judge the tree, so a mechanical lint nit never
+    // costs a full Dev retry. Listed here because this interface documents
+    // the whole .relay/config.json shape, same as `build`.
+    lintFix?: string;
   };
   stack: {
     router: string;
@@ -147,6 +153,14 @@ interface ProjectConfig {
   sourceDirs: string[];
   skipDirs: string[];
   providerNesting: string[];
+  // Files describing the database as it exists today — a declarative schema
+  // (`prisma/schema.prisma`, `db/schema.ts`), generated DB types, or, when
+  // that's all a project has, a `dir/*.sql` glob of ordered migrations.
+  // Their contents are injected into the Architect's and Dev's prompts:
+  // Dev runs with no filesystem tools, so a column it never saw is a column
+  // it invents. Detected by setup's detectSchemaFiles; empty/absent for a
+  // project with no database, which injects nothing.
+  schemaFiles?: string[];
 }
 
 const DEFAULT_LLM_BASE_URL = 'https://openrouter.relay/api/v1/chat/completions';
@@ -788,6 +802,156 @@ function trimContextForPrompt(ctxData: string): string {
   }
 }
 
+// --- Database schema injection ---
+//
+// The Dev role runs with `--tools ''`: no Read, no Grep, no filesystem at
+// all. Everything it knows arrives in the prompt. Before this, nothing in
+// the pipeline ever put a schema in there, so on any feature touching
+// persisted data Dev wrote queries against table and column names it had
+// inferred from the brief — plausible, frequently wrong, and invisible to
+// typecheck unless the project happens to have generated DB types.
+//
+// The Architect gets the same section: a technical plan's mandatory Data
+// Model section (see lib/plan-gates.sh) is only as accurate as what the
+// Architect could see when writing it.
+
+// Per-file and total ceilings. A schema section is part of the *stable*
+// prompt prefix — it's identical across every Dev batch of a feature, so it
+// caches well — but a project with a 400-migration history could still
+// swamp the prompt it's meant to inform.
+const MAX_SCHEMA_FILE_CHARS = 12000;
+const MAX_SCHEMA_TOTAL_CHARS = 40000;
+// Ordered migrations: only the newest few. Everything older is already
+// folded into the current state, which is the only thing an agent writing
+// new code needs; replaying full history would spend the whole budget
+// restating columns that a later migration may have since dropped.
+const MAX_MIGRATION_FILES = 3;
+
+// Expands one configured schema pattern into concrete paths. Supports a
+// single `*` segment, which covers both conventions in the wild:
+//   supabase/migrations/*.sql          — flat, timestamp-prefixed files
+//   prisma/migrations/*/migration.sql  — one directory per migration
+// `list` and `fileExists` are injected so this is testable without a
+// filesystem.
+function expandSchemaPattern(
+  pattern: string,
+  list: (dir: string) => string[],
+  fileExists: (path: string) => boolean
+): string[] {
+  if (!pattern.includes('*')) {
+    return fileExists(pattern) ? [pattern] : [];
+  }
+  const parts = pattern.split('/');
+  const starIndex = parts.findIndex(p => p.includes('*'));
+  const dir = parts.slice(0, starIndex).join('/');
+  const starSegment = parts[starIndex];
+  const rest = parts.slice(starIndex + 1).join('/');
+
+  // Lexicographic sort is chronological for every migration convention
+  // that matters here — they all prefix a timestamp or a zero-padded
+  // sequence number.
+  const entries = [...list(dir)].sort();
+  const matched = rest
+    ? entries.map(e => `${dir}/${e}/${rest}`).filter(fileExists)
+    : entries
+        .filter(e => e.endsWith(starSegment.replace('*', '')))
+        .map(e => `${dir}/${e}`)
+        .filter(fileExists);
+
+  return matched.slice(-MAX_MIGRATION_FILES);
+}
+
+function resolveSchemaFiles(
+  patterns: string[],
+  list: (dir: string) => string[],
+  fileExists: (path: string) => boolean
+): string[] {
+  const seen = new Set<string>();
+  for (const pattern of patterns) {
+    for (const path of expandSchemaPattern(pattern, list, fileExists)) {
+      seen.add(path);
+    }
+  }
+  return [...seen];
+}
+
+// Markdown fence language for a file path. Extracted because getting it
+// wrong is not cosmetic: a migration fenced as ```tsx reads as broken
+// TypeScript to a model asked to preserve it.
+function fenceLangFor(path: string): string {
+  if (path.endsWith('.json')) return 'json';
+  if (path.endsWith('.sql')) return 'sql';
+  if (path.endsWith('.prisma')) return 'prisma';
+  if (path.endsWith('.md')) return 'markdown';
+  return 'tsx';
+}
+
+// Disk-backed wrapper: resolves `schemaFiles` against the project root and
+// renders the section. Returns '' for a project with no schemaFiles
+// configured, which is the correct output for a project with no database.
+function loadSchemaSection(): string {
+  const patterns = CONFIG.schemaFiles ?? [];
+  if (patterns.length === 0) return '';
+  const resolved = resolveSchemaFiles(
+    patterns,
+    dir => {
+      try {
+        return readdirSync(join(getRoot(), dir));
+      } catch {
+        return [];
+      }
+    },
+    path => isWithinRoot(path) && existsSync(join(getRoot(), path))
+  );
+  const files = resolved
+    .map(path => ({ path, content: read(path) }))
+    .filter(f => !f.content.startsWith('[file not found'));
+  return buildSchemaSection(files);
+}
+
+function buildSchemaSection(files: { path: string; content: string }[]): string {
+  const usable = files.filter(f => f.content.trim().length > 0);
+  if (usable.length === 0) return '';
+
+  const blocks: string[] = [];
+  const omitted: string[] = [];
+  let total = 0;
+
+  for (const file of usable) {
+    if (total >= MAX_SCHEMA_TOTAL_CHARS) {
+      omitted.push(file.path);
+      continue;
+    }
+    const room = MAX_SCHEMA_TOTAL_CHARS - total;
+    const limit = Math.min(MAX_SCHEMA_FILE_CHARS, room);
+    const truncated = file.content.length > limit;
+    const body = truncated ? file.content.slice(0, limit) : file.content;
+    total += body.length;
+    blocks.push(
+      `### \`${file.path}\`\n\n\`\`\`${fenceLangFor(file.path)}\n${body}\n\`\`\`${
+        truncated
+          ? `\n\n[truncated to the first ${limit} characters — ask for the rest via the technical plan's Impacted Files if you need it]`
+          : ''
+      }`
+    );
+  }
+
+  // The instruction matters as much as the content: without it a Dev batch
+  // can helpfully "fix" a schema file it was only shown for reference, and
+  // the pipeline writes exactly what Dev submits.
+  const header = `## Database schema (read-only reference)
+
+This is the database as it exists today. Use these exact table, collection, and column names — never invent, rename, or pluralize one, and never assume a column exists because the feature would be tidier if it did. If the feature needs a column that isn't here, it needs a migration, which the technical plan's Data Model section must name.
+
+Reference only: do NOT emit these files as changes unless the technical plan's Impacted Files list names them.${
+    omitted.length > 0
+      ? `\n\nOmitted to stay within the prompt budget: ${omitted.map(p => `\`${p}\``).join(', ')}.`
+      : ''
+  }`;
+
+  return `${header}\n\n${blocks.join('\n\n')}`;
+}
+
 // Extracts file paths the Architect's technical plan references — matches
 // backtick-quoted paths anywhere on a line (not just at line start) to
 // handle varied formatting:
@@ -1184,6 +1348,18 @@ function buildUserPrompt(
     );
   }
 
+  // Database schema — Architect (to write an accurate Data Model section)
+  // and Dev (to write queries against columns that actually exist). Placed
+  // in the stable part of the prompt, before the dev log: it's byte-identical
+  // across every Dev batch of a feature, so it should be read from the
+  // prompt cache rather than re-created per batch. Not given to Review/QA:
+  // they judge the diff against the plan, and the plan's Data Model section
+  // is already in their context.
+  if (role === 'dev' || role === 'architect') {
+    const schemaSection = loadSchemaSection();
+    if (schemaSection) sections.push(schemaSection);
+  }
+
   // Architect-specific: architecture maps and templates
   if (role === 'architect') {
     const ctxData = read('.relay/context.json');
@@ -1319,18 +1495,7 @@ function buildUserPrompt(
           impactedFilePaths.push(filePath);
           const content = read(filePath);
           if (content && !content.startsWith('[file not found')) {
-            // Fence language per extension — a migration fenced as ```tsx
-            // reads as broken TypeScript to the model being asked to
-            // preserve it.
-            const ext = filePath.endsWith('.json')
-              ? 'json'
-              : filePath.endsWith('.sql')
-                ? 'sql'
-                : filePath.endsWith('.prisma')
-                  ? 'prisma'
-                  : filePath.endsWith('.md')
-                    ? 'markdown'
-                    : 'tsx';
+            const ext = fenceLangFor(filePath);
             sections.push(
               `### \`${filePath}\`\n\n\`\`\`${ext}\n${content}\n\`\`\``
             );
@@ -1590,8 +1755,9 @@ If you cannot answer a question or resolve a blocker, set status to **blocked** 
 2. Read the **repository-context.md** (if it exists) for relevant patterns, conventions, and files to avoid touching.
 3. Identify which source files need to be created or modified based on the brief's acceptance criteria and the Architect's technical plan.
 4. Read the relevant files from the directory tree and code shown above.
-5. In your response, output the COMPLETE content of every file in the ## Files section. Each file must include its full path and the entire file content — not just a diff or partial snippet.
-6. Update \`${ctx.featureDir}/dev-log.md\` with what you did.
+5. If a **Database schema** section is present, every table, collection, and column you reference in code must appear there, spelled exactly as it is spelled there. You cannot read the database yourself — if a name you need is not in that section and not in the plan's Data Model, you are about to invent it: implement what the plan actually specifies and say so in your dev log instead.
+6. In your response, output the COMPLETE content of every file in the ## Files section. Each file must include its full path and the entire file content — not just a diff or partial snippet.
+7. Update \`${ctx.featureDir}/dev-log.md\` with what you did.
 
 IMPORTANT: If you do not output any files in the ## Files section, no code changes will be made. The script writes files exactly as you provide them.`,
     review: `Review the implementation against the feature brief. Check all checklist items. Write \`${ctx.featureDir}/review-report.md\` with your verdict.
@@ -3442,6 +3608,13 @@ export {
   extractImpactedFiles,
   extractLatestAmendmentFiles,
   scopeToRetryFiles,
+  expandSchemaPattern,
+  resolveSchemaFiles,
+  buildSchemaSection,
+  loadSchemaSection,
+  fenceLangFor,
+  loadContext,
+  buildUserPrompt,
   buildArchitectTask,
   filterArchitectPassArtifacts,
   formatUsage,

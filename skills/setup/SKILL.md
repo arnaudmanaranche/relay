@@ -87,8 +87,33 @@ Which one? [1/2/or type your own]
 | `source_dirs` | Directory presence (`src`, `app`, `pages`) and framework |
 | `skip_dirs` | Framework-aware (adds `ios`, `android`, `.expo` for React Native; `.next` for Next.js) |
 | `source_extensions` | TypeScript presence, Vue, Svelte |
+| `schema_files` | Filesystem check of well-known schema locations, in preference order: a declarative schema (`prisma/schema.prisma`, `db/schema.ts`, `schema.sql`, …), then generated DB types (`database.types.ts`, `types/supabase.ts`, …), and — only when neither was found — a `dir/*.sql` glob over an ordered migrations directory. Written to `schemaFiles` (see below) |
+
+**`schema_files` deserves a real confirmation prompt, not a bare Enter.** Its contents are injected into every Architect and Dev call for the life of the project, so a wrong or bloated list is paid for on every run — and an empty one is the thing that makes Dev invent column names. Show what was detected and ask explicitly:
+
+- **Nothing detected, but the project clearly has a database** (a `backend_service` was detected, or the repo has an ORM dependency): ask for the paths directly. Prefer whatever states the *current* schema in one place — a declarative schema file or generated DB types — over migration history.
+- **Nothing detected and the project has no database**: leave it empty. Nothing is injected, which is correct.
+- **A migrations glob was detected**: mention that only the most recent few files are injected (`MAX_MIGRATION_FILES` in `agent-runner.ts`), since old migrations restate columns that later ones may have dropped. If the project *also* has generated types or a declarative schema the detector missed, prefer those instead.
+- **A monorepo with several databases**: list each schema, but keep the total small — this is prompt budget spent on every call, and `agent-runner.ts` truncates past its ceilings rather than growing the prompt without bound.
 
 Not auto-detected — ask directly if the project has one: `commands.build` (e.g. `next build`, `expo export`, `tsc -b`). Optional; when set, `run-pipeline.sh`'s quality gate runs it after typecheck/lint/test on every Dev pass. It exists because typecheck only checks types — a real build also resolves imports and bundles the code, catching breakage (a missing asset, a bad dynamic import, bundler-incompatible syntax) that a clean typecheck can still let through.
+
+### `schemaFiles` — what the agents are allowed to know about the database
+
+```json
+{
+  "schemaFiles": ["prisma/schema.prisma", "src/types/database.types.ts"]
+}
+```
+
+A top-level config array (not a `commands` entry). `agent-runner.ts` resolves each entry against the project root and injects the file contents into the **Architect** and **Dev** prompts as a `## Database schema (read-only reference)` section — never into Review or QA, which judge the diff against the plan.
+
+It exists because the Dev role runs with `--tools ''`: no Read, no Grep, no filesystem. Everything it knows arrives in the prompt, so before this a feature touching persisted data got queries written against table and column names Dev had inferred from the brief — plausible, often wrong, and invisible to typecheck unless the project happens to have generated DB types. The Architect gets the same section for the same reason: the plan's mandatory `## Data Model` section is only as accurate as what the Architect could see.
+
+- One `*` segment per entry is supported, covering both migration conventions: `supabase/migrations/*.sql` (flat, timestamp-prefixed) and `prisma/migrations/*/migration.sql` (one directory per migration). Matches are sorted lexicographically — chronological for both conventions — and only the newest `MAX_MIGRATION_FILES` are injected.
+- Bounded by `MAX_SCHEMA_FILE_CHARS` per file and `MAX_SCHEMA_TOTAL_CHARS` overall (`agent-runner.ts`). Past those, content is truncated and the omitted paths are named in the section, so the model is told what it isn't seeing instead of silently missing it.
+- Empty or absent injects nothing — the right behavior for a project with no database.
+- Read-only by contract: the section tells Dev not to emit these files as changes unless the technical plan's Impacted Files names them. When a feature *does* need a schema change, the plan's Data Model section names the migration and lists the file, which is what actually gets it into Dev's writable set.
 
 ### Mobile-only fields — skip or relabel for web projects
 

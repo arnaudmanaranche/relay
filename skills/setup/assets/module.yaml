@@ -80,6 +80,10 @@ format_write_cmd:
   prompt: 'What is your format write command?'
   default: 'prettier --write .'
 
+schema_files:
+  prompt: 'Which files describe your database schema? (comma-separated; a declarative schema, generated DB types, or a `dir/*.sql` migration glob. Leave blank if the project has no database — their contents are injected into the Architect and Dev prompts, which cannot read the repo themselves)'
+  default: ''
+
 default_branch:
   prompt: 'What is your default git branch name?'
   default: 'main'

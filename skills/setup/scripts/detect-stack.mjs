@@ -19,6 +19,7 @@ import { detectE2E } from './detectors/e2e.mjs';
 import { detectLocales } from './detectors/locales.mjs';
 import { detectIos } from './detectors/ios.mjs';
 import { detectSourceDirs, detectSkipDirs, detectSourceExtensions } from './detectors/source-layout.mjs';
+import { detectSchemaFiles } from './detectors/schema.mjs';
 
 const ROOT = (() => {
   for (const arg of process.argv.slice(2)) {
@@ -64,6 +65,7 @@ const detected = {
   source_dirs:        sourceDirs.join(','),
   skip_dirs:          skipDirs.join(','),
   source_extensions:  sourceExtensions.join(','),
+  schema_files:       detectSchemaFiles(ROOT).join(','),
   router:             detectRouter(pkg),
   styling:            detectStyling(pkg),
   ios_scheme:         ios.scheme,
