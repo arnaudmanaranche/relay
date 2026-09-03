@@ -65,6 +65,28 @@ export function detectLintCmd(pkg, packageManager) {
   return '';
 }
 
+// The auto-fixing counterpart to detectLintCmd. Kept a separate field
+// rather than derived by appending `--fix` to lint_cmd: a project's lint
+// command is frequently a script alias (`npm run lint`), where appending a
+// flag either does nothing or errors, and fix mode isn't spelled the same
+// across linters (`eslint --fix` vs `biome lint --write`). Empty means "this
+// project has nothing that can auto-fix", which the pipeline treats as a
+// skip, not a failure.
+export function detectLintFixCmd(pkg, packageManager) {
+  const scripts = pkg?.scripts || {};
+  const prefix = runScriptPrefix(packageManager);
+  for (const key of ['lint:fix', 'lint-fix', 'fix']) {
+    if (scripts[key]) return `${prefix} ${key}`;
+  }
+  const devDeps = { ...pkg?.devDependencies, ...pkg?.dependencies };
+  // `biome lint --write` rather than `biome check --write`: check also
+  // formats, which is already format_write_cmd's job, and running both
+  // would make the two fields fight over the same files.
+  if (devDeps?.['@biomejs/biome']) return 'biome lint --write .';
+  if (devDeps?.['eslint']) return 'eslint . --fix';
+  return '';
+}
+
 export function detectTestCmd(pkg, packageManager) {
   const scripts = pkg?.scripts || {};
   const prefix = runScriptPrefix(packageManager);

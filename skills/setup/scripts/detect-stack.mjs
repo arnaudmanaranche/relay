@@ -8,7 +8,7 @@
 // stack signal gets added.
 
 import { readJson } from './detectors/fs-helpers.mjs';
-import { detectPackageManager, detectRunScript, detectTypecheckCmd, detectLintCmd, detectTestCmd, detectFormatCmd, detectFormatWriteCmd } from './detectors/commands.mjs';
+import { detectPackageManager, detectRunScript, detectTypecheckCmd, detectLintCmd, detectLintFixCmd, detectTestCmd, detectFormatCmd, detectFormatWriteCmd } from './detectors/commands.mjs';
 import { detectProjectName, detectAppId, detectGithubRepo, detectDefaultBranch } from './detectors/project.mjs';
 import { detectProjectType } from './detectors/project-type.mjs';
 import { detectRouter, detectStyling, detectBackend } from './detectors/stack.mjs';
@@ -47,6 +47,7 @@ const detected = {
   run_script:         detectRunScript(pkg),
   typecheck_cmd:      detectTypecheckCmd(pkg, packageManager),
   lint_cmd:           detectLintCmd(pkg, packageManager),
+  lint_fix_cmd:       detectLintFixCmd(pkg, packageManager),
   test_cmd:           detectTestCmd(pkg, packageManager),
   format_cmd:         detectFormatCmd(pkg, packageManager),
   format_write_cmd:   detectFormatWriteCmd(pkg, packageManager),

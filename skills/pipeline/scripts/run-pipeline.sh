@@ -9,6 +9,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # not two. `../..` silently landed one level short, at <root>/skills, for
 # any invocation that didn't pass --project-root explicitly.
 ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
+# shellcheck source=lib/autofix.sh
+source "$SCRIPT_DIR/lib/autofix.sh"
 # Check for --project-root in args
 for arg in "$@"; do
   case "$arg" in
@@ -54,6 +56,13 @@ LINT_CMD=$(read_config ".commands.lint" "eslint .")
 TEST_CMD=$(read_config ".commands.test" "")
 BUILD_CMD=$(read_config ".commands.build" "")
 FORMAT_WRITE_CMD=$(read_config ".commands.formatWrite" "")
+# Auto-fixing lint command (e.g. `eslint . --fix`, `biome lint --write .`).
+# Separate from LINT_CMD on purpose: the gate must keep running the project's
+# real read-only lint command, and not every linter's fix mode is a flag on
+# the same invocation (`biome lint --write` vs `eslint --fix`). Empty for a
+# project with no lint tooling — same "don't guess a command that will fail"
+# rule as commands.lint.
+LINT_FIX_CMD=$(read_config ".commands.lintFix" "")
 # Sandboxing only applies to web/backend projects: Docker Linux images can't
 # run Xcode, so a project with ios.scheme set (the same signal upload-build.sh
 # gates on) always runs commands.test/build directly on the host.
@@ -246,9 +255,12 @@ $prov"
   # reformatting whatever's dirty here is always safe. Best-effort: if the
   # command itself is missing/misconfigured, let the actual pre-commit hook
   # be the real gate rather than failing the stage over formatting tooling.
-  if [ -n "$FORMAT_WRITE_CMD" ]; then
-    eval "$FORMAT_WRITE_CMD" >/dev/null 2>&1 || true
-  fi
+  # Not redundant with apply_autofixes in run_quality_gates: that one only
+  # runs on Dev passes, while every role commits markdown artifacts through
+  # here, and a stage that writes no code never reaches the gates at all.
+  # Formatting only, no lint fixer: most stages commit markdown artifacts,
+  # where a linter has nothing to say and `--fix` is pure noise.
+  apply_autofixes "$FORMAT_WRITE_CMD" ""
   git add -A
   if git diff --cached --quiet; then
     return 0
@@ -362,6 +374,10 @@ run_quality_gates() {
   test_out=$(mktemp)
   build_out=$(mktemp)
   local tc_ok=true lint_ok=true test_ok=true build_ok=true content_ok=true
+
+  # Fix what a machine can fix before judging the tree — see lib/autofix.sh
+  # for why this belongs here and not only at commit time.
+  apply_autofixes
 
   # LINT_CMD (and, in principle, TYPECHECK_CMD) can legitimately be empty
   # — detectLintCmd returns '' for a project with no lint tool configured

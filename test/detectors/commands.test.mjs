@@ -47,6 +47,7 @@ import {
   detectRunScript,
   detectTypecheckCmd,
   detectLintCmd,
+  detectLintFixCmd,
   detectTestCmd,
   detectFormatCmd,
   detectFormatWriteCmd,
@@ -239,6 +240,51 @@ test("detectFormatCmd returns '' when package.json has no scripts or dependencie
 test("detectFormatWriteCmd returns '' when package.json has no scripts or dependencies keys at all", () => {
   const pkg = {};
   assert.strictEqual(detectFormatWriteCmd(pkg, 'npm'), '');
+});
+
+// --- detectLintFixCmd: the auto-fix counterpart to detectLintCmd ---
+//
+// Deliberately mirrors the detectLintCmd cases above rather than deriving
+// its result from lint_cmd: a `--fix` flag appended to a script alias
+// (`npm run lint --fix`) is silently a no-op, so the two fields resolve
+// independently.
+
+test('detectLintFixCmd resolves an explicit lint:fix script via the package-manager prefix even when eslint is also a dependency', () => {
+  const pkg = {
+    scripts: { 'lint:fix': 'custom-lint-runner --write' },
+    devDependencies: { eslint: '^9.0.0' },
+  };
+  assert.strictEqual(detectLintFixCmd(pkg, 'pnpm'), 'pnpm run lint:fix');
+});
+
+test('detectLintFixCmd prefers lint:fix over the looser lint-fix and fix script names', () => {
+  const pkg = {
+    scripts: { fix: 'everything --fix', 'lint-fix': 'lint --fix', 'lint:fix': 'the-real-one' },
+  };
+  assert.strictEqual(detectLintFixCmd(pkg, 'npm'), 'npm run lint:fix');
+});
+
+test('detectLintFixCmd returns "biome lint --write ." when @biomejs/biome is a dependency and no fix script exists', () => {
+  // Not `biome check --write`: check also formats, which is
+  // detectFormatWriteCmd's job — the two must not fight over the same files.
+  const pkg = { scripts: {}, devDependencies: { '@biomejs/biome': '^1.8.0' } };
+  assert.strictEqual(detectLintFixCmd(pkg, 'npm'), 'biome lint --write .');
+});
+
+test('detectLintFixCmd returns "eslint . --fix" when eslint is a dependency and no fix script or biome dependency exists', () => {
+  const pkg = { scripts: {}, devDependencies: { eslint: '^9.0.0' } };
+  assert.strictEqual(detectLintFixCmd(pkg, 'npm'), 'eslint . --fix');
+});
+
+test("detectLintFixCmd returns '' when there is no fix script and no lint tool dependency at all", () => {
+  // Same contract as detectLintCmd's '': the pipeline reads empty as "skip
+  // the autofix pass", never as a command to run.
+  const pkg = { scripts: {}, dependencies: {}, devDependencies: {} };
+  assert.strictEqual(detectLintFixCmd(pkg, 'npm'), '');
+});
+
+test("detectLintFixCmd returns '' when package.json has no scripts or dependencies keys at all", () => {
+  assert.strictEqual(detectLintFixCmd({}, 'npm'), '');
 });
 
 // --- AC 17: explicit, non-placeholder test script ---

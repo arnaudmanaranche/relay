@@ -64,6 +64,10 @@ lint_cmd:
   prompt: 'What is your lint command?'
   default: 'eslint .'
 
+lint_fix_cmd:
+  prompt: 'What is your auto-fixing lint command? (leave blank to skip — run before every Dev quality gate so mechanical lint nits never cost a Dev retry)'
+  default: 'eslint . --fix'
+
 test_cmd:
   prompt: 'What command runs your test suite? (leave blank to skip — the Dev quality gate only runs this if set)'
   default: ''

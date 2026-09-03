@@ -41,7 +41,7 @@ After running `detect-stack.mjs` and before presenting any prompts, also read �
 - **i18n tooling** — mentions of translation-management platforms (Loco, Lokalise, Phrase, Crowdin, etc.) in workflows or README, which mean locale files are generated/pulled rather than hand-edited locally — `detect-stack.mjs`'s `locales`/`locale_dir` guess from local files is misleading in that case.
 - **Git host** — presence of `.gitlab-ci.yml` (or a `.git/config` remote pointing elsewhere) vs. `.github/workflows/`, to know whether this is a GitHub or GitLab project.
 
-**When a CI-derived command conflicts with the script-detected one** (`typecheck_cmd`, `lint_cmd`, `test_cmd`, `format_cmd`, `format_write_cmd`): do not silently prefer either one. Show both explicitly and require the user to pick, rather than letting a bare Enter accept a default:
+**When a CI-derived command conflicts with the script-detected one** (`typecheck_cmd`, `lint_cmd`, `lint_fix_cmd`, `test_cmd`, `format_cmd`, `format_write_cmd`): do not silently prefer either one. Show both explicitly and require the user to pick, rather than letting a bare Enter accept a default:
 
 ```
 Lint command:
@@ -65,6 +65,7 @@ Which one? [1/2/or type your own]
 | `package_manager` | Presence of `bun.lockb`, `pnpm-lock.yaml`, `yarn.lock` |
 | `typecheck_cmd` | `package.json` → `scripts` (looks for `typecheck`, `type-check`, etc.) |
 | `lint_cmd` | `package.json` → `scripts`, or detected formatter (biome, eslint) |
+| `lint_fix_cmd` | `package.json` → `scripts` (`lint:fix`, `lint-fix`, `fix`), or detected linter's fix mode (`biome lint --write .`, `eslint . --fix`). Written to `commands.lintFix`; `run-pipeline.sh` runs it, then `format_write_cmd`, immediately **before** every Dev quality gate, so a mechanical formatting/lint nit gets fixed in milliseconds instead of costing a full Dev retry. Best-effort — a failing or missing fixer never fails the stage |
 | `format_cmd` | `package.json` → `scripts`, or detected formatter (biome, prettier) |
 | `default_branch` | `.git/HEAD` |
 | `locales` | Scans common i18n dirs (`i18n/locales`, `locales`, `src/locales`, etc.) |
