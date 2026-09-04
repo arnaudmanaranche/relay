@@ -581,7 +581,13 @@ export function readLog(request: ReadLogRequest): ReadLogResult {
 export function openInEditor(request: OpenInEditorRequest): OpenResult {
   const path = decodeBytes(request.path);
   if (!path || !existsSync(path)) {
-    throw { kind: "path_missing", message: `${path || "(empty path)"} does not exist.` };
+    throw {
+      kind: "path_missing",
+      // Says what to make of it, not just that it failed: by far the most
+      // common way this fires is a run whose worktree was pruned after it
+      // merged, and the row for it is still on screen.
+      message: `${path || "(empty path)"} does not exist any more — the worktree was probably removed after the run landed.`,
+    };
   }
   try {
     execFileSync("code", [path], { timeout: 10_000 });

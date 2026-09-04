@@ -15,6 +15,7 @@ import { Cmd, Sub, asciiBytes, utf8Bytes, windowDescriptor } from "@native-sdk/c
 import type { ThemeState, WindowDescriptor } from "@native-sdk/core/events";
 import { applyTextInputEvent, trimAsciiSpaces } from "@native-sdk/core/text";
 import { scanAnsi, dropPartialLine } from "./ansi.ts";
+import { serviceErrorText } from "./svcerr.ts";
 import type { AnsiMode } from "./ansi.ts";
 import type { TextInputEvent, TextEditState } from "@native-sdk/core/text";
 import {
@@ -1136,7 +1137,7 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     }
 
     case "configure_failed":
-      return { ...model, phase: "boot", lastError: msg.error };
+      return { ...model, phase: "boot", lastError: serviceErrorText(msg.error) };
 
     case "fetched": {
       const cleared: Model = {
@@ -1152,7 +1153,7 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
       return { ...model, lastSyncMs: msg.at };
 
     case "sync_failed":
-      return { ...model, fetchInFlight: false, lastError: msg.error };
+      return { ...model, fetchInFlight: false, lastError: serviceErrorText(msg.error) };
 
     case "refresh": {
       if (model.fetchInFlight || model.configScript.length === 0) return model;
@@ -1200,7 +1201,7 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
       return { ...model, actionError: new Uint8Array(0) };
 
     case "retry_failed":
-      return { ...model, actionError: msg.error };
+      return { ...model, actionError: serviceErrorText(msg.error) };
 
     case "open_in_editor": {
       const run = findRun(model, msg.index);
@@ -1218,7 +1219,7 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
       return { ...model, actionError: new Uint8Array(0) };
 
     case "editor_open_failed":
-      return { ...model, actionError: msg.error };
+      return { ...model, actionError: serviceErrorText(msg.error) };
 
     case "open_dashboard":
       return [model, Cmd.showWindow("main")];
@@ -1301,7 +1302,7 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
       ];
 
     case "repos_save_failed":
-      return { ...model, saving: false, saveError: msg.error };
+      return { ...model, saving: false, saveError: serviceErrorText(msg.error) };
 
     // --- appearance -----------------------------------------------------------
 
@@ -1353,7 +1354,7 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
       return { ...model, saveError: new Uint8Array(0) };
 
     case "theme_save_failed":
-      return { ...model, saveError: msg.error };
+      return { ...model, saveError: serviceErrorText(msg.error) };
 
     // --- run-detail window ------------------------------------------------
 
@@ -1538,7 +1539,7 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     case "pty_command_failed": {
       const open = model.openRun;
       if (open === null) return model;
-      return { ...model, openRun: { ...open, phase: "idle", ptyLive: false, actionError: msg.error } };
+      return { ...model, openRun: { ...open, phase: "idle", ptyLive: false, actionError: serviceErrorText(msg.error) } };
     }
 
     case "pty_event": {
@@ -1595,7 +1596,7 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     case "detail_run_start_failed": {
       const open = model.openRun;
       if (open === null) return model;
-      return { ...model, openRun: { ...open, phase: "idle", actionError: msg.error } };
+      return { ...model, openRun: { ...open, phase: "idle", actionError: serviceErrorText(msg.error) } };
     }
 
     case "log_poll_tick": {
@@ -1686,7 +1687,7 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     case "plan_load_failed": {
       const open = model.openRun;
       if (open === null) return model;
-      return { ...model, openRun: { ...open, planLoaded: true, actionError: msg.error } };
+      return { ...model, openRun: { ...open, planLoaded: true, actionError: serviceErrorText(msg.error) } };
     }
 
     case "questions_loaded": {
@@ -1701,7 +1702,7 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     case "questions_load_failed": {
       const open = model.openRun;
       if (open === null) return model;
-      return { ...model, openRun: { ...open, questionsLoaded: true, actionError: msg.error } };
+      return { ...model, openRun: { ...open, questionsLoaded: true, actionError: serviceErrorText(msg.error) } };
     }
 
     case "answer_edit": {
@@ -1758,7 +1759,7 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     case "answer_submit_failed": {
       const open = model.openRun;
       if (open === null) return model;
-      return { ...model, openRun: { ...open, submitting: false, actionError: msg.error } };
+      return { ...model, openRun: { ...open, submitting: false, actionError: serviceErrorText(msg.error) } };
     }
 
     case "stop_run": {
@@ -1797,7 +1798,7 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     case "run_stop_failed": {
       const open = model.openRun;
       if (open === null) return model;
-      return { ...model, openRun: { ...open, actionError: msg.error } };
+      return { ...model, openRun: { ...open, actionError: serviceErrorText(msg.error) } };
     }
 
     // --- new-feature window ------------------------------------------------
@@ -1934,7 +1935,7 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     }
 
     case "new_run_start_failed":
-      return { ...model, newRunSubmitting: false, newRunError: msg.error };
+      return { ...model, newRunSubmitting: false, newRunError: serviceErrorText(msg.error) };
   }
 }
 
