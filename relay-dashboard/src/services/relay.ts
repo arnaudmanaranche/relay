@@ -625,12 +625,17 @@ export function readArtifact(request: ReadArtifactRequest): ReadArtifactResult {
 // .agent-status-<role>.json (verdict/model), independent of whether it
 // has anything in .agent-token-usage.json's calls[] (a role can run
 // without reporting cost, e.g. a backend that doesn't surface it).
+//
+// The order is the order run-pipeline.sh calls them in, mirrored by
+// VERDICT_ROLES in skills/pipeline/scripts/status.mjs: Dev Review reads the
+// brief and clarifies it with PM BEFORE the Architect plans anything. Listing
+// Architect earlier drew a timeline the pipeline never runs.
 const TIMELINE_ROLES: readonly { key: string; label: string }[] = [
   { key: "pm", label: "PM" },
-  { key: "architect", label: "Architect" },
-  { key: "dev", label: "Dev" },
   { key: "dev-review", label: "Dev Review" },
   { key: "pm-respond", label: "PM Respond" },
+  { key: "architect", label: "Architect" },
+  { key: "dev", label: "Dev" },
   { key: "review", label: "Review" },
   { key: "qa", label: "QA" },
   { key: "retro", label: "Retro" },
