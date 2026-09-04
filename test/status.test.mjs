@@ -187,6 +187,40 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
     }
   });
 
+  test('hasArtifacts reports whether the directory is there, not what its path would be', () => {
+    // Found live: every run in a real install had a worktree with no
+    // `.relay/` at all (crashed before the first agent wrote anything), and
+    // the GUI consuming this JSON derived "has artifacts" from the path
+    // STRING being non-empty — which this function always fills in. Two of
+    // the four buttons on every row were offered and both failed.
+    const fx = fixture();
+    try {
+      const withArt = inspectWorktree({
+        repoRoot: '/somewhere/myrepo',
+        repoDirName: 'myrepo',
+        entry: 'myrepo-auth',
+        worktreeRoot: fx.path('.relay-worktrees'),
+        branchPrefix: 'feat',
+      });
+      // The path is always reported; only its existence varies.
+      assert.match(withArt.artifactsDir, /myrepo-auth\/\.relay\/artifacts\/features\/auth$/);
+      assert.equal(withArt.hasArtifacts, false);
+
+      fx.write('.relay-worktrees/myrepo-auth/.relay/artifacts/features/auth/technical-plan.md', '# plan');
+      const nowThere = inspectWorktree({
+        repoRoot: '/somewhere/myrepo',
+        repoDirName: 'myrepo',
+        entry: 'myrepo-auth',
+        worktreeRoot: fx.path('.relay-worktrees'),
+        branchPrefix: 'feat',
+      });
+      assert.equal(nowThere.hasArtifacts, true);
+      assert.equal(nowThere.artifactsDir, withArt.artifactsDir);
+    } finally {
+      fx.cleanup();
+    }
+  });
+
   test('preserved worktree with unapproved plan → design gate + concrete resume hint', () => {
     const fx = fixture();
     try {

@@ -58,6 +58,13 @@ export interface ActiveRun {
   readonly worktree: Uint8Array;
   // Producer `artifactsDir` (.relay/artifacts/<slug>); empty when absent.
   readonly artifactsDir: Uint8Array;
+  // Whether that directory EXISTS, from the producer's own existsSync —
+  // not inferred from artifactsDir being non-empty. status.mjs always
+  // fills the path in, so the string tells you nothing: a worktree can
+  // exist with no `.relay/` at all (a run that crashed before the first
+  // agent wrote anything). Deriving it from the string offered actions on
+  // a directory that was never there.
+  readonly hasArtifacts: boolean;
   // The live process's pid (status.mjs's `livePid`) — 0 when there is no
   // live process to stop, matching this codebase's zero-sentinel
   // convention for "absent" (artifactsDir uses empty bytes the same way).

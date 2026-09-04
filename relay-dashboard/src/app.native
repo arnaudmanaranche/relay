@@ -12,7 +12,7 @@
      renders whichever arm its flags select. Repos stay in configured order
      so they don't shuffle under the pointer between polls. Buttons dispatch
      Msg arms directly:
-     on-press="reveal:{r.index}" / "reveal_artifacts:{r.index}" /
+     on-press="reveal:{r.index}" / "open_artifacts:{r.index}" /
      "copy_resume:{r.index}" / "retry:{r.index}" /
      "open_in_editor:{r.index}" / "open_run:{r.index}" / "refresh" /
      "do_quit" — {r.index} stays the flat activeRuns()
@@ -114,9 +114,9 @@
             <column gap="3">
               <row gap="8" cross="center">
                 <text grow="1">{r.slug}</text>
+                <button size="sm" variant="ghost" icon="edit" on-press="open_in_editor:{r.index}">Open in Code</button>
                 <if test="{r.hasArtifacts}">
-                  <button size="sm" variant="ghost" icon="edit" on-press="open_in_editor:{r.index}">Open in Code</button>
-                  <button size="sm" variant="ghost" icon="archive" on-press="reveal_artifacts:{r.index}">Artifacts</button>
+                  <button size="sm" variant="ghost" icon="file-text" on-press="open_artifacts:{r.index}">Artifacts</button>
                 </if>
                 <button size="sm" variant="ghost" icon="folder-open" on-press="reveal:{r.index}">Reveal</button>
                 <button size="sm" icon="terminal" on-press="open_run:{r.index}">Open</button>

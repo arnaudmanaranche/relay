@@ -179,6 +179,7 @@ interface RunEntry {
   resumeArgs?: string[];
   worktree?: string;
   artifactsDir?: string;
+  hasArtifacts?: boolean;
   livePid?: number;
 }
 
@@ -357,6 +358,9 @@ function mapRun(repoName: string, repoRoot: string, raw: RunEntry): ActiveRun {
     repoRoot: bytes(repoRoot),
     worktree: bytes(worktree),
     artifactsDir: bytes(artifactsDir),
+    // Absent in a snapshot from an older status.mjs: fall back to the path
+    // check rather than hiding the buttons on every row.
+    hasArtifacts: typeof raw.hasArtifacts === "boolean" ? raw.hasArtifacts : artifactsDir.length > 0,
     pid,
   };
 }

@@ -218,7 +218,7 @@ export type Msg =
   | { readonly kind: "synced"; readonly at: number }
   | { readonly kind: "refresh" }
   | { readonly kind: "reveal"; readonly index: number }
-  | { readonly kind: "reveal_artifacts"; readonly index: number }
+  | { readonly kind: "open_artifacts"; readonly index: number }
   | { readonly kind: "copy_resume"; readonly index: number }
   | { readonly kind: "retry"; readonly index: number }
   | { readonly kind: "retried"; readonly result: RetryResult }
@@ -580,7 +580,7 @@ export function panelRows(model: Model): readonly PanelRow[] {
             resumable: run.state === "designGate",
             retryable: run.state !== "designGate" && run.resumeArgs.length > 0,
             repoRoot: run.repoRoot,
-            hasArtifacts: run.artifactsDir.length > 0,
+            hasArtifacts: run.hasArtifacts && run.artifactsDir.length > 0,
             running: run.state === "running",
             gated: run.state !== "running" && run.state !== "done" && !severityFailed(run.state),
             failed: severityFailed(run.state),
@@ -1173,12 +1173,6 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
       return [model, Cmd.revealPath(run.worktree)];
     }
 
-    case "reveal_artifacts": {
-      const run = findRun(model, msg.index);
-      if (run === null || run.artifactsDir.length === 0) return model;
-      return [model, Cmd.revealPath(run.artifactsDir)];
-    }
-
     case "copy_resume": {
       const run = findRun(model, msg.index);
       if (run === null || run.resumeHint.length === 0) return model;
@@ -1203,14 +1197,34 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     case "retry_failed":
       return { ...model, actionError: serviceErrorText(msg.error) };
 
+    // "Open in Code" opens the CODE. It used to open artifactsDir — the
+    // markdown folder — which is what reveal_artifacts already pointed at,
+    // so the two buttons targeted one directory in two apps while the
+    // label promised the opposite of what it did.
     case "open_in_editor": {
       const run = findRun(model, msg.index);
-      if (run === null || run.artifactsDir.length === 0) return model;
+      if (run === null || run.worktree.length === 0) return model;
+      return [
+        model,
+        relayOpenInEditor(
+          { path: run.worktree },
+          { key: "open_in_editor", ok: "editor_opened", err: "editor_open_failed" },
+        ),
+      ];
+    }
+
+    // The artifacts are markdown — briefs, plans, review reports. An editor
+    // reads those; a file browser only gets you to them. Gated on the
+    // producer's own existence check (see ActiveRun.hasArtifacts), so this
+    // is never offered for a worktree that has no .relay/ at all.
+    case "open_artifacts": {
+      const run = findRun(model, msg.index);
+      if (run === null || !run.hasArtifacts || run.artifactsDir.length === 0) return model;
       return [
         model,
         relayOpenInEditor(
           { path: run.artifactsDir },
-          { key: "open_in_editor", ok: "editor_opened", err: "editor_open_failed" },
+          { key: "open_artifacts", ok: "editor_opened", err: "editor_open_failed" },
         ),
       ];
     }

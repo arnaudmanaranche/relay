@@ -197,6 +197,14 @@ export function inspectWorktree({ repoRoot, repoDirName, entry, worktreeRoot, br
     branch: `${branchPrefix}/${slug}`,
     worktree: worktreeDir,
     artifactsDir: artDir,
+    // Whether that directory is actually there, not just what its path
+    // would be. A worktree can exist with no `.relay/` at all — a run that
+    // crashed before the first agent wrote anything, or whose artifacts
+    // were pruned while the worktree stayed. Consumers were left deriving
+    // "has artifacts" from the path STRING being non-empty, which this
+    // function always fills in, so a GUI offered actions on a directory
+    // that was never there (found live: every run in a real install).
+    hasArtifacts: existsSync(artDir),
     lock,
     ...(lock && lock.alive ? { livePid: lock.pid } : {}),
     ...(generic && typeof generic.role === 'string' ? { lastRole: generic.role } : {}),
