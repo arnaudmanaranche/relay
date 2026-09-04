@@ -1,0 +1,70 @@
+/* ===== Tokens: cream paper, isometric-block role system, coral accent ===== */
+:root {
+  --bg: #f7f5f2;
+  --bg-raised: #ffffff;
+  --line: #ddd8d0;
+  --line-soft: #eae6de;
+  --text-hi: #171512;
+  --text-lo: #4b463d;
+  --text-muted: #726c5f;
+
+  --accent: #d85f2f;
+  --pass: #3f7a3f;
+  --retry: #96701f;
+  --halt: #b23d33;
+
+  --block-sage: #9fb49a;      --block-sage-side: #7e9678;
+  --block-charcoal: #4a463d;  --block-charcoal-side: #2b2822;
+  --block-slate: #8ea7b8;     --block-slate-side: #6d8898;
+  --block-plain: #ffffff;     --block-plain-side: #e2ddd3;
+
+  --sage-top: color-mix(in srgb, var(--block-sage) 55%, white);
+  --sage-right: var(--block-sage);
+  --sage-left: var(--block-sage-side);
+  --charcoal-top: color-mix(in srgb, var(--block-charcoal) 55%, white);
+  --charcoal-right: var(--block-charcoal);
+  --charcoal-left: var(--block-charcoal-side);
+  --slate-top: color-mix(in srgb, var(--block-slate) 55%, white);
+  --slate-right: var(--block-slate);
+  --slate-left: var(--block-slate-side);
+  --plain-top: #ffffff;
+  --plain-right: color-mix(in srgb, var(--block-plain) 90%, #b9b2a4);
+  --plain-left: var(--block-plain-side);
+
+  /* Glyph ink is deliberately softer than page text: full-strength accent
+     and pass green read as warnings at this scale. */
+  --gl-ink: color-mix(in srgb, var(--text-lo) 72%, var(--bg));
+  --gl-pass: color-mix(in srgb, var(--pass) 90%, var(--bg));
+  --gl-accent: color-mix(in srgb, var(--accent) 88%, var(--bg));
+
+  --accent-top: color-mix(in srgb, var(--accent) 60%, white);
+  --accent-right: var(--accent);
+  --accent-left: color-mix(in srgb, var(--accent) 78%, black);
+
+  /* Cube colour carries STATE, not decoration. One legend, used by every
+     illustration and by the rail: plain = not started, charcoal = being
+     worked, sage = passed, accent = waiting on a human, halt = failed,
+     slate = remembered. */
+  --halt-top: color-mix(in srgb, var(--halt) 58%, white);
+  --halt-right: var(--halt);
+  --halt-left: color-mix(in srgb, var(--halt) 80%, black);
+
+  /* Motion. Entrances decelerate into place, travel eases both ends, and a
+     press responds in well under a tenth of a second so it feels direct. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-press: cubic-bezier(0.2, 0, 0, 1);
+  --dur-press: 90ms;
+  --dur-ui: 180ms;
+  --dur-panel: 320ms;
+
+  --font-ui: 'Archivo', Arial, Helvetica, sans-serif;
+  --font-serif: 'Source Serif', Georgia, 'Times New Roman', serif;
+  --font-mono: 'Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Vertical rhythm. The single-file page used one padding for every section;
+     giving the scale a name is what lets a section breathe more than its
+     neighbour without the numbers drifting apart. */
+  --sec-y: 6.5rem;
+  --sec-x: 4.5rem;
+}

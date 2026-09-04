@@ -6,7 +6,7 @@ Built for solo builders who ship with an agent and have no team to catch what it
 
 Relay is not another coding agent. It's the process around the one you already use.
 
-[Full documentation](docs/index.html): how a run works stage by stage, the safety model, where Relay sits among agent tooling, and the configuration reference.
+[Full documentation](https://arnaudmanaranche.github.io/relay/): how a run works stage by stage, the app that tells you when a run is waiting on you, what the pipeline enforces, where Relay sits among agent tooling, and the configuration reference.
 
 [Design principles & guarantees](https://github.com/arnaudmanaranche/relay/wiki/Design-Principles-and-Guarantees): trust, auditability, bounded growth, measurable self-improvement.
 
@@ -84,7 +84,7 @@ bash skills/pipeline/scripts/babysit-pr.sh <branch> --max-reruns=3 --auto-stamp
 
 [relay-dashboard](relay-dashboard/README.md) is a small macOS app (Dock icon, one window) that polls `status.mjs` every 5s across your repos, flags runs needing attention (design gate, review/QA FAIL, crash, halt), and lets you reveal the worktree or copy a resume command. Read-only.
 
-For configuration (models, effort, backends, batching, review panel size, E2E wiring), the safety model, and everything else, see the [full documentation](docs/index.html).
+For configuration (models, effort, backends, batching, review panel size, E2E wiring), the safety model, and everything else, see the [full documentation](https://arnaudmanaranche.github.io/relay/).
 
 ---
 
@@ -109,6 +109,18 @@ npm run eval    # score pipeline output quality against golden rubric cases
 ```
 
 `.github/workflows/test.yml` runs both on every push and PR to `main`. The eval harness also powers a provenance-keyed A/B loop for improving the pipeline's own prompts.
+
+### The documentation site
+
+`docs/` is **build output** — GitHub Pages serves it, and nothing in it is edited by hand. The source is the small React app in `site/`:
+
+```bash
+npm run site:dev      # local dev server
+npm run site:build    # writes docs/ — commit the result
+npm run site:preview  # serve the built docs/ exactly as Pages will
+```
+
+The screenshots in `site/public/screens/` are real captures of `relay-dashboard`, taken against a throwaway fixture rather than a live repo. `npm run site:build` empties `docs/` first, so anything that has to survive belongs in `site/public/`.
 
 ## Versioning
 

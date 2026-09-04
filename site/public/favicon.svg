@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Relay: three ascending isometric cubes, the same mark as the site's wordmark.
+       Colours are resolved here rather than tokenised: a favicon has no access to
+       the document's custom properties. Sized to fill the square — a smaller mark
+       with generous margins turned to mush at 16px. -->
+  <rect width="32" height="32" rx="7" fill="#f7f5f2"/>
+  <g stroke="#ddd8d0" stroke-width="0.5" stroke-linejoin="round">
+    <!-- sage, lowest-left -->
+    <g transform="translate(2,14)">
+      <polygon points="0,3 6,6 6,12 0,9" fill="#7e9678"/>
+      <polygon points="6,6 12,3 12,9 6,12" fill="#9fb49a"/>
+      <polygon points="6,0 12,3 6,6 0,3" fill="#cad6c7"/>
+    </g>
+    <!-- charcoal, centre -->
+    <g transform="translate(10,10)">
+      <polygon points="0,3 6,6 6,12 0,9" fill="#2b2822"/>
+      <polygon points="6,6 12,3 12,9 6,12" fill="#4a463d"/>
+      <polygon points="6,0 12,3 6,6 0,3" fill="#9b9994"/>
+    </g>
+    <!-- slate, highest-right -->
+    <g transform="translate(18,6)">
+      <polygon points="0,3 6,6 6,12 0,9" fill="#6d8898"/>
+      <polygon points="6,6 12,3 12,9 6,12" fill="#8ea7b8"/>
+      <polygon points="6,0 12,3 6,6 0,3" fill="#c1cfd8"/>
+    </g>
+  </g>
+</svg>

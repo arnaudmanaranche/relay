@@ -7,7 +7,10 @@
     "test": "node --import tsx --test test/*.test.ts test/*.test.mjs test/detectors/**/*.test.mjs",
     "typecheck": "tsc --noEmit",
     "eval": "node skills/pipeline/scripts/eval-pipeline.mjs",
-    "status": "node skills/pipeline/scripts/status.mjs"
+    "status": "node skills/pipeline/scripts/status.mjs",
+    "site:dev": "npm --prefix site run dev",
+    "site:build": "npm --prefix site run build",
+    "site:preview": "npm --prefix site run preview"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
