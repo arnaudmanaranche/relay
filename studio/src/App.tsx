@@ -108,7 +108,7 @@ export function App() {
         title={skill.id}
         subtitle={skill.path}
         load={() => fetchFile(skill.path)}
-        onSave={content => saveFile(skill.path, content)}
+        onSave={(content, version) => saveFile(skill.path, content, version)}
       />
     );
   }
@@ -190,7 +190,7 @@ export function App() {
                 title={selectedRole.name}
                 subtitle={selectedRole.skill}
                 load={() => fetchFile(selectedRole.skill)}
-                onSave={content => saveFile(selectedRole.skill, content)}
+                onSave={(content, version) => saveFile(selectedRole.skill, content, version)}
               >
                 <AttachedSkills
                   role={selectedRole}

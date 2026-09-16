@@ -34,26 +34,32 @@ export async function fetchRoles(): Promise<RoleSummary[]> {
   }));
 }
 
-export async function fetchFile(path: string): Promise<string> {
-  const { content } = await request<{ content: string }>(
-    `/api/file?path=${encodeURIComponent(path)}`
-  );
-  return content;
+export interface LoadedFile {
+  content: string;
+  /** The file's mtime when it was read. Handed back on save so the server can
+   *  refuse a write that would clobber a change made since. */
+  version: number;
 }
 
-export async function saveFile(path: string, content: string): Promise<void> {
-  await request('/api/file', {
+export async function fetchFile(path: string): Promise<LoadedFile> {
+  return request<LoadedFile>(`/api/file?path=${encodeURIComponent(path)}`);
+}
+
+export async function saveFile(path: string, content: string, version?: number): Promise<number> {
+  const res = await request<{ version: number }>('/api/file', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, content }),
+    body: JSON.stringify({ path, content, version }),
   });
+  return res.version;
 }
 
-export async function fetchStarter(ref: string): Promise<string> {
+export async function fetchStarter(ref: string): Promise<LoadedFile> {
   const { content } = await request<{ content: string }>(
     `/api/starters?ref=${encodeURIComponent(ref)}`
   );
-  return content;
+  // A template is read-only, so it has no version to conflict with.
+  return { content, version: 0 };
 }
 
 export async function copyStarterIntoProject(ref: string): Promise<SkillEntry> {

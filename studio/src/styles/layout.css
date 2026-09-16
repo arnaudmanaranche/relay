@@ -527,3 +527,18 @@ body {
   overflow-x: auto;
 }
 .artifact-view pre code { background: none; padding: 0; }
+
+/* A save refused because the file moved on disk. Deliberately not auto-
+   resolved: reloading throws away what the user typed, so it has to be their
+   call. */
+.editor-conflict {
+  margin: 0 0 1rem;
+  padding: 0.8rem 0.9rem;
+  border-left: 2px solid var(--retry);
+  background: color-mix(in srgb, var(--retry) 10%, var(--bg));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+.editor-conflict p { margin: 0; font-size: 0.8rem; color: var(--text-hi); }

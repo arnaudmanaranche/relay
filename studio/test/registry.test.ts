@@ -11,6 +11,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyRolePatch,
+  fileVersion,
+  isStaleWrite,
   isStarterRef,
   isWithinRoot,
   parseFrontmatter,
@@ -304,5 +306,47 @@ describe('parseFrontmatter', () => {
   test('a colon in the value survives', () => {
     const { meta } = parseFrontmatter('---\ndescription: see: this\n---\nx');
     assert.equal(meta.description, 'see: this');
+  });
+});
+
+describe('isStaleWrite', () => {
+  test('an absent version is not a conflict', () => {
+    // A caller that did not read the file first is legal: a brand new file has
+    // no version to conflict with.
+    assert.equal(isStaleWrite(1000, undefined), false);
+    assert.equal(isStaleWrite(1000, null), false);
+  });
+
+  test('the same version is not a conflict', () => {
+    assert.equal(isStaleWrite(1788286132086, 1788286132086), false);
+  });
+
+  test('a different version is a conflict', () => {
+    assert.equal(isStaleWrite(1788286132999, 1788286132086), true);
+  });
+
+  test('sub-millisecond drift from a JSON round-trip is not a conflict', () => {
+    // statSync gives a float; comparing one for equality across JSON is a
+    // coin toss, so both sides are rounded.
+    assert.equal(isStaleWrite(1788286132086.4213, 1788286132086), false);
+    assert.equal(isStaleWrite(1788286132085.6, 1788286132086), false);
+  });
+
+  test('a version that is not a number is ignored rather than refused', () => {
+    // Refusing here would make a malformed client unable to save at all,
+    // which is worse than falling back to no check.
+    assert.equal(isStaleWrite(1000, 'nonsense'), false);
+    assert.equal(isStaleWrite(1000, NaN), false);
+  });
+
+  test('a one-millisecond change is caught', () => {
+    assert.equal(isStaleWrite(1001, 1000), true);
+  });
+});
+
+describe('fileVersion', () => {
+  test('rounds to whole milliseconds', () => {
+    assert.equal(fileVersion(1788286132086.4213), 1788286132086);
+    assert.equal(fileVersion(1788286132086.6), 1788286132087);
   });
 });

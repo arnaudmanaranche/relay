@@ -1,56 +1,63 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
-
-// A skill's `---\nid: …\n---` block is metadata, not prose: handed to the
-// markdown renderer it comes out as a setext heading, so the preview opened
-// with "id: x description: y" as its title. The textarea still holds the whole
-// file, because the frontmatter is editable too.
-function withoutFrontmatter(content: string): string {
-  const match = content.match(/^---\n[\s\S]*?\n---\n?([\s\S]*)$/);
-  return match ? match[1] : content;
-}
+import type { LoadedFile } from '../api';
+import { withoutFrontmatter } from '../markdown';
 
 interface Props {
   title: string;
   /** Shown under the title: a project-relative path, or a template's origin. */
   subtitle: string;
-  load: () => Promise<string>;
+  load: () => Promise<LoadedFile>;
   /** Omit for a read-only view (templates). */
-  onSave?: (content: string) => Promise<void>;
+  onSave?: (content: string, version: number) => Promise<number>;
   /** Rendered instead of the Save button when the file cannot be edited here. */
   readOnlyAction?: ReactNode;
   children?: ReactNode;
 }
 
 // Generic markdown editor: a role's prompt, a project skill, or a read-only
-// starter template. Loading goes through the caller's `load()` so every
-// caller gets the shared error handling in api.ts — an inline fetch here used
-// to swallow a 404 and hand back an empty editor, which Save then wrote over
-// the file.
+// starter template. Loading goes through the caller's `load()` so every caller
+// gets the shared error handling in api.ts — an inline fetch here used to
+// swallow a 404 and hand back an empty editor, which Save then wrote over the
+// file.
 export function FileEditor({ title, subtitle, load, onSave, readOnlyAction, children }: Props) {
   const [content, setContent] = useState('');
+  const [version, setVersion] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A 409 means the file moved under us. Offering "reload" is the only safe
+  // way out, and it has to be explicit: silently reloading would throw away
+  // whatever the user had typed.
+  const [conflict, setConflict] = useState<string | null>(null);
   const preview = useMemo(() => withoutFrontmatter(content), [content]);
 
-  useEffect(() => {
-    let cancelled = false;
+  // Shared by the initial load and the reload a conflict offers. `alive`
+  // guards the mount path, where switching file mid-flight would otherwise
+  // land the old file's content in the new file's editor.
+  function read(alive: () => boolean = () => true) {
     setLoaded(false);
     setError(null);
-    load()
-      .then(text => {
-        if (cancelled) return;
-        setContent(text);
+    setConflict(null);
+    return load()
+      .then(file => {
+        if (!alive()) return;
+        setContent(file.content);
+        setVersion(file.version);
         setDirty(false);
         setLoaded(true);
       })
       .catch(err => {
-        if (cancelled) return;
+        if (!alive()) return;
         setContent('');
         setError(err instanceof Error ? err.message : String(err));
       });
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    read(() => !cancelled);
     return () => {
       cancelled = true;
     };
@@ -60,11 +67,14 @@ export function FileEditor({ title, subtitle, load, onSave, readOnlyAction, chil
     if (!onSave) return;
     setSaving(true);
     setError(null);
+    setConflict(null);
     try {
-      await onSave(content);
+      setVersion(await onSave(content, version));
       setDirty(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('changed on disk')) setConflict(message);
+      else setError(message);
     } finally {
       setSaving(false);
     }
@@ -85,6 +95,14 @@ export function FileEditor({ title, subtitle, load, onSave, readOnlyAction, chil
       <p className="prompt-editor-path">{subtitle}</p>
 
       {error && <p className="editor-error">{error}</p>}
+      {conflict && (
+        <div className="editor-conflict">
+          <p>{conflict}</p>
+          <button className="btn" onClick={() => read()}>
+            Reload and lose my edits
+          </button>
+        </div>
+      )}
 
       <div className="prompt-editor-panes">
         <textarea

@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -14,6 +15,8 @@ import type { Connect, ViteDevServer } from 'vite';
 import * as dashboard from './dashboard';
 import {
   applyRolePatch,
+  fileVersion,
+  isStaleWrite,
   isStarterRef,
   isWithinRoot as isWithin,
   parseFrontmatter,
@@ -212,17 +215,33 @@ export function relayStudioApi() {
             if (!isWithinRoot(path)) return sendJson(res, 403, { error: 'Path escapes project root' });
             const abs = join(PROJECT_ROOT, path);
             if (!existsSync(abs)) return sendJson(res, 404, { error: 'File not found' });
-            return sendJson(res, 200, { content: readFileSync(abs, 'utf-8') });
+            // `version` is the file's mtime, handed back on save so a write
+            // that would clobber someone else's can be refused.
+            return sendJson(res, 200, {
+              content: readFileSync(abs, 'utf-8'),
+              version: fileVersion(statSync(abs).mtimeMs),
+            });
           }
 
           if (req.method === 'PUT' && pathname === '/file') {
-            const { path, content } = await jsonBody(req);
+            const { path, content, version } = await jsonBody(req);
             if (typeof path !== 'string' || typeof content !== 'string') {
               return sendJson(res, 400, { error: 'path and content are required' });
             }
+            if (isStarterRef(path)) return sendJson(res, 400, { error: 'Templates are read-only' });
             if (!isWithinRoot(path)) return sendJson(res, 403, { error: 'Path escapes project root' });
-            writeFileSync(join(PROJECT_ROOT, path), content);
-            return sendJson(res, 200, { ok: true });
+            const abs = join(PROJECT_ROOT, path);
+            // A run rewrites artifacts and project memory while Studio sits
+            // open on them. Without this the editor's stale copy wins in
+            // silence, and the pipeline's output is the thing that is lost.
+            if (existsSync(abs) && isStaleWrite(statSync(abs).mtimeMs, version)) {
+              return sendJson(res, 409, {
+                error: 'This file changed on disk since you opened it. Reload to see the new version — saving now would overwrite it.',
+                version: fileVersion(statSync(abs).mtimeMs),
+              });
+            }
+            writeFileSync(abs, content);
+            return sendJson(res, 200, { ok: true, version: fileVersion(statSync(abs).mtimeMs) });
           }
 
           if (req.method === 'GET' && pathname === '/skills') {

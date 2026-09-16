@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RoleSummary, SkillEntry } from '../types';
 
 type DropState = 'idle' | 'over' | 'rejected';
@@ -13,7 +13,20 @@ interface Props {
 export function AttachedSkills({ role, skills, onDetachSkill, onDropSkill }: Props) {
   const [dropState, setDropState] = useState<DropState>('idle');
   const [dropMessage, setDropMessage] = useState<string | null>(null);
+  // The rejection state clears itself on a timer. Held in a ref and cancelled
+  // on unmount: switching role while a rejection is showing otherwise fires
+  // setState on a component that is gone.
+  const clearTimer = useRef<number>();
   const skillByPath = new Map(skills.map(s => [s.path, s]));
+
+  useEffect(() => () => window.clearTimeout(clearTimer.current), []);
+
+  function reject(message: string, holdMs: number) {
+    setDropState('rejected');
+    setDropMessage(message);
+    window.clearTimeout(clearTimer.current);
+    clearTimer.current = window.setTimeout(() => setDropState('idle'), holdMs);
+  }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -22,15 +35,11 @@ export function AttachedSkills({ role, skills, onDetachSkill, onDropSkill }: Pro
     // Templates are not files in this project, so the pipeline could never
     // read one. SkillCard already refuses to drag them; this is the backstop.
     if (path.startsWith('starter:')) {
-      setDropState('rejected');
-      setDropMessage('Copy this template into the project first, then attach the copy.');
-      setTimeout(() => setDropState('idle'), 2000);
+      reject('Copy this template into the project first, then attach the copy.', 2000);
       return;
     }
     if (role.extraSkills.includes(path)) {
-      setDropState('rejected');
-      setDropMessage(`“${skillByPath.get(path)?.id ?? path}” is already attached to this role.`);
-      setTimeout(() => setDropState('idle'), 1200);
+      reject(`“${skillByPath.get(path)?.id ?? path}” is already attached to this role.`, 1200);
       return;
     }
     setDropState('idle');

@@ -169,3 +169,22 @@ export function applyRolePatch(
 
   return null;
 }
+
+/** Whether a save would overwrite a file that changed since it was loaded.
+ *  The pipeline rewrites artifacts and project memory while Studio is open, so
+ *  without this the editor's copy silently wins over whatever a run just
+ *  produced. Milliseconds are rounded: the version is a JSON round-trip, and
+ *  a float compared for equality across one is a coin toss.
+ *
+ *  An absent `expected` means the caller did not read the file first, which is
+ *  legal — a new file has no version to conflict with. */
+export function isStaleWrite(currentMtimeMs: number, expected: unknown): boolean {
+  if (expected === undefined || expected === null) return false;
+  const want = Number(expected);
+  if (!Number.isFinite(want)) return false;
+  return Math.round(currentMtimeMs) !== Math.round(want);
+}
+
+export function fileVersion(mtimeMs: number): number {
+  return Math.round(mtimeMs);
+}
