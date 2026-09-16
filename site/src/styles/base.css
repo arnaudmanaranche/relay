@@ -502,7 +502,7 @@ section { padding: var(--sec-y) var(--sec-x); border-bottom: 1px solid var(--lin
   color: var(--text-lo); overflow-x: auto; white-space: pre; max-height: 15rem; overflow-y: auto;
 }
 
-/* ============ The macOS app ============ */
+/* ============ Studio ============ */
 .app-facts {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.6rem;
   margin: 2.4rem 0 0; padding-top: 1.6rem; border-top: 1px solid var(--line);
@@ -527,21 +527,33 @@ section { padding: var(--sec-y) var(--sec-x); border-bottom: 1px solid var(--lin
 }
 .shot figcaption b { color: var(--text-hi); font-weight: 600; }
 
-.app-beats { display: flex; flex-direction: column; gap: 4.5rem; margin-top: 4rem; }
-/* Even split: the design-gate capture is portrait and the copy beside it is
-   short, so giving the image the wider column only grew the dead space under
-   the text. */
-.app-beat { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3.2rem; align-items: start; }
-.app-beat .beat-copy h4 { font-family: var(--font-serif); font-size: 1.35rem; font-weight: 400; margin-bottom: 0.7rem; }
-.app-beat .beat-copy p { font-size: 0.94rem; color: var(--text-lo); line-height: 1.6; }
-.app-beat .beat-copy p + p { margin-top: 0.8rem; }
-.app-beat .beat-meta {
-  margin-top: 1rem; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted);
+/* Each beat is copy then a full-width capture. Studio's screens are dense:
+   in a two-column beat a 1440px capture came out at 452px, where nothing in
+   it can be read. The copy keeps a normal measure; the image gets the whole
+   column. */
+.studio-beats { display: flex; flex-direction: column; gap: 4.5rem; margin-top: 4rem; }
+.studio-beat .beat-copy { max-width: 44rem; margin-bottom: 1.6rem; }
+.studio-beat .beat-copy h4 { font-family: var(--font-serif); font-size: 1.35rem; font-weight: 400; margin-bottom: 0.7rem; }
+.studio-beat .beat-copy p { font-size: 0.94rem; color: var(--text-lo); line-height: 1.6; }
+.studio-beat .beat-copy p + p { margin-top: 0.8rem; }
+.studio-beat .beat-meta {
+  margin-top: 1rem;
+  font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted);
   display: flex; flex-direction: column; gap: 0.3rem;
 }
-@media (max-width: 900px) {
-  .app-beat { grid-template-columns: 1fr; gap: 1.4rem; }
+
+.shot { margin: 0; }
+.shot .frame {
+  border: 1px solid var(--line); background: var(--bg-raised); padding: 0;
+  overflow: hidden; line-height: 0;
 }
+.shot img { display: block; width: 100%; height: auto; }
+.shot figcaption {
+  margin-top: 0.65rem; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted);
+  line-height: 1.55; max-width: 42rem;
+}
+.shot figcaption b { color: var(--text-hi); font-weight: 600; }
+
 
 /* ============ Guarantees ============ */
 /* Four across, two rows: eight guarantees fill the grid exactly, so no row

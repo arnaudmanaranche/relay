@@ -32,9 +32,9 @@ export function TypeSkills({ role, skills, onChange }: Props) {
 
   return (
     <div className="type-skills">
-      <h3>Skills par type de fichier</h3>
+      <h3>Per-file-type skills</h3>
       <p className="empty-hint">
-        Injectée seulement quand un fichier touché correspond au motif. Propre au rôle Dev.
+        Injected only when a touched file matches the pattern. Dev role only.
       </p>
 
       {entries.length > 0 && (
@@ -49,7 +49,7 @@ export function TypeSkills({ role, skills, onChange }: Props) {
                 disabled={busy}
                 onClick={() => apply(Object.fromEntries(entries.filter(([k]) => k !== p)))}
               >
-                Retirer
+                Remove
               </button>
             </li>
           ))}
@@ -58,7 +58,7 @@ export function TypeSkills({ role, skills, onChange }: Props) {
 
       {projectSkills.length === 0 ? (
         <p className="empty-hint">
-          Aucune skill de projet à associer — crées-en une, ou copie un modèle dans le projet.
+          No project skill to map yet &mdash; create one, or copy a template into the project.
         </p>
       ) : (
         <div className="type-skills-add">
@@ -84,7 +84,7 @@ export function TypeSkills({ role, skills, onChange }: Props) {
               setPattern('');
             }}
           >
-            Associer
+            Map
           </button>
         </div>
       )}

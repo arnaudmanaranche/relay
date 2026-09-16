@@ -40,10 +40,10 @@ export function Dashboard() {
     <div className="dashboard">
       <div className="dashboard-toolbar">
         <button className="btn" onClick={() => setShowSettings(true)}>
-          Réglages
+          Settings
         </button>
         <button className="btn primary" onClick={() => setShowNewRun(true)} disabled={repos.length === 0}>
-          Nouvelle feature
+          New feature
         </button>
       </div>
 
@@ -53,15 +53,15 @@ export function Dashboard() {
         <div className="stat-strip">
           <div className="stat-tile">
             <span className="stat-value">{running}</span>
-            <span className="stat-label">en cours</span>
+            <span className="stat-label">running</span>
           </div>
           <div className="stat-tile">
             <span className="stat-value">{attention}</span>
-            <span className="stat-label">besoin d'attention</span>
+            <span className="stat-label">need attention</span>
           </div>
           <div className="stat-tile">
             <span className="stat-value">{merged}</span>
-            <span className="stat-label">mergées</span>
+            <span className="stat-label">merged</span>
           </div>
         </div>
       )}
@@ -70,7 +70,7 @@ export function Dashboard() {
         <div className="repo-section" key={repo.root}>
           <div className="repo-section-head">
             <span className="repo-name">{repo.name}</span>
-            <span className="repo-merged-count">{repo.completed?.length ?? 0} mergées</span>
+            <span className="repo-merged-count">{repo.completed?.length ?? 0} merged</span>
           </div>
 
           {repo.error ? (
@@ -92,26 +92,26 @@ export function Dashboard() {
                           title={run.resumeHint}
                           onClick={() => navigator.clipboard.writeText(run.resumeHint!)}
                         >
-                          Copier
+                          Copy
                         </button>
                       )}
                       {run.resumeArgs && run.resumeArgs.length > 0 && (
                         <button className="btn" onClick={() => retryRun(run.repoRoot, run.resumeArgs!).then(poll)}>
-                          Reprendre
+                          Resume
                         </button>
                       )}
                       <button className="btn" onClick={() => revealInFinder(run.worktree)}>
-                        Révéler
+                        Reveal
                       </button>
                     </div>
                   </div>
                 ))}
-                {(repo.active ?? []).length === 0 && <p className="empty-hint">Aucun run actif.</p>}
+                {(repo.active ?? []).length === 0 && <p className="empty-hint">No active run.</p>}
               </div>
 
               {(repo.completed?.length ?? 0) > 0 && (
                 <>
-                  <span className="merged-list-label">Récemment mergé</span>
+                  <span className="merged-list-label">Recently merged</span>
                   <ul className="merged-list">
                     {repo.completed!.slice(0, 5).map(c => (
                       <li key={c.slug}>{c.slug}</li>
@@ -125,7 +125,7 @@ export function Dashboard() {
       ))}
 
       {snapshot && repos.length === 0 && !error && (
-        <p className="empty-hint">Aucun dépôt configuré — ouvre Réglages pour en ajouter un.</p>
+        <p className="empty-hint">No repository configured yet &mdash; open Settings to add one.</p>
       )}
 
       {openRun && <RunDetail run={openRun} onClose={() => setOpenRun(null)} onChanged={poll} />}

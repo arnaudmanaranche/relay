@@ -1,10 +1,18 @@
 # Relay dashboard
 
-**Deprecated** — superseded by `npm run studio` (see `../studio/`), which
-ports this app's monitoring, retry/reveal/answer actions, and settings into
-the same React tool that already edits pipeline roles and skills, so there's
-one local surface instead of two. Kept here until Studio's Pipeline tab has
-been used in place of this app for a while; not being developed further.
+**Deprecated** — superseded by `/relay:studio` (see `../studio/`), which ports
+this app's monitoring, retry/reveal/answer actions, and settings into the same
+tool that already edits pipeline roles and skills, so there's one local surface
+instead of two.
+
+The one thing this app has that Studio does not is an attached pty. That turned
+out not to matter: `run-pipeline.sh`'s only `read` calls iterate file lists, and
+`agent-runner.ts` never touches `process.stdin` (it checks `isTTY` to decide
+whether to draw a spinner, nothing more). The pipeline exits cleanly at a gate
+and is resumed through a file or a flag, both of which Studio does. So `pty_send`
+here has no reader in Relay, and Studio is not missing anything structural.
+
+Kept for now; not being developed further.
 
 Small macOS app (native SDK) with a Dock icon that surfaces live Relay pipeline
 runs across your repos. Polls the read-only aggregator from

@@ -49,14 +49,14 @@ export function DashboardSettings({ onClose, onSaved }: Props) {
     <div className="run-detail-overlay" onClick={onClose}>
       <div className="run-detail-panel dashboard-settings" onClick={e => e.stopPropagation()}>
         <div className="run-detail-header">
-          <h2>Réglages</h2>
+          <h2>Settings</h2>
           <button className="btn" onClick={onClose}>
-            Fermer
+            Close
           </button>
         </div>
 
         <section>
-          <h3>Apparence</h3>
+          <h3>Appearance</h3>
           <div className="theme-toggle">
             {['system', 'light', 'dark'].map(option => (
               <button
@@ -71,13 +71,13 @@ export function DashboardSettings({ onClose, onSaved }: Props) {
         </section>
 
         <section>
-          <h3>Dépôts surveillés</h3>
+          <h3>Watched repositories</h3>
           <ul className="repo-draft-list">
             {draftRepos.map((repo, i) => (
               <li key={i}>
                 <span>{repo}</span>
                 <button className="btn" onClick={() => setDraftRepos(draftRepos.filter((_, j) => j !== i))}>
-                  Retirer
+                  Remove
                 </button>
               </li>
             ))}
@@ -85,7 +85,7 @@ export function DashboardSettings({ onClose, onSaved }: Props) {
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
             <input
               type="text"
-              placeholder="/chemin/vers/un/repo"
+              placeholder="/path/to/a/repo"
               value={newRepo}
               onChange={e => setNewRepo(e.target.value)}
               style={{ flex: 1 }}
@@ -99,12 +99,12 @@ export function DashboardSettings({ onClose, onSaved }: Props) {
                 }
               }}
             >
-              Ajouter
+              Add
             </button>
           </div>
           {error && <p className="marketplace-error">{error}</p>}
           <button className="btn primary" onClick={handleSaveRepos} disabled={saving}>
-            {saving ? 'Enregistrement…' : 'Enregistrer'}
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </section>
       </div>

@@ -12,7 +12,7 @@ export const navGroups: NavGroup[] = [
       { href: '#overview', label: 'Overview' },
       { href: '#problem', label: 'The problem' },
       { href: '#walkthrough', label: 'How it works' },
-      { href: '#app', label: 'macOS app' },
+      { href: '#studio', label: 'Studio' },
     ],
   },
   {

@@ -23,13 +23,13 @@ export function AttachedSkills({ role, skills, onDetachSkill, onDropSkill }: Pro
     // read one. SkillCard already refuses to drag them; this is the backstop.
     if (path.startsWith('starter:')) {
       setDropState('rejected');
-      setDropMessage('Copie d’abord ce modèle dans le projet, puis attache la copie.');
+      setDropMessage('Copy this template into the project first, then attach the copy.');
       setTimeout(() => setDropState('idle'), 2000);
       return;
     }
     if (role.extraSkills.includes(path)) {
       setDropState('rejected');
-      setDropMessage(`« ${skillByPath.get(path)?.id ?? path} » est déjà attachée à ce rôle.`);
+      setDropMessage(`“${skillByPath.get(path)?.id ?? path}” is already attached to this role.`);
       setTimeout(() => setDropState('idle'), 1200);
       return;
     }
@@ -50,16 +50,16 @@ export function AttachedSkills({ role, skills, onDetachSkill, onDropSkill }: Pro
       onDragLeave={() => dropState === 'over' && setDropState('idle')}
       onDrop={handleDrop}
     >
-      <h3>Skills attachées</h3>
+      <h3>Attached skills</h3>
       {role.extraSkills.length === 0 ? (
-        <p className="empty-hint">Glisse une skill depuis la bibliothèque pour l'attacher à ce rôle.</p>
+        <p className="empty-hint">Drag a skill from the library to attach it to this role.</p>
       ) : (
         <ul>
           {role.extraSkills.map(path => (
             <li key={path}>
               <span>{skillByPath.get(path)?.id ?? path}</span>
               <button className="btn" onClick={() => onDetachSkill(path)}>
-                Retirer
+                Remove
               </button>
             </li>
           ))}

@@ -1,5 +1,14 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
+
+// A skill's `---\nid: …\n---` block is metadata, not prose: handed to the
+// markdown renderer it comes out as a setext heading, so the preview opened
+// with "id: x description: y" as its title. The textarea still holds the whole
+// file, because the frontmatter is editable too.
+function withoutFrontmatter(content: string): string {
+  const match = content.match(/^---\n[\s\S]*?\n---\n?([\s\S]*)$/);
+  return match ? match[1] : content;
+}
 
 interface Props {
   title: string;
@@ -24,6 +33,7 @@ export function FileEditor({ title, subtitle, load, onSave, readOnlyAction, chil
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const preview = useMemo(() => withoutFrontmatter(content), [content]);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,7 +76,7 @@ export function FileEditor({ title, subtitle, load, onSave, readOnlyAction, chil
         <h2>{title}</h2>
         {onSave ? (
           <button className="btn primary" onClick={handleSave} disabled={!dirty || saving || !loaded}>
-            {saving ? 'Enregistrement…' : 'Enregistrer'}
+            {saving ? 'Saving…' : 'Save'}
           </button>
         ) : (
           readOnlyAction
@@ -87,7 +97,7 @@ export function FileEditor({ title, subtitle, load, onSave, readOnlyAction, chil
           }}
         />
         <div className="prompt-editor-preview">
-          <ReactMarkdown>{content}</ReactMarkdown>
+          <ReactMarkdown>{preview}</ReactMarkdown>
         </div>
       </div>
 

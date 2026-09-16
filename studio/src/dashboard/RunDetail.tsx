@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import type { ActiveRun, TimelineRow } from './types';
 import {
   fetchArtifact,
@@ -72,12 +73,12 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
         <div className="run-detail-header">
           <h2>{run.slug}</h2>
           <button className="btn" onClick={onClose}>
-            Fermer
+            Close
           </button>
         </div>
 
         <section>
-          <h3>État</h3>
+          <h3>State</h3>
           <p>
             <span className={`run-badge state-${run.state}`}>{STATE_BADGES[run.state]}</span>
           </p>
@@ -91,11 +92,11 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
             <table className="timeline-table">
               <thead>
                 <tr>
-                  <th>Rôle</th>
+                  <th>Role</th>
                   <th>Verdict</th>
-                  <th>Modèle</th>
-                  <th>Coût</th>
-                  <th>Il y a</th>
+                  <th>Model</th>
+                  <th>Cost</th>
+                  <th>When</th>
                 </tr>
               </thead>
               <tbody>
@@ -111,15 +112,17 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
               </tbody>
             </table>
             <p className="timeline-total">
-              Total : {timeline.totalCostText} · {timeline.totalTokens} tokens
+              Total: {timeline.totalCostText} · {timeline.totalTokens} tokens
             </p>
           </section>
         )}
 
         {run.state === 'design-gate' && (
           <section>
-            <h3>Plan technique</h3>
-            <div className="log-view">{artifact || 'Chargement…'}</div>
+            <h3>Technical plan</h3>
+            <div className="artifact-view">
+              {artifact ? <ReactMarkdown>{artifact}</ReactMarkdown> : <p>Loading…</p>}
+            </div>
             <div style={{ marginTop: '0.8rem' }}>
               <button
                 className="btn primary"
@@ -132,7 +135,7 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
                   })
                 }
               >
-                Approuver
+                Approve
               </button>
             </div>
           </section>
@@ -140,10 +143,12 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
 
         {(run.state === 'blocked-pm-questions' || run.state === 'blocked-dev-review') && (
           <section className="answer-box">
-            <h3>Question bloquante</h3>
-            <div className="log-view">{artifact || 'Chargement…'}</div>
+            <h3>Blocking question</h3>
+            <div className="artifact-view">
+              {artifact ? <ReactMarkdown>{artifact}</ReactMarkdown> : <p>Loading…</p>}
+            </div>
             <textarea
-              placeholder="Ta réponse…"
+              placeholder="Your answer…"
               value={answer}
               onChange={e => setAnswer(e.target.value)}
               style={{ marginTop: '0.8rem' }}
@@ -167,7 +172,7 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
                 })
               }
             >
-              Répondre et reprendre
+              Answer and resume
             </button>
           </section>
         )}
@@ -185,7 +190,7 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
                 })
               }
             >
-              Réessayer
+              Retry
             </button>
           </section>
         )}
@@ -202,14 +207,14 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
                 })
               }
             >
-              Arrêter (pid {pid})
+              Stop (pid {pid})
             </button>
           </section>
         )}
 
         {log && (
           <section>
-            <h3>Journal</h3>
+            <h3>Log</h3>
             <div className="log-view">{log}</div>
           </section>
         )}
@@ -219,10 +224,10 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
           <p className="run-detail-text">{run.worktree}</p>
           <div className="run-actions">
             <button className="btn" onClick={() => run_(() => revealInFinder(run.worktree))}>
-              Révéler dans Finder
+              Reveal in Finder
             </button>
             <button className="btn" onClick={() => run_(() => openInEditor(run.worktree))}>
-              Ouvrir dans l'éditeur
+              Open in editor
             </button>
           </div>
         </section>

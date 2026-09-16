@@ -92,11 +92,11 @@ export function App() {
         <FileEditor
           key={skill.path}
           title={skill.id}
-          subtitle="Modèle livré avec Relay, en lecture seule. Copie-le dans le projet pour l'éditer et l'attacher à un rôle."
+          subtitle="A template shipped with Relay, read-only. Copy it into the project to edit it and attach it to a role."
           load={() => fetchStarter(skill.path)}
           readOnlyAction={
             <button className="btn primary" disabled={copying} onClick={() => useTemplate(skill)}>
-              {copying ? 'Copie…' : 'Copier dans le projet'}
+              {copying ? 'Copying…' : 'Copy into project'}
             </button>
           }
         />
@@ -135,8 +135,8 @@ export function App() {
       <div className="error-banner">
         <p>{error}</p>
         <p>
-          Studio doit être lancé depuis la racine d'un projet où <code>/relay:setup</code> a déjà tourné
-          (fichier <code>.relay/agents.json</code> attendu).
+          Studio has to be started from the root of a project where <code>/relay:setup</code> has already
+          run &mdash; it expects a <code>.relay/agents.json</code> there.
         </p>
       </div>
     );
@@ -151,7 +151,7 @@ export function App() {
         </span>
         <nav>
           <button className={tab === 'roles' ? 'tab active' : 'tab'} onClick={() => setTab('roles')}>
-            Rôles
+            Roles
           </button>
           <button className={tab === 'skills' ? 'tab active' : 'tab'} onClick={() => setTab('skills')}>
             Skills
@@ -168,7 +168,7 @@ export function App() {
         <div className="studio-layout studio-layout-2col">
           <main className="studio-column studio-main">
             {copyError && <p className="editor-error">{copyError}</p>}
-            {selectedSkill ? skillEditor(selectedSkill) : <p className="empty-hint">Sélectionne une skill à éditer.</p>}
+            {selectedSkill ? skillEditor(selectedSkill) : <p className="empty-hint">Pick a skill to edit.</p>}
           </main>
           <aside className="studio-column">{library}</aside>
         </div>
@@ -215,7 +215,7 @@ export function App() {
             ) : selectedSkill ? (
               skillEditor(selectedSkill)
             ) : (
-              <p className="empty-hint">Sélectionne un rôle ou une skill pour l'éditer.</p>
+              <p className="empty-hint">Pick a role or a skill to edit.</p>
             )}
           </main>
 

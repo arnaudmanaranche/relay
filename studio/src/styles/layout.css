@@ -347,7 +347,13 @@ body {
   border-radius: 999px;
   white-space: nowrap;
 }
-.run-badge.state-running,
+/* Colour follows the legend the rest of Relay teaches: charcoal is work in
+   progress, accent is "waiting on you". Grouping running with the gates made
+   a run that needs nothing look like a run that needs you. */
+.run-badge.state-running {
+  background: color-mix(in srgb, var(--block-charcoal) 14%, var(--bg-raised));
+  color: var(--text-hi);
+}
 .run-badge.state-blocked-pm-questions,
 .run-badge.state-blocked-dev-review,
 .run-badge.state-design-gate { background: color-mix(in srgb, var(--accent) 18%, var(--bg-raised)); color: var(--accent); }
@@ -484,3 +490,40 @@ body {
 .type-skills-path { font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-lo); margin-right: auto; }
 .type-skills-add { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .type-skills-add input { flex: 1 1 8rem; min-width: 0; }
+
+/* The plan and the PM's questions are markdown their author wrote, so they
+   are rendered. .log-view stays for the run log, which really is plain text. */
+.artifact-view {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.2rem 1rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+.artifact-view h1, .artifact-view h2, .artifact-view h3 {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  margin: 1.1rem 0 0.5rem;
+}
+.artifact-view p, .artifact-view li { color: var(--text-lo); }
+.artifact-view ul, .artifact-view ol { padding-left: 1.2rem; }
+.artifact-view code {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  background: var(--line-soft);
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+}
+.artifact-view pre {
+  background: var(--line-soft);
+  padding: 0.7rem 0.8rem;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+.artifact-view pre code { background: none; padding: 0; }

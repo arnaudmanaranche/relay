@@ -15,7 +15,7 @@ export const faq: FaqItem[] = [
   },
   {
     q: 'Do I have to babysit it?',
-    a: 'Once, in the middle. The Architect stage pauses for you to read the plan and approve it, and the approval binds to the plan you actually read, so an edited plan needs a fresh one. Everything else runs unattended until it either opens a PR or halts on a failed gate. The <a href="#app">macOS app</a> exists precisely so you do not have to sit and watch for that moment: it shows the plan, and you approve it there.',
+    a: 'Once, in the middle. The Architect stage pauses for you to read the plan and approve it, and the approval binds to the plan you actually read, so an edited plan needs a fresh one. Everything else runs unattended until it either opens a PR or halts on a failed gate. <a href="#studio">Relay Studio</a> exists precisely so you do not have to sit and watch for that moment: it shows the plan, and you approve it there.',
   },
   {
     q: 'What if Review or QA is wrong?',
@@ -38,7 +38,7 @@ export const faq: FaqItem[] = [
     a: 'Not very, and it is published that way on purpose. The pipeline runs end to end and ships real features on real projects every week, but it is one person&rsquo;s working tool rather than a product: there is no stability promise, roles and gates still change shape, and a release can move something you were relying on. That is also the honest reason to look at it now, while the parts are still visible and worth arguing about. Issues and forks welcome; a team standardising on it should wait.',
   },
   {
-    q: 'Do I need the macOS app?',
-    a: 'No. Everything runs from your terminal, and the app is read-only about state it does not own. It is there for the moment a run stops and waits for you: instead of remembering to check, you see it, read the plan, and approve. It watches every Relay repo you point it at, not just the one you have open.',
+    q: 'Do I need Studio?',
+    a: 'No. Everything runs from your terminal. Studio is there for the two things a terminal is bad at: seeing, across every repo you work in, that a run has stopped and is waiting on you; and editing what a role is told without hand-patching JSON. It is a local dev tool, opened with <code>/relay:studio</code>, with no build and no service behind it.',
   },
 ];

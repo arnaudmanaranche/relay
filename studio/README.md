@@ -67,8 +67,10 @@ The API enforces the same rule: `PATCH /api/roles/:name` rejects a
 
 - No file watching and no write conflict detection: if the pipeline rewrites a
   file while you have it open, the last save wins silently.
-- Run output is read back from a log file, not a live terminal, so a run that
-  stops to ask something on stdin cannot be answered from here.
+- Run output is read back from a log file, not a live terminal. Nothing in the
+  pipeline reads stdin (`run-pipeline.sh`'s `read` calls iterate file lists;
+  `agent-runner.ts` only checks `isTTY` for a spinner), so there is nothing to
+  type at, but output arrives per poll rather than per keystroke.
 - macOS only for *Révéler* (`open -R`) and *Ouvrir dans l'éditeur* (`code`).
 
 ## Development

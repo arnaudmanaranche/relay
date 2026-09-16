@@ -42,11 +42,11 @@ export function MarketplaceImport({ onImported }: Props) {
 
   return (
     <div className="marketplace">
-      <h2>Importer depuis GitHub</h2>
+      <h2>Import from GitHub</h2>
       <p className="marketplace-hint">
-        Cherche un dépôt public qui suit la convention <code>.claude-plugin/marketplace.json</code> (ex.
-        <code> arnaudmanaranche/relay</code>). Il n'existe pas de marketplace Claude interrogeable en
-        direct — ceci lit le manifeste du dépôt indiqué.
+        Search a public repo that follows the <code>.claude-plugin/marketplace.json</code> convention (e.g.
+        <code> arnaudmanaranche/relay</code>). There is no live Claude marketplace to query &mdash; this reads
+        that repo&rsquo;s own manifest.
       </p>
       <div className="marketplace-search">
         <input
@@ -57,13 +57,13 @@ export function MarketplaceImport({ onImported }: Props) {
           onKeyDown={e => e.key === 'Enter' && handleSearch()}
         />
         <button className="btn" onClick={handleSearch} disabled={loading || !repo.trim()}>
-          {loading ? 'Recherche…' : 'Chercher'}
+          {loading ? 'Searching…' : 'Search'}
         </button>
       </div>
       {error && <p className="marketplace-error">{error}</p>}
       {results && (
         <div className="marketplace-results">
-          {results.length === 0 && <p className="empty-hint">Aucune skill trouvée dans ce dépôt.</p>}
+          {results.length === 0 && <p className="empty-hint">No skill found in that repo.</p>}
           {results.map(entry => (
             <div className="marketplace-result" key={entry.path}>
               <span className="marketplace-result-text">
@@ -75,7 +75,7 @@ export function MarketplaceImport({ onImported }: Props) {
                 onClick={() => handleImport(entry)}
                 disabled={importingPath === entry.path}
               >
-                {importingPath === entry.path ? 'Import…' : 'Importer'}
+                {importingPath === entry.path ? 'Importing…' : 'Import'}
               </button>
             </div>
           ))}

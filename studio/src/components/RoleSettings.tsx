@@ -43,14 +43,14 @@ export function RoleSettings({ role, onSave }: Props) {
 
   return (
     <div className="role-settings">
-      <h3>Réglages du rôle</h3>
+      <h3>Role settings</h3>
       <div className="role-settings-grid">
         <label>
-          <span>Modèle</span>
+          <span>Model</span>
           <input type="text" value={model} onChange={e => setModel(e.target.value)} spellCheck={false} />
         </label>
         <label>
-          <span>Tokens max</span>
+          <span>Max tokens</span>
           <input
             type="number"
             min={1}
@@ -62,7 +62,7 @@ export function RoleSettings({ role, onSave }: Props) {
         <label>
           <span>Effort</span>
           <select value={effort} onChange={e => setEffort(e.target.value)}>
-            <option value="">(défaut du backend)</option>
+            <option value="">(backend default)</option>
             {EFFORT_LEVELS.map(level => (
               <option key={level} value={level}>
                 {level}
@@ -74,10 +74,10 @@ export function RoleSettings({ role, onSave }: Props) {
       {error && <p className="editor-error">{error}</p>}
       <div className="role-settings-actions">
         <button className="btn primary" disabled={!dirty || saving} onClick={handleSave}>
-          {saving ? 'Enregistrement…' : 'Enregistrer les réglages'}
+          {saving ? 'Saving…' : 'Save settings'}
         </button>
         <span className="role-settings-note">
-          Écrit dans <code>.relay/agents.json</code>
+          Written to <code>.relay/agents.json</code>
         </span>
       </div>
     </div>

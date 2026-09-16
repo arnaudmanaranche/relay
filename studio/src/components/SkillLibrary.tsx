@@ -34,9 +34,9 @@ export function SkillLibrary({ skills, attachedPaths, selectedPath, onSelect, on
   return (
     <div>
       <div className="skill-library-header">
-        <h2>Bibliothèque de skills</h2>
+        <h2>Skill library</h2>
         <button className="btn" onClick={() => setShowForm(v => !v)}>
-          Nouvelle skill
+          New skill
         </button>
       </div>
 
@@ -44,18 +44,18 @@ export function SkillLibrary({ skills, attachedPaths, selectedPath, onSelect, on
         <div className="skill-form">
           <input
             type="text"
-            placeholder="Nom (ex. api-error-handling)"
+            placeholder="Name (e.g. api-error-handling)"
             value={name}
             onChange={e => setName(e.target.value)}
           />
           <input
             type="text"
-            placeholder="Description courte"
+            placeholder="Short description"
             value={description}
             onChange={e => setDescription(e.target.value)}
           />
           <button className="btn primary" onClick={handleCreate} disabled={creating || !name.trim()}>
-            {creating ? 'Création…' : 'Créer'}
+            {creating ? 'Creating…' : 'Create'}
           </button>
         </div>
       )}

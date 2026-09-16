@@ -47,5 +47,6 @@ Reach for the file or the terminal for these:
 
 - `skill`, `artifact` and `description` are structural — `agent-runner.ts` keys behaviour off the role name — so they are shown but not editable.
 - No file watching: if the pipeline rewrites a file while it is open in Studio, whichever saves last wins.
+- Run output is read back from a log file rather than a live terminal. Nothing in the pipeline reads stdin, so there is nothing to type at, but you do not get output keystroke by keystroke either.
 
 `studio/README.md` in the module has the rest, including how it locates the project.

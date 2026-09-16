@@ -84,7 +84,7 @@ bash skills/pipeline/scripts/babysit-pr.sh <branch> --max-reruns=3 --auto-stamp
 
 `/relay:studio` opens [Relay Studio](studio/README.md), a local web app pointed at the current project: edit each role's prompt, attach cross-cutting skills to a role, and watch the runs — approve a design gate, answer a blocking question, retry, reveal a worktree. It ships with the module rather than being copied into your project, and installs its dependencies once.
 
-[relay-dashboard](relay-dashboard/README.md) is a small macOS app that does the watching half natively. **Deprecated** in favour of Studio's Pipeline tab, and kept only for its live terminal, which Studio does not have yet.
+[relay-dashboard](relay-dashboard/README.md) is a small macOS app that does the watching half natively. **Deprecated** in favour of Studio's Pipeline tab.
 
 For configuration (models, effort, backends, batching, review panel size, E2E wiring), the safety model, and everything else, see the [full documentation](https://arnaudmanaranche.github.io/relay/).
 
@@ -122,7 +122,7 @@ npm run site:build    # writes docs/ — commit the result
 npm run site:preview  # serve the built docs/ exactly as Pages will
 ```
 
-The screenshots in `site/public/screens/` are real captures of `relay-dashboard`, taken against a throwaway fixture rather than a live repo. `npm run site:build` empties `docs/` first, so anything that has to survive belongs in `site/public/`.
+The screenshots in `site/public/screens/` are real captures of Studio, taken against a throwaway fixture rather than a live repo, driven over CDP so each one is in a specific state. `npm run site:build` empties `docs/` first, so anything that has to survive belongs in `site/public/`.
 
 ## Versioning
 

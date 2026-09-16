@@ -8,7 +8,7 @@ import { Fit } from './sections/Fit';
 import { Guarantees } from './sections/Guarantees';
 import { Hero } from './sections/Hero';
 import { Landscape } from './sections/Landscape';
-import { MacApp } from './sections/MacApp';
+import { Studio } from './sections/Studio';
 import { Problem } from './sections/Problem';
 import { Walkthrough } from './sections/Walkthrough';
 
@@ -24,7 +24,7 @@ export function App() {
           <Hero />
           <Problem />
           <Walkthrough />
-          <MacApp />
+          <Studio />
           <Guarantees />
           <Landscape />
           <Fit />
