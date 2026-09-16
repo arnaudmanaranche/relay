@@ -35,6 +35,8 @@ Requires `.relay/agents.json`, so `/relay:setup` must have run in that project f
 
 Attaching a skill to a role writes `roles.<role>.extraSkills` in `.relay/agents.json`, and `agent-runner.ts` injects that file into every call for that role. Any role can carry one, not just Dev.
 
+The Rôles tab also edits that role's `model`, `maxTokens` and `effort`, and — for `dev` only — its `typeSkills` patterns. Every value is checked against the same rules `agent-runner.ts` validates the registry with, so a save Studio accepts cannot fail the next run.
+
 ## Templates are not project files
 
 The starters Relay ships live in the module, not in your project, so they are read-only in Studio and cannot be dragged onto a role: `extraSkills` is resolved against the **project** root, and a template path there would be an entry the pipeline skips without a word. Copy one into the project first (**Copier dans le projet**), then attach the copy.
@@ -43,8 +45,7 @@ The starters Relay ships live in the module, not in your project, so they are re
 
 Reach for the file or the terminal for these:
 
-- Only `extraSkills` is editable in `.relay/agents.json`. `model`, `effort`, `maxTokens` and `typeSkills` still need the file opened by hand.
-- Run output is read back from a log file, not a live terminal, so a run that stops to ask something on stdin cannot be answered from Studio.
+- `skill`, `artifact` and `description` are structural — `agent-runner.ts` keys behaviour off the role name — so they are shown but not editable.
 - No file watching: if the pipeline rewrites a file while it is open in Studio, whichever saves last wins.
 
 `studio/README.md` in the module has the rest, including how it locates the project.

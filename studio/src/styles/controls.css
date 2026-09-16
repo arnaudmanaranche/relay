@@ -50,7 +50,7 @@
   color: var(--text-muted);
 }
 
-input[type='text'], input:not([type]) {
+input[type='text'], input[type='number'], input:not([type]), select {
   font-family: var(--font-ui);
   font-size: 0.85rem;
   padding: 0.5rem 0.7rem;
@@ -59,7 +59,7 @@ input[type='text'], input:not([type]) {
   background: var(--bg-raised);
   color: var(--text-hi);
 }
-input:focus {
+input:focus, select:focus {
   outline: none;
   border-color: var(--text-muted);
 }

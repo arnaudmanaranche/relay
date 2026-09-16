@@ -8,10 +8,19 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
-import { join, resolve, sep } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { ServerResponse } from 'node:http';
 import type { Connect, ViteDevServer } from 'vite';
 import * as dashboard from './dashboard';
+import {
+  applyRolePatch,
+  isStarterRef,
+  isWithinRoot as isWithin,
+  parseFrontmatter,
+  starterId,
+  STARTER_PREFIX,
+  type RoleConfig,
+} from './registry';
 
 // Studio is meant to be launched from the root of a project that has already
 // run /relay:setup. `npm run studio` (root proxy: `npm --prefix studio run
@@ -29,14 +38,7 @@ const STARTER_SKILLS_DIR = resolve(
   '../../skills/pipeline/templates/skills'
 );
 
-// Mirrors the containment check in skills/pipeline/scripts/agent-runner.ts
-// (isWithinRoot): every path that reaches disk here originates from an HTTP
-// request body/query string, so it's untrusted input that could contain
-// `../` segments.
-function isWithinRoot(candidatePath: string): boolean {
-  const target = resolve(PROJECT_ROOT, candidatePath);
-  return target === PROJECT_ROOT || target.startsWith(PROJECT_ROOT + sep);
-}
+const isWithinRoot = (candidatePath: string) => isWithin(PROJECT_ROOT, candidatePath);
 
 // Mirrors validateRegistry's required-field check in agent-runner.ts,
 // scoped down to what Studio needs to read/patch safely. Kept as its own
@@ -55,17 +57,6 @@ const REQUIRED_ROLES = [
   'memory-compact',
 ];
 
-interface RoleConfig {
-  skill: string;
-  model: string;
-  artifact: string;
-  description: string;
-  maxTokens: number;
-  effort?: string;
-  typeSkills?: Record<string, string>;
-  extraSkills?: string[];
-}
-
 function readAgentsJson(): { roles: Record<string, RoleConfig> } {
   const raw = readFileSync(AGENTS_JSON_PATH, 'utf-8');
   const data = JSON.parse(raw);
@@ -83,22 +74,6 @@ function readAgentsJson(): { roles: Record<string, RoleConfig> } {
 
 function writeAgentsJson(data: unknown): void {
   writeFileSync(AGENTS_JSON_PATH, JSON.stringify(data, null, 2) + '\n');
-}
-
-// Minimal frontmatter: an optional leading `---\nkey: value\n---` block.
-// No external dependency for a shape this small.
-function parseFrontmatter(content: string): {
-  meta: Record<string, string>;
-  body: string;
-} {
-  const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!match) return { meta: {}, body: content };
-  const meta: Record<string, string> = {};
-  for (const line of match[1].split('\n')) {
-    const m = line.match(/^([\w-]+):\s*(.*)$/);
-    if (m) meta[m[1]] = m[2].trim();
-  }
-  return { meta, body: match[2] };
 }
 
 const REPO_PATTERN = /^[\w.-]+\/[\w.-]+$/;
@@ -161,17 +136,11 @@ interface SkillEntry {
   source: 'project' | 'starter';
 }
 
-const STARTER_PREFIX = 'starter:';
-
-export function isStarterRef(ref: string): boolean {
-  return ref.startsWith(STARTER_PREFIX);
-}
-
 // A starter id maps to exactly one file in STARTER_SKILLS_DIR. The id is
 // untrusted, so it is matched against the directory listing rather than
 // joined onto a path.
 function starterFilePath(ref: string): string | null {
-  const id = ref.slice(STARTER_PREFIX.length);
+  const id = starterId(ref);
   if (!existsSync(STARTER_SKILLS_DIR)) return null;
   const match = readdirSync(STARTER_SKILLS_DIR).find(f => f.endsWith('.md') && f.replace(/\.md$/, '') === id);
   return match ? join(STARTER_SKILLS_DIR, match) : null;
@@ -361,28 +330,12 @@ export function relayStudioApi() {
           if (req.method === 'PATCH' && roleMatch) {
             const role = decodeURIComponent(roleMatch[1]);
             const data = readAgentsJson();
-            if (!data.roles[role]) return sendJson(res, 404, { error: `Unknown role: ${role}` });
-            const { extraSkills } = await jsonBody(req);
-            if (!Array.isArray(extraSkills) || extraSkills.some(s => typeof s !== 'string')) {
-              return sendJson(res, 400, { error: 'extraSkills must be an array of strings' });
-            }
-            for (const s of extraSkills) {
-              // A starter ref is not a file the pipeline can read: writing one
-              // here would produce an entry agent-runner.ts silently skips,
-              // i.e. a skill that looks attached and never reaches a prompt.
-              if (isStarterRef(s)) {
-                return sendJson(res, 400, {
-                  error: `${s} is a template — copy it into the project first, then attach the copy.`,
-                });
-              }
-              if (!isWithinRoot(s)) return sendJson(res, 403, { error: `Skill path escapes project root: ${s}` });
-              if (!existsSync(join(PROJECT_ROOT, s))) {
-                return sendJson(res, 404, { error: `No such skill file: ${s}` });
-              }
-            }
-            data.roles[role].extraSkills = extraSkills;
+            const target = data.roles[role];
+            if (!target) return sendJson(res, 404, { error: `Unknown role: ${role}` });
+            const refusal = applyRolePatch(role, target, await jsonBody(req), PROJECT_ROOT);
+            if (refusal) return sendJson(res, refusal.status, { error: refusal.error });
             writeAgentsJson(data);
-            return sendJson(res, 200, { role, extraSkills });
+            return sendJson(res, 200, { role, config: target });
           }
 
           if (req.method === 'GET' && pathname === '/dashboard/config') {

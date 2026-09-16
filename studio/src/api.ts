@@ -1,4 +1,4 @@
-import type { MarketplaceSkillEntry, RoleSummary, SkillEntry } from './types';
+import type { MarketplaceSkillEntry, RolePatch, RoleSummary, SkillEntry } from './types';
 
 async function request<T>(input: string, init?: RequestInit): Promise<T> {
   const res = await fetch(input, init);
@@ -14,6 +14,9 @@ export async function fetchRoles(): Promise<RoleSummary[]> {
       {
         description: string;
         skill: string;
+        model: string;
+        maxTokens: number;
+        effort?: string;
         extraSkills?: string[];
         typeSkills?: Record<string, string>;
       }
@@ -23,6 +26,9 @@ export async function fetchRoles(): Promise<RoleSummary[]> {
     name,
     description: cfg.description,
     skill: cfg.skill,
+    model: cfg.model,
+    maxTokens: cfg.maxTokens,
+    effort: cfg.effort,
     extraSkills: cfg.extraSkills ?? [],
     typeSkills: cfg.typeSkills,
   }));
@@ -78,15 +84,19 @@ export async function createSkill(
   });
 }
 
-export async function setRoleSkills(
-  role: string,
-  extraSkills: string[]
-): Promise<void> {
+// One endpoint for every registry field Studio can change; the server
+// validates each one the same way agent-runner.ts does, so a bad value is
+// refused here instead of exit(1)-ing the next run.
+export async function patchRole(role: string, patch: RolePatch): Promise<void> {
   await request(`/api/roles/${encodeURIComponent(role)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ extraSkills }),
+    body: JSON.stringify(patch),
   });
+}
+
+export async function setRoleSkills(role: string, extraSkills: string[]): Promise<void> {
+  await patchRole(role, { extraSkills });
 }
 
 export async function fetchMarketplaceSkills(

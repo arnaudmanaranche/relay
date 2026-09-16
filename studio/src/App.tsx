@@ -7,14 +7,17 @@ import {
   fetchSkills,
   fetchStarter,
   isStarterRef,
+  patchRole,
   saveFile,
   setRoleSkills,
 } from './api';
-import type { RoleSummary, SkillEntry } from './types';
+import type { RolePatch, RoleSummary, SkillEntry } from './types';
 import { RoleList } from './components/RoleList';
 import { FileEditor } from './components/FileEditor';
 import { AttachedSkills } from './components/AttachedSkills';
 import { SkillLibrary } from './components/SkillLibrary';
+import { RoleSettings } from './components/RoleSettings';
+import { TypeSkills } from './components/TypeSkills';
 import { LogoMark } from './lib/iso';
 import { Dashboard } from './dashboard/Dashboard';
 import { fetchDashboardConfig } from './dashboard/api';
@@ -58,6 +61,11 @@ export function App() {
 
   async function updateRoleSkills(role: RoleSummary, extraSkills: string[]) {
     await setRoleSkills(role.name, extraSkills);
+    await reload();
+  }
+
+  async function updateRole(role: RoleSummary, patch: RolePatch) {
+    await patchRole(role.name, patch);
     await reload();
   }
 
@@ -195,6 +203,14 @@ export function App() {
                     updateRoleSkills(selectedRole, [...selectedRole.extraSkills, path]);
                   }}
                 />
+                {selectedRole.name === 'dev' && (
+                  <TypeSkills
+                    role={selectedRole}
+                    skills={skills}
+                    onChange={next => updateRole(selectedRole, { typeSkills: next })}
+                  />
+                )}
+                <RoleSettings role={selectedRole} onSave={patch => updateRole(selectedRole, patch)} />
               </FileEditor>
             ) : selectedSkill ? (
               skillEditor(selectedSkill)
