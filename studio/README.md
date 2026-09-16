@@ -87,6 +87,6 @@ tested without a server or a project on disk. They mirror `validateRegistry`
 in `agent-runner.ts`: a value Studio accepts has to be a value the next
 pipeline run accepts, or the UI would report a save and then break the run.
 
-`server/api.ts` holds every filesystem and network side effect, the same way
-`relay-dashboard/src/services/relay.ts` did — one file to audit for anything
-that touches disk.
+`server/api.ts` holds every filesystem and network side effect: one file to
+audit for anything that touches disk. `server/dashboard.ts` is the run-state
+half of it, and `server/registry.ts` holds the rules with no IO at all.

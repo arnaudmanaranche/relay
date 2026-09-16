@@ -1,6 +1,5 @@
 // All filesystem/JSON side effects for Studio live here, isolated from the
-// UI — same idea as relay-dashboard/src/services/relay.ts: one place to
-// audit for anything that touches disk.
+// UI: one place to audit for anything that touches disk.
 import {
   existsSync,
   mkdirSync,

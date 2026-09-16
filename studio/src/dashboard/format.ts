@@ -1,6 +1,6 @@
 import type { ActiveRun, RunState } from './types';
 
-// Ported from relay-dashboard/src/services/relay.ts's STATE_BADGES/STATE_NOTES.
+// The badge and caption wording, carried over from the native app this replaced.
 export const STATE_BADGES: Record<RunState, string> = {
   running: 'running',
   'design-gate': 'design gate',

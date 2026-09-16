@@ -1,8 +1,11 @@
-// Ported from relay-dashboard/src/services/relay.ts — same config file, same
-// shell-outs, same atomic-write pattern. The native app's byte-array
-// boundary encoding (required by its Zig runtime's cast validator) is
-// dropped: this runs as plain Node behind a JSON API, so strings stay
-// strings.
+// Everything that reads or writes run state: the dashboard config file, the
+// status.mjs shell-out, the detached spawns. Ported from the native macOS app
+// this replaced, minus its byte-array boundary encoding — that was a demand of
+// its Zig runtime's cast validator, and this runs as plain Node behind a JSON
+// API, so strings stay strings.
+//
+// The config still lives at ~/.config/relay-dashboard.json: renaming it would
+// silently drop the repo list of anyone who had the old app set up.
 import { execFileSync, spawn } from 'node:child_process';
 import {
   closeSync,

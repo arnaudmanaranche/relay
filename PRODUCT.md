@@ -8,7 +8,7 @@ web
 
 ## Users
 
-**Solo builders** — and teams of two or three — who ship real software with an AI coding agent (Claude Code, Codex, OpenCode, Cline) and have nobody else to catch what the agent got wrong. They are the PM, the reviewer, and the QA on their own project. They want the quality control of a real engineering team applied to their "vibe coding" without hiring one. Primary entry points: running `/relay:new` inside an existing repo, and later checking `relay-dashboard` or `status.mjs` to see what's running, gated, or failed across repos.
+**Solo builders** — and teams of two or three — who ship real software with an AI coding agent (Claude Code, Codex, OpenCode, Cline) and have nobody else to catch what the agent got wrong. They are the PM, the reviewer, and the QA on their own project. They want the quality control of a real engineering team applied to their "vibe coding" without hiring one. Primary entry points: running `/relay:new` inside an existing repo, and later opening `/relay:studio` (or running `status.mjs`) to see what's running, gated, or failed across repos.
 
 Explicitly **not** the target: people who want one-shot "build my app" autonomy, throwaway prototypes, or teams that already have humans doing PR review and QA.
 
@@ -32,7 +32,7 @@ Current vocabulary that resonates in this space: "deterministic gates / guardrai
 
 - Installed as a Claude Code plugin (`/plugin install relay@relay`) or, for other agents (Codex/OpenCode/Cline), as plain Markdown skills + scripts any tool that reads a SKILL.md and runs shell commands can drive.
 - Each feature runs inside an isolated git worktree; the Architect stage pauses for a mandatory human design-gate approval before code is written.
-- `relay-dashboard`: a native, read-only macOS app (Dock icon, one dashboard window) that polls `status.mjs` across configured repos every 5s and surfaces runs needing attention (design gate waiting, review/QA FAIL, crash, halt), grouped per repo.
+- `/relay:studio`: a local web app (dev-only, no build, no service) with three tabs. Roles and Skills edit what each role is told and the standards attached to it, writing `.relay/agents.json` and `.relay/skills/`; Pipeline polls `status.mjs` across configured repos every 5s and surfaces runs needing attention (design gate waiting, review/QA FAIL, crash, halt), grouped per repo, and approves a design gate in place. A native macOS app did the Pipeline half until it was superseded and removed.
 - CI/E2E is framework-agnostic (Maestro, Playwright, Cypress, whatever the project already runs) — QA reads real results and reports `BLOCKED_ENV` rather than inventing a pass.
 - Config lives in `.relay/config.json` / `.relay/agents.json`, generated once by `relay-setup`; project memory (`.relay/project-memory.md`) carries pitfalls/conventions/decisions across features and is periodically compacted.
 - Dev is the only role that writes source; large features batch automatically (default 6 impacted files/call) to avoid truncation at the model's real output ceiling.
@@ -53,7 +53,7 @@ Current vocabulary that resonates in this space: "deterministic gates / guardrai
 
 ## Evidence on Hand
 
-Real content only, pulled from this repo: `README.md`, `docs/index.html` (existing interactive walkthrough: role descriptions, gate types, example artifact excerpts per stage, config reference, backend comparison), `TODO.md` (roadmap), `.claude-plugin/marketplace.json` (plugin metadata), `relay-dashboard/README.md` (dashboard app behavior). No customer names, testimonials, benchmarks, or pricing exist anywhere in the project — none should be fabricated for the new site.
+Real content only, pulled from this repo: `README.md`, `site/` (the documentation site's source: role descriptions, gate types, example artifact excerpts per stage, config reference, backend comparison), `TODO.md` (roadmap), `.claude-plugin/marketplace.json` (plugin metadata), `studio/README.md` and `skills/studio/SKILL.md` (Studio's behaviour and limits). No customer names, testimonials, benchmarks, or pricing exist anywhere in the project — none should be fabricated for the new site.
 
 ## Product Principles
 

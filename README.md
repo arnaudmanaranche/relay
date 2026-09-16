@@ -84,8 +84,6 @@ bash skills/pipeline/scripts/babysit-pr.sh <branch> --max-reruns=3 --auto-stamp
 
 `/relay:studio` opens [Relay Studio](studio/README.md), a local web app pointed at the current project: edit each role's prompt, attach cross-cutting skills to a role, and watch the runs — approve a design gate, answer a blocking question, retry, reveal a worktree. It ships with the module rather than being copied into your project, and installs its dependencies once.
 
-[relay-dashboard](relay-dashboard/README.md) is a small macOS app that does the watching half natively. **Deprecated** in favour of Studio's Pipeline tab.
-
 For configuration (models, effort, backends, batching, review panel size, E2E wiring), the safety model, and everything else, see the [full documentation](https://arnaudmanaranche.github.io/relay/).
 
 ---

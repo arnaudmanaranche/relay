@@ -22,7 +22,7 @@ export function Studio() {
         <dl className="app-facts">
           <div className="app-fact">
             <dt>Runs</dt>
-            <dd>Anywhere. It is a local web app, not a Mac app, and it reads the project you launch it from.</dd>
+            <dd>Wherever you work. A local web app rather than a desktop one, and it reads the project you launch it from.</dd>
           </div>
           <div className="app-fact">
             <dt>Watches</dt>
@@ -115,8 +115,7 @@ export function Studio() {
 
         <p className="arrow-note">
           Studio is optional: the pipeline runs from your terminal and never needs it. It is a dev-only tool, it has no
-          build and no deploy, and it edits files in the project you point it at. There is also a native macOS app in
-          the repo, now superseded by this.
+          build and no deploy, and it edits files in the project you point it at.
         </p>
       </div>
     </section>

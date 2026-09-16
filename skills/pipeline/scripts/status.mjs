@@ -4,7 +4,7 @@
 // The pipeline already writes everything needed to answer "what is Relay
 // doing right now, and what is it waiting on?" — this script just reads those
 // signals and aggregates them. It never writes, never calls an LLM, never
-// touches the worktrees. A GUI (the relay-dashboard app) should consume the
+// touches the worktrees. A GUI (Relay Studio's Pipeline tab) should consume the
 // --json output rather than reimplementing any of this.
 //
 // Signals consumed (all written by run-pipeline.sh / agent-runner.ts):
@@ -185,7 +185,7 @@ export function inspectWorktree({ repoRoot, repoDirName, entry, worktreeRoot, br
   });
 
   // costUsd/lastRole/livePid are omitted (not set to null) when unknown:
-  // the relay-dashboard side casts this JSON as `RunEntry` with
+  // the consumer casts this JSON as `RunEntry` with
   // `costUsd?: number`, `lastRole?: string`, `livePid?: number`, and
   // native-sdk's runtime cast validator rejects explicit `null` against
   // an optional field (https://github.com/vercel-labs/native/issues/407)

@@ -1,8 +1,0 @@
-{
-  "repos": [
-    "/Users/manaranche/ai-feature-pipeline",
-    "/Users/manaranche/little-nook"
-  ],
-  "statusScript": "/Users/manaranche/ai-feature-pipeline/skills/pipeline/scripts/status.mjs",
-  "theme": "system"
-}
