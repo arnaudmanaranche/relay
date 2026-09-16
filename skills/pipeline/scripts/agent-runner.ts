@@ -1447,20 +1447,24 @@ function buildUserPrompt(
     sections.push(`## Dev log\n\n\`\`\`markdown\n${ctx.devLog}\n\`\`\``);
   }
 
-  // Extra skills + type-specific skills (Dev only)
-  if (role === 'dev') {
-    // Load extra skills from registry
-    if (config.extraSkills) {
-      for (const skillPath of config.extraSkills) {
-        if (existsSync(join(getRoot(), skillPath))) {
-          const skillName =
-            skillPath.split('/').pop()?.replace('.md', '') ?? 'standards';
-          sections.push(
-            `## ${skillName} (cross-cutting)\n\n\`\`\`markdown\n${read(skillPath)}\n\`\`\``
-          );
-        }
+  // Extra skills: cross-cutting, always-injected markdown files attached to
+  // this role via .relay/agents.json's roles.<role>.extraSkills — works for
+  // any role, not just Dev.
+  if (config.extraSkills) {
+    for (const skillPath of config.extraSkills) {
+      if (existsSync(join(getRoot(), skillPath))) {
+        const skillName =
+          skillPath.split('/').pop()?.replace('.md', '') ?? 'standards';
+        sections.push(
+          `## ${skillName} (cross-cutting)\n\n\`\`\`markdown\n${read(skillPath)}\n\`\`\``
+        );
       }
     }
+  }
+
+  // Type-specific skills (Dev only — depends on the impacted-files list,
+  // which only Dev's technical plan provides).
+  if (role === 'dev') {
     // Dev also gets the Architect's technical plan and repository context
     const techPlan = read(`${ctx.featureDir}/technical-plan.md`);
     if (techPlan && !techPlan.startsWith('[file not found')) {
