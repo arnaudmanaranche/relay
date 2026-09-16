@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { startRun } from './api';
+import { useToast } from '../toast';
 
 interface Props {
   repos: { root: string; name: string }[];
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function NewRunSheet({ repos, onClose, onStarted }: Props) {
+  const toast = useToast();
   const [repoRoot, setRepoRoot] = useState(repos[0]?.root ?? '');
   const [slug, setSlug] = useState('');
   const [issueText, setIssueText] = useState('');
@@ -19,10 +21,15 @@ export function NewRunSheet({ repos, onClose, onStarted }: Props) {
     setError(null);
     try {
       await startRun(repoRoot, slug, issueText);
+      // A started run takes a while to show up in the poll, so without this
+      // the sheet just closes and nothing appears to have happened.
+      toast.show('success', `${slug} started — it will appear once the first role reports.`);
       onStarted();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      toast.show('error', message);
     } finally {
       setSubmitting(false);
     }

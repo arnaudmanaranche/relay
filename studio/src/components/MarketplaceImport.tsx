@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import type { MarketplaceSkillEntry } from '../types';
 import { fetchMarketplaceSkills, importMarketplaceSkill } from '../api';
+import { useToast } from '../toast';
 
 interface Props {
   onImported: () => Promise<void>;
 }
 
 export function MarketplaceImport({ onImported }: Props) {
+  const toast = useToast();
   const [repo, setRepo] = useState('');
   const [results, setResults] = useState<MarketplaceSkillEntry[] | null>(null);
   const [importingPath, setImportingPath] = useState<string | null>(null);
@@ -31,10 +33,13 @@ export function MarketplaceImport({ onImported }: Props) {
     setImportingPath(entry.path);
     setError(null);
     try {
-      await importMarketplaceSkill(repo.trim(), entry.path);
+      const imported = await importMarketplaceSkill(repo.trim(), entry.path);
       await onImported();
+      toast.show('success', `Imported ${entry.name} to ${imported.path}.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      toast.show('error', message);
     } finally {
       setImportingPath(null);
     }

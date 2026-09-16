@@ -63,6 +63,20 @@ Two kinds show up in the library, and the difference matters:
 The API enforces the same rule: `PATCH /api/roles/:name` rejects a
 `starter:` ref, and rejects a path with no file behind it.
 
+## Feedback
+
+Every action reports: a toast, bottom right. Progress and confirmations clear
+themselves; **errors stay until dismissed**, because an error that disappears
+on a timer is one the user may never have read.
+
+`useToast().track({ pending, done }, action)` is the wrapper worth knowing. It
+exists because the alternative kept happening: `retryRun(...).then(poll)` with
+no catch, so a resume that failed looked exactly like one that worked. `track`
+shows progress, then the result or whatever was thrown, and returns `undefined`
+on failure so a caller can skip its follow-up without a catch of its own. With
+no labels, a success is silent and only the failure speaks — right for actions
+that are their own feedback, like revealing a folder in Finder.
+
 ## Limits worth knowing
 
 - No file watching and no write conflict detection: if the pipeline rewrites a

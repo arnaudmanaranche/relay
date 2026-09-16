@@ -542,3 +542,46 @@ body {
   gap: 0.6rem;
 }
 .editor-conflict p { margin: 0; font-size: 0.8rem; color: var(--text-hi); }
+
+/* ============ Toasts ============
+   Bottom right, stacked oldest first, above the run-detail overlay so an
+   action taken inside a sheet still reports back. */
+.toaster {
+  position: fixed;
+  right: 1.2rem;
+  bottom: 1.2rem;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: min(30rem, calc(100vw - 2.4rem));
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-left-width: 2px;
+  border-radius: 6px;
+  background: var(--bg-raised);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--text-hi) 12%, transparent);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-hi);
+}
+.toast-info { border-left-color: var(--text-muted); }
+.toast-success { border-left-color: var(--pass); }
+.toast-error { border-left-color: var(--halt); }
+.toast-message { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.toast-close {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0 0.1rem;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--text-muted);
+}
+.toast-close:hover { color: var(--text-hi); }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fetchDashboardConfig, saveDashboardConfig } from './api';
 import { applyTheme } from '../theme';
+import { useToast } from '../toast';
 
 interface Props {
   onClose: () => void;
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function DashboardSettings({ onClose, onSaved }: Props) {
+  const toast = useToast();
   const [draftRepos, setDraftRepos] = useState<string[]>([]);
   const [theme, setTheme] = useState('system');
   const [newRepo, setNewRepo] = useState('');
@@ -36,10 +38,16 @@ export function DashboardSettings({ onClose, onSaved }: Props) {
     setError(null);
     try {
       await saveDashboardConfig({ repos: draftRepos });
+      toast.show(
+        'success',
+        draftRepos.length === 1 ? 'Watching 1 repository.' : `Watching ${draftRepos.length} repositories.`
+      );
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      toast.show('error', message);
     } finally {
       setSaving(false);
     }

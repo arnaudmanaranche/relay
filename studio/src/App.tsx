@@ -20,6 +20,7 @@ import { RoleSettings } from './components/RoleSettings';
 import { TypeSkills } from './components/TypeSkills';
 import { LogoMark } from './lib/iso';
 import { Dashboard } from './dashboard/Dashboard';
+import { useToast } from './toast';
 import { fetchDashboardConfig } from './dashboard/api';
 import { applyTheme } from './theme';
 
@@ -27,6 +28,7 @@ type Selection = { kind: 'role'; name: string } | { kind: 'skill'; path: string 
 type Tab = 'roles' | 'skills' | 'pipeline';
 
 export function App() {
+  const toast = useToast();
   const [tab, setTab] = useState<Tab>('roles');
   const [roles, setRoles] = useState<RoleSummary[]>([]);
   const [skills, setSkills] = useState<SkillEntry[]>([]);
@@ -42,7 +44,12 @@ export function App() {
       setSkills(s);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      // The full-page error is for the first load, where there is nothing to
+      // show anyway. Once roles are on screen, replacing them with an error
+      // page over a failed refresh loses the user's place for nothing.
+      if (roles.length === 0) setError(message);
+      else toast.show('error', message);
     }
   }
 
@@ -62,11 +69,13 @@ export function App() {
   async function updateRoleSkills(role: RoleSummary, extraSkills: string[]) {
     await setRoleSkills(role.name, extraSkills);
     await reload();
+    toast.show('success', `${role.name}: ${extraSkills.length} skill(s) attached.`);
   }
 
   async function updateRole(role: RoleSummary, patch: RolePatch) {
     await patchRole(role.name, patch);
     await reload();
+    toast.show('success', `${role.name} updated in .relay/agents.json.`);
   }
 
   // A template is read-only and lives outside the project; copying it in is
@@ -79,8 +88,11 @@ export function App() {
       const copy = await copyStarterIntoProject(skill.path);
       await reload();
       setSelection({ kind: 'skill', path: copy.path });
+      toast.show('success', `Copied to ${copy.path} — edit it there.`);
     } catch (err) {
-      setCopyError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setCopyError(message);
+      toast.show('error', message);
     } finally {
       setCopying(false);
     }
@@ -108,7 +120,11 @@ export function App() {
         title={skill.id}
         subtitle={skill.path}
         load={() => fetchFile(skill.path)}
-        onSave={(content, version) => saveFile(skill.path, content, version)}
+        onSave={async (content, version) => {
+          const next = await saveFile(skill.path, content, version);
+          toast.show('success', `Saved ${skill.path}.`);
+          return next;
+        }}
       />
     );
   }
@@ -124,8 +140,10 @@ export function App() {
       }}
       onReload={reload}
       onCreate={async (name, description) => {
-        await createSkill(name, description);
+        const created = await createSkill(name, description);
         await reload();
+        setSelection({ kind: 'skill', path: created.path });
+        toast.show('success', `Created ${created.path}.`);
       }}
     />
   );
@@ -190,7 +208,11 @@ export function App() {
                 title={selectedRole.name}
                 subtitle={selectedRole.skill}
                 load={() => fetchFile(selectedRole.skill)}
-                onSave={(content, version) => saveFile(selectedRole.skill, content, version)}
+                onSave={async (content, version) => {
+                  const next = await saveFile(selectedRole.skill, content, version);
+                  toast.show('success', `Saved ${selectedRole.skill}.`);
+                  return next;
+                }}
               >
                 <AttachedSkills
                   role={selectedRole}

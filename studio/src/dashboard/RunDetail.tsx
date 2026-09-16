@@ -12,6 +12,7 @@ import {
   submitAnswer,
 } from './api';
 import { STATE_BADGES } from './format';
+import { useToast } from '../toast';
 
 interface Props {
   run: ActiveRun;
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function RunDetail({ run, onClose, onChanged }: Props) {
+  const toast = useToast();
   const [timeline, setTimeline] = useState<{ rows: TimelineRow[]; totalCostText: string; totalTokens: number } | null>(
     null
   );
@@ -52,13 +54,19 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
     };
   }, [logPath]);
 
-  async function run_(fn: () => Promise<void>) {
+  async function run_(fn: () => Promise<void>, labels: { pending?: string; done?: string } = {}) {
     setBusy(true);
     setError(null);
     try {
       await fn();
+      if (labels.done) toast.show('success', labels.done);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      // Both: the panel scrolls, so the button that failed is often off
+      // screen by the time the answer comes back, and a toast is the only
+      // place the message is certain to be seen.
+      setError(message);
+      toast.show('error', message);
     } finally {
       setBusy(false);
     }
@@ -132,7 +140,7 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
                     const { logPath } = await retryRun(run.repoRoot, run.resumeArgs!);
                     setLogPath(logPath);
                     onChanged();
-                  })
+                  }, { done: `Design approved — ${run.slug} is running.` })
                 }
               >
                 Approve
@@ -169,7 +177,7 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
                   setLogPath(logPath);
                   setAnswer('');
                   onChanged();
-                })
+                }, { done: `Answer saved — ${run.slug} is running.` })
               }
             >
               Answer and resume
@@ -187,7 +195,7 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
                   const { logPath } = await retryRun(run.repoRoot, run.resumeArgs!);
                   setLogPath(logPath);
                   onChanged();
-                })
+                }, { done: `${run.slug} is running.` })
               }
             >
               Retry
@@ -204,7 +212,7 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
                 run_(async () => {
                   await stopRun(pid);
                   onChanged();
-                })
+                }, { done: `Sent SIGTERM to ${run.slug}.` })
               }
             >
               Stop (pid {pid})

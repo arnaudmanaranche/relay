@@ -8,6 +8,7 @@ interface Props {
   attachedPaths: string[];
   selectedPath: string | null;
   onSelect: (path: string) => void;
+  /** Throws on refusal; the caller reports why. */
   onCreate: (name: string, description: string) => Promise<void>;
   onReload: () => Promise<void>;
 }
@@ -26,6 +27,10 @@ export function SkillLibrary({ skills, attachedPaths, selectedPath, onSelect, on
       setName('');
       setDescription('');
       setShowForm(false);
+    } catch {
+      // The caller toasts the reason (a name collision, most often). Keeping
+      // the form open with the text in it is the useful part: it used to
+      // close as though the skill had been created.
     } finally {
       setCreating(false);
     }

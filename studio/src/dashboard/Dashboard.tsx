@@ -5,10 +5,13 @@ import { STATE_BADGES, composeCaption, needsAttention, sortRuns } from './format
 import { RunDetail } from './RunDetail';
 import { NewRunSheet } from './NewRunSheet';
 import { DashboardSettings } from './DashboardSettings';
+import { useToast } from '../toast';
+import { copyText } from '../clipboard';
 
 const POLL_MS = 5000;
 
 export function Dashboard() {
+  const toast = useToast();
   const [snapshot, setSnapshot] = useState<StatusSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openRun, setOpenRun] = useState<ActiveRun | null>(null);
@@ -90,17 +93,34 @@ export function Dashboard() {
                         <button
                           className="btn"
                           title={run.resumeHint}
-                          onClick={() => navigator.clipboard.writeText(run.resumeHint!)}
+                          onClick={() =>
+                            toast.track({ done: 'Resume command copied.' }, () =>
+                              copyText(run.resumeHint!)
+                            )
+                          }
                         >
                           Copy
                         </button>
                       )}
                       {run.resumeArgs && run.resumeArgs.length > 0 && (
-                        <button className="btn" onClick={() => retryRun(run.repoRoot, run.resumeArgs!).then(poll)}>
+                        <button
+                          className="btn"
+                          onClick={() =>
+                            toast
+                              .track(
+                                { pending: `Resuming ${run.slug}…`, done: `${run.slug} is running.` },
+                                () => retryRun(run.repoRoot, run.resumeArgs!)
+                              )
+                              .then(poll)
+                          }
+                        >
                           Resume
                         </button>
                       )}
-                      <button className="btn" onClick={() => revealInFinder(run.worktree)}>
+                      <button
+                        className="btn"
+                        onClick={() => toast.track({}, () => revealInFinder(run.worktree))}
+                      >
                         Reveal
                       </button>
                     </div>
