@@ -1,7 +1,13 @@
 # Relay Studio
 
-Local editor for the pipeline, run with `npm run studio` **from the root of a
-project that has already run `/relay:setup`**. Three tabs:
+Local editor for the pipeline. From a project that has already run
+`/relay:setup`, open it with:
+
+```
+/relay:studio
+```
+
+From a checkout of Relay itself, `npm run studio` does the same thing. Three tabs:
 
 - **Rôles** — edit each role's prompt (the file `.relay/agents.json` points at),
   and attach cross-cutting skills to it by dragging them from the library.
@@ -17,12 +23,30 @@ middleware, so there is no `build` script and nothing to deploy.
 
 ## How it finds your project
 
-`npm run studio` proxies to `npm --prefix studio run dev`, which makes npm cd
-into `studio/` before spawning Vite — so `process.cwd()` would be `studio/`,
-not where you typed the command. npm sets `INIT_CWD` to the real invocation
-directory regardless of `--prefix`, and that is what `server/api.ts` uses as
-the project root. Every path the API touches is resolved against it and
-checked for containment, the same way `agent-runner.ts` does.
+Both entry points end at `npm --prefix <module>/studio run dev`, which makes
+npm cd into `studio/` before spawning Vite — so `process.cwd()` would be
+`studio/`, not where you typed the command. npm sets `INIT_CWD` to the real
+invocation directory regardless of `--prefix`, and that is what
+`server/api.ts` uses as the project root. Every path the API touches is
+resolved against it and checked for containment, the same way
+`agent-runner.ts` does.
+
+## How `/relay:studio` finds Studio
+
+Only `skills/` and `.relay/` are copied into a project by `/relay:setup`;
+`studio/` stays in the module, so its dependencies are installed once and
+shared. `skills/studio/scripts/relay-studio.sh` locates it in three steps,
+first hit wins:
+
+1. `<script>/../../../studio` — right when Relay is a checkout or a plugin
+   install, i.e. whenever the script is still sitting in the module.
+2. The `installPath` recorded for `relay@…` in
+   `~/.claude/plugins/installed_plugins.json` — for when the script was copied
+   into a project and step 1 lands on the project root instead.
+3. A glob over `~/.claude/plugins/cache/*/relay/*/studio`, in case that
+   manifest moves or the install is keyed under another name.
+
+If all three miss, it says where it looked rather than failing obscurely.
 
 ## Skills: project vs template
 
@@ -52,8 +76,8 @@ The API enforces the same rule: `PATCH /api/roles/:name` rejects a
 ## Development
 
 ```bash
-npm run dev         # from studio/, but see "How it finds your project"
-npm run typecheck
+npm run studio      # from a Relay checkout root, not from studio/
+npm --prefix studio run typecheck
 ```
 
 `server/api.ts` holds every filesystem and network side effect, the same way

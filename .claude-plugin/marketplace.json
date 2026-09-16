@@ -17,7 +17,8 @@
         "./skills/new",
         "./skills/resume",
         "./skills/run",
-        "./skills/pipeline"
+        "./skills/pipeline",
+        "./skills/studio"
       ]
     }
   ]

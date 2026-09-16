@@ -82,7 +82,9 @@ Babysit a PR after it's open (polls CI, reruns flaky jobs, optionally auto-appro
 bash skills/pipeline/scripts/babysit-pr.sh <branch> --max-reruns=3 --auto-stamp
 ```
 
-[relay-dashboard](relay-dashboard/README.md) is a small macOS app (Dock icon, one window) that polls `status.mjs` every 5s across your repos, flags runs needing attention (design gate, review/QA FAIL, crash, halt), and lets you reveal the worktree or copy a resume command. Read-only.
+`/relay:studio` opens [Relay Studio](studio/README.md), a local web app pointed at the current project: edit each role's prompt, attach cross-cutting skills to a role, and watch the runs — approve a design gate, answer a blocking question, retry, reveal a worktree. It ships with the module rather than being copied into your project, and installs its dependencies once.
+
+[relay-dashboard](relay-dashboard/README.md) is a small macOS app that does the watching half natively. **Deprecated** in favour of Studio's Pipeline tab, and kept only for its live terminal, which Studio does not have yet.
 
 For configuration (models, effort, backends, batching, review panel size, E2E wiring), the safety model, and everything else, see the [full documentation](https://arnaudmanaranche.github.io/relay/).
 
