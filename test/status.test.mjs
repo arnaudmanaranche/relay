@@ -9,7 +9,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
@@ -41,6 +41,13 @@ function fixture() {
       rmSync(base, { recursive: true, force: true });
     },
   };
+}
+
+/** Puts a run-pipeline.sh under skills/<dir>/scripts/ and returns the repo
+ *  root, so inspectWorktree can find it the way it does in a real project. */
+function relayRepo(fx, pipelineDir = 'pipeline') {
+  fx.write(join('repo', 'skills', pipelineDir, 'scripts', 'run-pipeline.sh'), '#!/usr/bin/env bash\n');
+  return fx.path('repo');
 }
 
 function statusJson(role, verdict) {
@@ -226,20 +233,21 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
     try {
       const art = '.relay-worktrees/myrepo-auth/.relay/artifacts/features/auth';
       fx.write(`${art}/technical-plan.md`, '# plan');
+      const repoRoot = relayRepo(fx);
       const run = inspectWorktree({
-        repoRoot: '/somewhere/myrepo',
+        repoRoot,
         repoDirName: 'myrepo',
         entry: 'myrepo-auth',
         worktreeRoot: fx.path('.relay-worktrees'),
         branchPrefix: 'feat',
       });
       assert.equal(run.state, 'design-gate');
-      assert.match(run.resumeHint, /--approve-design --project-root=\/somewhere\/myrepo$/);
+      assert.match(run.resumeHint, new RegExp(`--approve-design --project-root=${repoRoot}$`));
       assert.deepEqual(run.resumeArgs, [
-        'skills/pipeline/scripts/run-pipeline.sh',
+        join('skills', 'pipeline', 'scripts', 'run-pipeline.sh'),
         'auth',
         '--approve-design',
-        '--project-root=/somewhere/myrepo',
+        `--project-root=${repoRoot}`,
       ]);
     } finally {
       fx.cleanup();
@@ -250,8 +258,9 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
     const fx = fixture();
     try {
       fx.write('.relay-worktrees/.locks/ghost/pid', String(99999999));
+      const repoRoot = relayRepo(fx);
       const run = inspectWorktree({
-        repoRoot: '/somewhere/myrepo',
+        repoRoot,
         repoDirName: 'myrepo',
         entry: 'myrepo-ghost',
         worktreeRoot: fx.path('.relay-worktrees'),
@@ -260,9 +269,9 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
       assert.equal(run.state, 'crashed');
       assert.equal(run.lock.alive, false);
       assert.deepEqual(run.resumeArgs, [
-        'skills/pipeline/scripts/run-pipeline.sh',
+        join('skills', 'pipeline', 'scripts', 'run-pipeline.sh'),
         'ghost',
-        '--project-root=/somewhere/myrepo',
+        `--project-root=${repoRoot}`,
       ]);
     } finally {
       fx.cleanup();
@@ -272,8 +281,9 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
   test('NO lock (clean exit via trap) + no markers → generic halt, not crashed', () => {
     const fx = fixture();
     try {
+      const repoRoot = relayRepo(fx);
       const run = inspectWorktree({
-        repoRoot: '/somewhere/myrepo',
+        repoRoot,
         repoDirName: 'myrepo',
         entry: 'myrepo-quiet',
         worktreeRoot: fx.path('.relay-worktrees'),
@@ -282,10 +292,55 @@ describe('inspectWorktree — reads the files the pipeline writes', () => {
       assert.equal(run.lock, null);
       assert.equal(run.state, 'halted');
       assert.deepEqual(run.resumeArgs, [
-        'skills/pipeline/scripts/run-pipeline.sh',
+        join('skills', 'pipeline', 'scripts', 'run-pipeline.sh'),
         'quiet',
-        '--project-root=/somewhere/myrepo',
+        `--project-root=${repoRoot}`,
       ]);
+    } finally {
+      fx.cleanup();
+    }
+  });
+
+  test('the resume command names the pipeline directory that is actually there', () => {
+    // /relay:setup copies the module under whatever name the install used, so
+    // a plugin install has skills/relay-pipeline/. Hardcoding skills/pipeline/
+    // handed out a command that failed with "does not exist" on every one of
+    // them — which is exactly what happened in the field.
+    const fx = fixture();
+    try {
+      const repoRoot = relayRepo(fx, 'relay-pipeline');
+      const run = inspectWorktree({
+        repoRoot,
+        repoDirName: 'myrepo',
+        entry: 'myrepo-quiet',
+        worktreeRoot: fx.path('.relay-worktrees'),
+        branchPrefix: 'feat',
+      });
+      assert.deepEqual(run.resumeArgs, [
+        join('skills', 'relay-pipeline', 'scripts', 'run-pipeline.sh'),
+        'quiet',
+        `--project-root=${repoRoot}`,
+      ]);
+      assert.ok(existsSync(join(repoRoot, run.resumeArgs[0])), 'the path it reports must exist');
+    } finally {
+      fx.cleanup();
+    }
+  });
+
+  test('no run-pipeline.sh anywhere → no resume command at all', () => {
+    // Saying nothing beats printing a command that cannot run.
+    const fx = fixture();
+    try {
+      const run = inspectWorktree({
+        repoRoot: fx.path('not-a-relay-project'),
+        repoDirName: 'myrepo',
+        entry: 'myrepo-quiet',
+        worktreeRoot: fx.path('.relay-worktrees'),
+        branchPrefix: 'feat',
+      });
+      assert.equal(run.state, 'halted');
+      assert.equal(run.resumeHint, undefined);
+      assert.equal(run.resumeArgs, undefined);
     } finally {
       fx.cleanup();
     }

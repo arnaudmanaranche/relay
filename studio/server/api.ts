@@ -378,7 +378,7 @@ export function relayStudioApi() {
 
           if (req.method === 'POST' && pathname === '/dashboard/start') {
             const { repoRoot, slug, issueText } = await jsonBody(req);
-            return sendJson(res, 200, dashboard.startRun(repoRoot, slug, issueText));
+            return sendJson(res, 200, await dashboard.startRun(repoRoot, slug, issueText));
           }
 
           if (req.method === 'POST' && pathname === '/dashboard/stop') {
@@ -417,7 +417,7 @@ export function relayStudioApi() {
 
           if (req.method === 'POST' && pathname === '/dashboard/answer') {
             const { artifactsDir, answerText, isDevReview, repoRoot, slug } = await jsonBody(req);
-            return sendJson(res, 200, dashboard.submitAnswer(artifactsDir, answerText, Boolean(isDevReview), repoRoot, slug));
+            return sendJson(res, 200, await dashboard.submitAnswer(artifactsDir, answerText, Boolean(isDevReview), repoRoot, slug));
           }
 
           next();

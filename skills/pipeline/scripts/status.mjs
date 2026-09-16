@@ -39,6 +39,29 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Roles whose per-run status files carry decision-relevant verdicts.
 const VERDICT_ROLES = ['pm', 'dev-review', 'pm-respond', 'architect', 'dev', 'review', 'qa', 'retro'];
 
+// The pipeline's own directory name is not fixed. It is `skills/pipeline/` in
+// this module's repo, but /relay:setup copies it into a project under whatever
+// name the install used — `skills/relay-pipeline/` after a plugin install. So
+// the resume command has to be built from the script that is actually there,
+// not from a path assumed to be there: hardcoding `skills/pipeline/...` handed
+// out a command that fails with "does not exist" on every plugin install.
+export function findRunPipeline(root) {
+  const skillsDir = join(root, 'skills');
+  if (!existsSync(skillsDir)) return null;
+  let entries;
+  try {
+    entries = readdirSync(skillsDir, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const relative = join('skills', entry.name, 'scripts', 'run-pipeline.sh');
+    if (existsSync(join(root, relative))) return relative;
+  }
+  return null;
+}
+
 function readJsonSafe(path) {
   try {
     return JSON.parse(readFileSync(path, 'utf-8'));
@@ -247,11 +270,16 @@ export function inspectWorktree({ repoRoot, repoDirName, entry, worktreeRoot, br
     run.state !== 'blocked-pm-questions' &&
     run.state !== 'done'
   ) {
-    const args = ['skills/pipeline/scripts/run-pipeline.sh', slug];
-    if (run.resumeFlag) args.push(run.resumeFlag);
-    args.push(`--project-root=${repoRoot}`);
-    run.resumeHint = `bash ${args.join(' ')}`;
-    run.resumeArgs = args;
+    // No script found means no resume command. Better to say nothing than to
+    // print one that cannot run.
+    const script = findRunPipeline(repoRoot);
+    if (script) {
+      const args = [script, slug];
+      if (run.resumeFlag) args.push(run.resumeFlag);
+      args.push(`--project-root=${repoRoot}`);
+      run.resumeHint = `bash ${args.join(' ')}`;
+      run.resumeArgs = args;
+    }
   }
   return run;
 }

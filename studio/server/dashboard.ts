@@ -19,6 +19,7 @@ import {
 } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 function configPath(): string {
   return join(homedir(), '.config', 'relay-dashboard.json');
@@ -94,6 +95,33 @@ function resolveResumeArgs(repoRoot: string, raw: string[] | undefined): string[
   return [join(repoRoot, raw[0]), ...raw.slice(1)];
 }
 
+// The pipeline directory is named differently depending on how the module was
+// installed (`skills/pipeline/` in a checkout, `skills/relay-pipeline/` after
+// a plugin install), so the path cannot be assumed. status.mjs already has to
+// solve this to print a resume command; rather than keep a second copy of the
+// rule here, its findRunPipeline is imported from whichever copy of the script
+// this install is configured to use.
+async function runPipelinePath(repoRoot: string): Promise<string> {
+  const { statusScript } = loadDashboardConfig();
+  if (!statusScript) throw new Error('No status.mjs resolved — add a Relay repo in Settings.');
+  const mod = (await import(pathToFileURL(statusScript).href)) as {
+    findRunPipeline?: (root: string) => string | null;
+  };
+  // An older copy of status.mjs predates the export. Its own resume commands
+  // are wrong too, but guessing here would only turn a clear error into a
+  // confusing one.
+  if (typeof mod.findRunPipeline !== 'function') {
+    throw new Error(
+      `${statusScript} is from an older Relay than this Studio. Re-run /relay:setup in that project to update it.`
+    );
+  }
+  const relative = mod.findRunPipeline(repoRoot);
+  if (!relative) {
+    throw new Error(`No run-pipeline.sh found under ${repoRoot}/skills/ — has /relay:setup run there?`);
+  }
+  return join(repoRoot, relative);
+}
+
 // Runs status.mjs and returns its JSON verbatim, except each active run
 // gains `repoRoot` (for later retry/stop/artifact calls) and its
 // `resumeArgs` resolved to an absolute argv[0].
@@ -153,18 +181,22 @@ export function retryRun(repoRoot: string, resumeArgs: string[]): { logPath: str
   return spawnDetachedLogged(repoRoot, resumeArgs, `retry-${slug}`);
 }
 
-export function startRun(repoRoot: string, slug: string, issueText: string): { logPath: string; pid: number } {
+export async function startRun(
+  repoRoot: string,
+  slug: string,
+  issueText: string
+): Promise<{ logPath: string; pid: number }> {
   slug = slug.trim();
   issueText = issueText.trim();
   if (!repoRoot || !slug) throw new Error('A repo and a slug are required.');
   if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
     throw new Error('Slug must be lowercase letters, digits, and hyphens only (e.g. dark-mode).');
   }
+  const script = await runPipelinePath(repoRoot);
   const scratchDir = join(tmpdir(), 'relay-dashboard');
   mkdirSync(scratchDir, { recursive: true });
   const issuePath = join(scratchDir, `issue-${slug}-${Date.now()}.md`);
   writeFileSync(issuePath, `${issueText}\n`);
-  const script = join(repoRoot, 'skills/pipeline/scripts/run-pipeline.sh');
   const args = [script, slug, issuePath, `--project-root=${repoRoot}`];
   return spawnDetachedLogged(repoRoot, args, `start-${slug}`);
 }
@@ -301,13 +333,13 @@ export function readTimeline(artifactsDir: string): { rows: TimelineRow[]; total
 // checks for before resuming PM — refuses a second answer. Dev-review
 // threads have no such gate; they're read semantically by the next agent
 // turn, so this always just appends.
-export function submitAnswer(
+export async function submitAnswer(
   artifactsDir: string,
   answerText: string,
   isDevReview: boolean,
   repoRoot: string,
   slug: string
-): { resumeArgs: string[] } {
+): Promise<{ resumeArgs: string[] }> {
   answerText = answerText.trim();
   const fileName = isDevReview ? 'pm-dev-thread.md' : 'pm-questions.md';
   const path = artifactsDir ? join(artifactsDir, fileName) : '';
@@ -320,6 +352,5 @@ export function submitAnswer(
     if (/^## Your answers/m.test(existing)) throw new Error('This question has already been answered.');
     writeFileSync(path, `${existing.replace(/\s+$/, '')}\n\n## Your answers\n\n${answerText}\n`);
   }
-  const args = [join(repoRoot, 'skills/pipeline/scripts/run-pipeline.sh'), slug, `--project-root=${repoRoot}`];
-  return { resumeArgs: args };
+  return { resumeArgs: [await runPipelinePath(repoRoot), slug, `--project-root=${repoRoot}`] };
 }
