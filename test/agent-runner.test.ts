@@ -310,14 +310,70 @@ describe('checkPermissions', () => {
     }
   });
 
-  test('dev cannot write outside the allowed extension set (e.g. a shell script)', () => {
+  test('dev can write whatever extension the project actually uses', () => {
+    // This replaced an extension allowlist that discarded three paid runs for
+    // three different extensions: .mjs/.cjs ($0.62), .yaml/.yml ($6.79 run,
+    // last file of 10 batches), .sql (an 8m28s $0.82 call whose other 11
+    // files were fine). The list would have kept finding new gaps, and it was
+    // buying nothing: a role that can write .ts can already do anything.
+    for (const path of [
+      'supabase/migrations/20260916120000_ai_upload_queue.sql',
+      'prisma/schema.prisma',
+      'scripts/deploy.sh',
+      'Dockerfile',
+      'ios/Runner/AppDelegate.swift',
+      'pyproject.toml',
+      '.env.example',
+      'docs/adr/0001-queue.md',
+    ]) {
+      const { allowed } = checkPermissions('dev', [{ path, action: 'create', content: '' }], []);
+      assert.equal(allowed, true, path);
+    }
+  });
+
+  test('dev may not write Relay\'s own files, whatever the extension', () => {
+    // The point of the inversion: name what is off limits rather than what is
+    // allowed. Dev writing here could widen its own permissions, rewrite the
+    // prompt it runs on, or edit the memory later roles read.
+    for (const path of [
+      '.relay/agents.json',
+      '.relay/config.json',
+      '.relay/GOVERNANCE.md',
+      '.relay/project-memory.md',
+      'skills/pipeline/prompts/dev.md',
+      'skills/relay-pipeline/scripts/run-pipeline.sh',
+      '.git/config',
+    ]) {
+      const { allowed, blocked } = checkPermissions('dev', [{ path, action: 'create', content: '' }], []);
+      assert.equal(allowed, false, path);
+      assert.match(blocked[0], /may not write Relay's own files/);
+    }
+  });
+
+  test('dev still cannot escape the project root', () => {
+    // allowedFiles is now /./, so containment is the only thing standing
+    // between a `../` path and the filesystem. It is checked first, and
+    // independently, for exactly this reason.
     const { allowed, blocked } = checkPermissions(
       'dev',
-      [{ path: 'scripts/deploy.sh', action: 'create', content: '' }],
+      [{ path: '../../../tmp/pwned.ts', action: 'create', content: '' }],
       []
     );
     assert.equal(allowed, false);
-    assert.match(blocked[0], /scripts\/deploy\.sh/);
+    assert.match(blocked[0], /escapes project root/);
+  });
+
+  test('the other roles still write no source files at all', () => {
+    // The inversion applies to Dev only; "only one role writes code" is the
+    // guarantee it must not touch.
+    for (const role of ['pm', 'dev-review', 'pm-respond', 'architect', 'review', 'qa', 'retro', 'memory-compact']) {
+      const { allowed } = checkPermissions(
+        role,
+        [{ path: 'src/feature.ts', action: 'create', content: '' }],
+        []
+      );
+      assert.equal(allowed, false, role);
+    }
   });
 
   test('review cannot write any source files, only .md artifacts', () => {

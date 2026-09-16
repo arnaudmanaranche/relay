@@ -2526,6 +2526,10 @@ const PERMISSIONS: Record<
   {
     allowedArtifacts: RegExp[];
     allowedFiles: RegExp[];
+    /** Checked after allowedFiles; a match here refuses the write anyway.
+     *  Only Dev needs it, because Dev is the only role allowed to write source
+     *  at all and the useful question for it is what stays off limits. */
+    deniedFiles?: RegExp[];
   }
 > = {
   pm: {
@@ -2546,20 +2550,33 @@ const PERMISSIONS: Record<
   },
   dev: {
     allowedArtifacts: [/dev-log\.md$/, /\.relay\/artifacts\/.*\.md$/],
-    // Found live while dogfooding: no .mjs/.cjs here meant Dev could
-    // produce entirely correct output for a project using those
-    // extensions (e.g. this repo's own detector test files) and every
-    // single write would still be rejected by checkPermissions — a hard,
-    // unconditional, unrecoverable block, not a cost/efficiency issue like
-    // the earlier .mjs gaps in extractImpactedFiles. A real $0.62 call's
-    // entire output was discarded this way before this fix.
+    // Dev may write any path in the project; deniedFiles below is what
+    // constrains it.
     //
-    // Same class of gap found again live: no .yaml/.yml meant an
-    // Architect-planned Maestro E2E flow (e2e/maestro/*.yaml) was
-    // unconditionally rejected on the very last file of a 10-batch,
-    // $6.79 real Dev run — discarding that one file's write while every
-    // other batch had already landed.
-    allowedFiles: [/\.(ts|tsx|js|jsx|mjs|cjs|css|json|yaml|yml)$/, /\.relay\/artifacts\/.*\.md$/],
+    // This was an extension allowlist, and it discarded three paid runs in a
+    // row for three different extensions: `.mjs/.cjs` missing threw away a
+    // $0.62 call for this repo's own detector tests; `.yaml/.yml` missing
+    // rejected an Architect-planned Maestro flow on the last file of a
+    // 10-batch, $6.79 run; `.sql` missing rejected a Supabase migration and
+    // killed an 8m28s, $0.82 Dev call whose other 11 files were correct. Each
+    // block is hard, unconditional and unrecoverable — the whole call is lost.
+    //
+    // The list could keep growing (.prisma, .graphql, .toml, .sh, .swift,
+    // .kt, .py, Dockerfile, .env.example…) and the next project would find
+    // the next gap. It was also not buying any safety: a role that can write
+    // .ts can already do anything to the project, so refusing .sql protected
+    // nothing. What is worth protecting is named below instead.
+    allowedFiles: [/./],
+    deniedFiles: [
+      // Relay's own state: config, agents.json, governance, project memory.
+      // Dev writing here could widen its own permissions or rewrite the
+      // memory later roles read. Its artifacts go through allowedArtifacts,
+      // which is checked separately.
+      /(^|\/)\.relay\//,
+      // The role prompts, including Dev's own.
+      /(^|\/)skills\//,
+      /(^|\/)\.git\//,
+    ],
   },
   review: {
     allowedArtifacts: [/\.relay\/artifacts\/.*\.md$/],
@@ -2598,6 +2615,12 @@ function checkPermissions(
   for (const file of files) {
     if (!isWithinRoot(file.path)) {
       blocked.push(`file: ${file.path} (escapes project root — refused)`);
+      continue;
+    }
+    if (perms?.deniedFiles?.some(r => r.test(file.path))) {
+      blocked.push(
+        `file: ${file.path} (role ${role} may not write Relay's own files)`
+      );
       continue;
     }
     if (perms && !perms.allowedFiles.some(r => r.test(file.path))) {
