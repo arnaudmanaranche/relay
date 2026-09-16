@@ -399,6 +399,11 @@ export function relayStudioApi() {
             return sendJson(res, 200, { ok: true });
           }
 
+          if (req.method === 'GET' && pathname === '/dashboard/last-log') {
+            const slug = url.searchParams.get('slug') ?? '';
+            return sendJson(res, 200, dashboard.findLastLog(slug) ?? { path: '', content: '', writtenAtMs: 0 });
+          }
+
           if (req.method === 'GET' && pathname === '/dashboard/log') {
             const path = url.searchParams.get('path') ?? '';
             return sendJson(res, 200, { content: dashboard.readLog(path) });

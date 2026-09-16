@@ -12,6 +12,7 @@ import {
   existsSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   renameSync,
   statSync,
@@ -217,6 +218,37 @@ export function stopRun(pid: number): void {
 export function readLog(path: string): string {
   if (!path || !existsSync(path)) return '';
   return readFileSync(path, 'utf-8');
+}
+
+// The most recent log this tool wrote for a slug, whenever it was written.
+//
+// Without this, a run's output was only visible if you happened to be the one
+// who started it in this session: the log path came back from retry/start and
+// was lost on reload. So a run that had already failed showed the generic
+// "likely a crash or interrupted run" and nothing else, while the reason was
+// sitting in a file the whole time — in the case that prompted this, a
+// "Permission denied" line naming the exact file the role was refused.
+export function findLastLog(slug: string): { path: string; content: string; writtenAtMs: number } | null {
+  if (!slug) return null;
+  const dir = join(tmpdir(), 'relay-dashboard');
+  if (!existsSync(dir)) return null;
+  // `retry-<slug>-<ms>.log` / `start-<slug>-<ms>.log`. Matched by prefix
+  // rather than parsed, since a slug contains hyphens itself.
+  const prefixes = [`retry-${slug}-`, `start-${slug}-`];
+  let best: { path: string; writtenAtMs: number } | null = null;
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith('.log') || !prefixes.some(p => name.startsWith(p))) continue;
+    const path = join(dir, name);
+    let writtenAtMs: number;
+    try {
+      writtenAtMs = statSync(path).mtimeMs;
+    } catch {
+      continue;
+    }
+    if (!best || writtenAtMs > best.writtenAtMs) best = { path, writtenAtMs };
+  }
+  if (!best) return null;
+  return { ...best, content: readFileSync(best.path, 'utf-8') };
 }
 
 export function revealInFinder(path: string): void {

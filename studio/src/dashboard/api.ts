@@ -53,6 +53,11 @@ export const openInEditor = (path: string) =>
     body: JSON.stringify({ path }),
   });
 
+export const fetchLastLog = (slug: string) =>
+  request<{ path: string; content: string; writtenAtMs: number }>(
+    `/api/dashboard/last-log?slug=${encodeURIComponent(slug)}`
+  );
+
 export const fetchLog = (path: string) =>
   request<{ content: string }>(`/api/dashboard/log?path=${encodeURIComponent(path)}`);
 

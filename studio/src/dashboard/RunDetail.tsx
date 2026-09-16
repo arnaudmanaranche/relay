@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import type { ActiveRun, TimelineRow } from './types';
 import {
   fetchArtifact,
+  fetchLastLog,
   fetchLog,
   fetchTimeline,
   openInEditor,
@@ -13,6 +14,16 @@ import {
 } from './api';
 import { STATE_BADGES } from './format';
 import { useToast } from '../toast';
+
+function agoText(ms: number): string {
+  const delta = Date.now() - ms;
+  if (!Number.isFinite(delta) || delta < 60_000) return 'just now';
+  const minutes = Math.floor(delta / 60_000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
 
 interface Props {
   run: ActiveRun;
@@ -31,7 +42,17 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [logPath, setLogPath] = useState<string | null>(null);
   const [log, setLog] = useState('');
+  // The output of the previous run, found on disk rather than handed over by
+  // an action in this session. For a run that is already halted this is the
+  // only place the reason exists: the state alone says "likely a crash".
+  const [lastLog, setLastLog] = useState<{ content: string; writtenAtMs: number } | null>(null);
   const pollRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    fetchLastLog(run.slug)
+      .then(res => setLastLog(res.content ? res : null))
+      .catch(() => setLastLog(null));
+  }, [run.slug]);
 
   useEffect(() => {
     fetchTimeline(run.artifactsDir).then(setTimeline);
@@ -224,6 +245,13 @@ export function RunDetail({ run, onClose, onChanged }: Props) {
           <section>
             <h3>Log</h3>
             <div className="log-view">{log}</div>
+          </section>
+        )}
+
+        {!log && lastLog && (
+          <section>
+            <h3>Output of the last run ({agoText(lastLog.writtenAtMs)})</h3>
+            <div className="log-view">{lastLog.content}</div>
           </section>
         )}
 
