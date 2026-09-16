@@ -191,9 +191,9 @@ Match effort to how routine the role's work actually is, not uniformly:
 
 A single role's effort can also be bumped for one run without editing `.relay/agents.json`, via `OPENROUTER_EFFORT_<ROLE>` (e.g. `OPENROUTER_EFFORT_ARCHITECT=xhigh`) — mirrors the existing `OPENROUTER_MODEL_<ROLE>` override.
 
-### Dev-only: `typeSkills` and `extraSkills`
+### `typeSkills` and `extraSkills`
 
-The `dev` role entry additionally supports two optional fields for injecting file-type- or language-specific coding standards into the Dev agent's context. Neither exists for any other role — only Dev writes source code.
+Any role entry supports an optional `extraSkills` field for injecting cross-cutting markdown standards into that role's context — the `dev` role additionally supports `typeSkills`, since matching by touched-file pattern only makes sense for the one role that writes source code.
 
 ```json
 {
@@ -220,6 +220,7 @@ The `dev` role entry additionally supports two optional fields for injecting fil
 - **`extraSkills`** (`string[]`) — injected into every single Dev run regardless of which files are touched. Use this for cross-cutting rules (security baseline, error-handling conventions) rather than `typeSkills`, which is deliberately conditional.
 - The skill files themselves (`.relay/skills/*.md` in the example above — the path is arbitrary, just needs to exist and be readable from the project root) are plain markdown you write yourself. There's no required structure; they're read verbatim and appended to Dev's system prompt under a `## <filename> (cross-cutting)` or matched-skill heading.
 - `typeSkills`/`extraSkills` paths are resolved from the project root, not from `skills/pipeline/`, since they're project-specific standards, not part of the module.
+- `npm run studio` (see `studio/`) gives an interactive editor for role prompts and for attaching/detaching `extraSkills` on any role by drag-and-drop, instead of hand-editing `.relay/agents.json`.
 - For a project with a real UI surface (`project_type` `web` or `mobile`), offer to copy `skills/pipeline/templates/skills/ui-standards.md` into `.relay/skills/ui-standards.md` and wire it as a `typeSkills` entry for the project's UI file extensions (`*.tsx`, `*.css`, `*.vue`, etc., whatever `source_extensions`/`styling` detected). It's a starter set of design-tokens-first and motion/state-completeness rules — meant to be edited to the project's actual design system, not used verbatim.
 
 ### Distilling the project's code style

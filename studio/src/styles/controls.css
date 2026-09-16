@@ -1,0 +1,65 @@
+/* Copied idioms from site/src/styles/base.css — same visual system, only
+   the pieces that are generic controls rather than page-specific layout. */
+
+.iso-cube { display: block; overflow: visible; flex-shrink: 0; }
+.iso-cube polygon { stroke: var(--line); stroke-width: 1; stroke-linejoin: round; }
+.iso-cube.outline polygon { fill: none; stroke: var(--line); stroke-dasharray: 3 3; }
+
+.btn {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.55rem 0.95rem;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-hi);
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition:
+    border-color var(--dur-ui) var(--ease-out),
+    background var(--dur-ui) var(--ease-out),
+    color var(--dur-ui) var(--ease-out),
+    transform var(--dur-press) var(--ease-press);
+}
+.btn:hover { border-color: var(--text-muted); }
+.btn:active { transform: scale(0.975); }
+.btn:disabled { opacity: 0.45; cursor: default; transform: none; }
+/* Which option in a group is active. Only .repo-picker had this, so the
+   appearance toggle showed no state at all: three identical buttons. */
+.btn.selected { background: var(--text-hi); color: var(--bg); border-color: var(--text-hi); }
+.btn.selected:hover { border-color: var(--text-hi); }
+.btn.primary { background: var(--text-hi); color: var(--bg); border-color: var(--text-hi); }
+.btn.primary:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
+
+.panel {
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  border-radius: 6px;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+input[type='text'], input:not([type]) {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg-raised);
+  color: var(--text-hi);
+}
+input:focus {
+  outline: none;
+  border-color: var(--text-muted);
+}

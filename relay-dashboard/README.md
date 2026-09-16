@@ -1,5 +1,11 @@
 # Relay dashboard
 
+**Deprecated** — superseded by `npm run studio` (see `../studio/`), which
+ports this app's monitoring, retry/reveal/answer actions, and settings into
+the same React tool that already edits pipeline roles and skills, so there's
+one local surface instead of two. Kept here until Studio's Pipeline tab has
+been used in place of this app for a while; not being developed further.
+
 Small macOS app (native SDK) with a Dock icon that surfaces live Relay pipeline
 runs across your repos. Polls the read-only aggregator from
 `skills/pipeline/scripts/status.mjs` every 5s; fully read-only — reveal

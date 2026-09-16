@@ -1,0 +1,31 @@
+/* Extracted from the single-file site, where these four faces lived as inline
+   base64 (~230KB of every HTML response). As real files Vite hashes them and
+   the browser caches them across visits. */
+@font-face {
+  font-family: 'Archivo';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('../fonts/Archivo-var.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Source Serif';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('../fonts/SourceSerif-var.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Plex Mono';
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url('../fonts/PlexMono-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Plex Mono';
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url('../fonts/PlexMono-600.woff2') format('woff2');
+}

@@ -10,7 +10,8 @@
     "status": "node skills/pipeline/scripts/status.mjs",
     "site:dev": "npm --prefix site run dev",
     "site:build": "npm --prefix site run build",
-    "site:preview": "npm --prefix site run preview"
+    "site:preview": "npm --prefix site run preview",
+    "studio": "npm --prefix studio run dev"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

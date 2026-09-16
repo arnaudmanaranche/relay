@@ -1,0 +1,445 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-hi);
+  font-family: var(--font-ui);
+}
+
+.studio-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.studio-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 0.9rem 1.6rem;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.studio-tabs nav { display: flex; gap: 0.4rem; }
+.tab {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.tab:hover { color: var(--text-hi); }
+.tab.active { background: var(--bg-raised); border-color: var(--line); color: var(--text-hi); }
+
+.studio-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr 360px;
+  flex: 1;
+  min-height: 0;
+}
+.studio-layout.studio-layout-2col {
+  grid-template-columns: 1fr 360px;
+}
+
+.studio-column {
+  overflow-y: auto;
+  padding: 1.6rem;
+  border-right: 1px solid var(--line);
+}
+.studio-column:last-child {
+  border-right: none;
+  border-left: 1px solid var(--line);
+}
+.studio-main {
+  border-right: 1px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* ---- Role list ---- */
+.role-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.role-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  transition:
+    background var(--dur-ui) var(--ease-out),
+    border-color var(--dur-ui) var(--ease-out),
+    transform var(--dur-press) var(--ease-press);
+}
+.role-item:hover { background: var(--bg); border-color: var(--line); transform: translateY(-1px); }
+.role-item.selected { background: var(--bg-raised); border-color: var(--text-hi); }
+.role-item-text { display: flex; flex-direction: column; gap: 0.15rem; align-items: flex-start; min-width: 0; }
+.role-name { font-weight: 600; font-family: var(--font-mono); font-size: 0.85rem; }
+.role-description { font-size: 0.72rem; color: var(--text-muted); }
+.role-skill-count {
+  margin-left: auto;
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ---- File editor (role prompts + skills) ---- */
+.prompt-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.prompt-editor-header h2 {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  margin: 0;
+}
+.prompt-editor-path {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin: 0.3rem 0 1.4rem;
+}
+.prompt-editor-panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  height: 50vh;
+}
+.prompt-editor-panes textarea {
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  resize: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1rem 1.1rem;
+  background: var(--bg-raised);
+  color: var(--text-lo);
+}
+.prompt-editor-panes textarea:focus { outline: none; border-color: var(--text-muted); }
+.prompt-editor-preview {
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1rem 1.2rem;
+  background: var(--bg-raised);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+.prompt-editor-preview :first-child { margin-top: 0; }
+
+/* ---- Attached skills / drop zone ---- */
+.attached-skills {
+  margin-top: 1.6rem;
+  padding: 1.1rem;
+  border: 2px dashed var(--line);
+  border-radius: 8px;
+  min-height: 80px;
+  transition: border-color var(--dur-ui) var(--ease-out), background var(--dur-ui) var(--ease-out);
+}
+.attached-skills h3 {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  margin: 0 0 0.8rem;
+}
+.attached-skills.drag-over {
+  border-color: var(--accent);
+  border-style: solid;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-raised));
+}
+.attached-skills.drag-rejected {
+  border-color: var(--halt);
+  border-style: solid;
+  background: color-mix(in srgb, var(--halt) 8%, var(--bg-raised));
+}
+.attached-skills ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.attached-skills li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  font-size: 0.85rem;
+}
+.attached-skills li span { flex: 1; }
+.drop-message {
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  color: var(--halt);
+}
+
+/* ---- Skill library ---- */
+.skill-library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.2rem;
+}
+.skill-library-header h2 {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  margin: 0;
+}
+.skill-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1.2rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-raised);
+}
+.skill-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.skill-card {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: grab;
+  background: var(--bg-raised);
+  transition: transform var(--dur-ui) var(--ease-out), opacity var(--dur-ui) var(--ease-out), border-color var(--dur-ui) var(--ease-out);
+}
+.skill-card:hover { transform: translateY(-2px); border-color: var(--text-muted); }
+.skill-card.dragging { opacity: 0.4; }
+.skill-card.attached { border-color: var(--block-sage); }
+.skill-card.selected { border-color: var(--text-hi); }
+/* A template cannot be dragged onto a role, so it must not offer the affordance. */
+.skill-card.starter { cursor: pointer; }
+.skill-card.starter:hover { transform: none; }
+.skill-card-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.skill-id { font-weight: 600; font-family: var(--font-mono); font-size: 0.82rem; }
+.skill-description { font-size: 0.74rem; color: var(--text-muted); }
+.skill-source {
+  margin-left: auto;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ---- Marketplace import ---- */
+.marketplace {
+  margin-top: 2rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--line);
+}
+.marketplace h2 { font-family: var(--font-mono); font-size: 0.95rem; margin: 0 0 0.8rem; }
+.marketplace-search { display: flex; gap: 0.6rem; margin-bottom: 1rem; }
+.marketplace-search input { flex: 1; min-width: 0; }
+.marketplace-results { display: flex; flex-direction: column; gap: 0.6rem; }
+.marketplace-result {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.marketplace-result-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; }
+.marketplace-hint { font-size: 0.76rem; color: var(--text-muted); margin: 0.5rem 0 0; line-height: 1.5; }
+.marketplace-error { font-size: 0.78rem; color: var(--halt); margin: 0.5rem 0 0; }
+
+.empty-hint { color: var(--text-muted); font-size: 0.85rem; }
+.error-banner { padding: 2rem; font-family: var(--font-mono); font-size: 0.85rem; }
+
+/* ================= Pipeline dashboard ================= */
+.dashboard {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.6rem 2rem;
+}
+.dashboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-bottom: 1.4rem;
+}
+.stat-strip {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.8rem;
+}
+.stat-tile {
+  flex: 1;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-raised);
+}
+.stat-tile .stat-value { font-family: var(--font-mono); font-size: 1.6rem; display: block; }
+.stat-tile .stat-label { font-size: 0.76rem; color: var(--text-muted); }
+
+.repo-section { margin-bottom: 2.2rem; }
+.repo-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.9rem;
+  font-family: var(--font-mono);
+}
+.repo-section-head .repo-name { font-weight: 600; font-size: 0.95rem; }
+.repo-section-head .repo-merged-count { font-size: 0.76rem; color: var(--text-muted); }
+.repo-error-banner {
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--halt);
+  border-radius: 6px;
+  color: var(--halt);
+  font-size: 0.82rem;
+  margin-bottom: 1rem;
+}
+
+.run-list { display: flex; flex-direction: column; gap: 0.7rem; }
+.run-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  cursor: pointer;
+  transition: border-color var(--dur-ui) var(--ease-out), transform var(--dur-press) var(--ease-press);
+}
+.run-row:hover { border-color: var(--text-muted); transform: translateY(-1px); }
+.run-row-text { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; flex: 1; }
+.run-slug { font-family: var(--font-mono); font-weight: 600; font-size: 0.88rem; }
+.run-caption { font-size: 0.76rem; color: var(--text-muted); }
+.run-detail-text { font-size: 0.76rem; color: var(--text-lo); margin-top: 0.15rem; }
+.run-badge {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.run-badge.state-running,
+.run-badge.state-blocked-pm-questions,
+.run-badge.state-blocked-dev-review,
+.run-badge.state-design-gate { background: color-mix(in srgb, var(--accent) 18%, var(--bg-raised)); color: var(--accent); }
+.run-badge.state-done { background: color-mix(in srgb, var(--pass) 18%, var(--bg-raised)); color: var(--pass); }
+.run-badge.state-failed-typecheck,
+.run-badge.state-failed-review,
+.run-badge.state-failed-qa,
+.run-badge.state-crashed,
+.run-badge.state-halted { background: color-mix(in srgb, var(--halt) 18%, var(--bg-raised)); color: var(--halt); }
+.run-actions { display: flex; gap: 0.4rem; }
+
+.merged-list { list-style: none; margin: 0.8rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.merged-list li { font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono); }
+.merged-list-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); margin-top: 1.1rem; display: block; }
+
+.run-detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--text-hi) 30%, transparent);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 10;
+}
+.run-detail-panel {
+  width: min(720px, 92vw);
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+  padding: 1.8rem;
+}
+.run-detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.4rem; }
+.run-detail-header h2 { font-family: var(--font-mono); margin: 0; }
+.run-detail section { margin-bottom: 1.8rem; }
+.run-detail h3 { font-family: var(--font-mono); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); margin: 0 0 0.8rem; }
+
+.timeline-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.timeline-table th { text-align: left; color: var(--text-muted); font-weight: 500; font-size: 0.72rem; text-transform: uppercase; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--line); }
+.timeline-table td { padding: 0.5rem; border-bottom: 1px solid var(--line-soft); font-family: var(--font-mono); }
+.timeline-total { margin-top: 0.7rem; font-size: 0.8rem; color: var(--text-muted); }
+
+.answer-box textarea {
+  width: 100%;
+  min-height: 6rem;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--text-hi);
+  margin-bottom: 0.7rem;
+}
+
+.log-view {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.9rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.new-run-form { display: flex; flex-direction: column; gap: 0.8rem; }
+.new-run-form textarea {
+  min-height: 8rem;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--text-hi);
+}
+.repo-picker { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+.dashboard-settings { max-width: 480px; }
+.repo-draft-list { list-style: none; padding: 0; margin: 0 0 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.repo-draft-list li { display: flex; align-items: center; gap: 0.6rem; font-family: var(--font-mono); font-size: 0.82rem; }
+.repo-draft-list li span { flex: 1; word-break: break-all; }
+.theme-toggle { display: flex; gap: 0.5rem; margin-bottom: 1.4rem; }
+
+
+/* Surfaced wherever a load or a save failed, instead of an empty editor. */
+.editor-error {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border-left: 2px solid var(--halt);
+  background: color-mix(in srgb, var(--halt) 8%, var(--bg));
+  color: var(--text-hi);
+  font-size: 0.8rem;
+}
